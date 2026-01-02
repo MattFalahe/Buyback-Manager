@@ -1,0 +1,197 @@
+.buyback-manager-wrapper {
+    padding: 0;
+}
+
+.buyback-card {
+    margin-bottom: 20px;
+    border-radius: 3px;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+}
+
+.buyback-header {
+    background-color: #3c8dbc;
+    color: white;
+    padding: 10px 15px;
+    border-radius: 3px 3px 0 0;
+}
+
+.buyback-header h3 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.contract-status {
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.contract-status.outstanding {
+    background-color: #f39c12;
+    color: white;
+}
+
+.contract-status.in_progress {
+    background-color: #3c8dbc;
+    color: white;
+}
+
+.contract-status.completed {
+    background-color: #00a65a;
+    color: white;
+}
+
+.contract-status.deleted,
+.contract-status.cancelled {
+    background-color: #dd4b39;
+    color: white;
+}
+
+.contract-value {
+    font-size: 18px;
+    font-weight: bold;
+    color: #00a65a;
+}
+
+.contract-items-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.contract-item {
+    padding: 8px;
+    border-bottom: 1px solid #f4f4f4;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.contract-item:hover {
+    background-color: #f9f9f9;
+}
+
+.item-icon {
+    width: 32px;
+    height: 32px;
+    margin-right: 10px;
+}
+
+.item-details {
+    flex: 1;
+}
+
+.item-name {
+    font-weight: bold;
+    color: #333;
+}
+
+.item-quantity {
+    color: #666;
+    font-size: 12px;
+}
+
+.item-value {
+    text-align: right;
+    font-weight: bold;
+}
+
+.stats-box {
+    background: white;
+    padding: 15px;
+    border-radius: 3px;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+.stats-box .stats-icon {
+    font-size: 48px;
+    opacity: 0.3;
+    float: right;
+}
+
+.stats-box .stats-number {
+    font-size: 32px;
+    font-weight: bold;
+}
+
+.stats-box .stats-label {
+    color: #666;
+    text-transform: uppercase;
+    font-size: 12px;
+}
+
+.top-contributor {
+    padding: 10px;
+    border-bottom: 1px solid #f4f4f4;
+    display: flex;
+    justify-content: space-between;
+}
+
+.top-contributor:last-child {
+    border-bottom: none;
+}
+
+.contributor-rank {
+    background-color: #3c8dbc;
+    color: white;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    margin-right: 10px;
+}
+
+.contributor-name {
+    flex: 1;
+}
+
+.contributor-stats {
+    text-align: right;
+}
+
+.pricing-rule {
+    padding: 10px;
+    background: white;
+    margin-bottom: 5px;
+    border-left: 3px solid #3c8dbc;
+}
+
+.pricing-rule.excluded {
+    border-left-color: #dd4b39;
+    opacity: 0.7;
+}
+
+.pricing-rule-type {
+    display: inline-block;
+    padding: 2px 6px;
+    background-color: #ecf0f5;
+    border-radius: 3px;
+    font-size: 11px;
+    margin-right: 5px;
+}
+
+.pricing-rule-percentage {
+    font-weight: bold;
+    color: #00a65a;
+}
+
+.filter-box {
+    background: white;
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 3px;
+}
+
+.filter-box .form-group {
+    margin-bottom: 10px;
+}
+
+.table-hover tbody tr:hover {
+    background-color: #f5f5f5;
+    cursor: pointer;
+}
