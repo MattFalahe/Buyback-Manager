@@ -63,7 +63,8 @@ class BuybackManagerServiceProvider extends ServiceProvider
     private function addPublications()
     {
         $this->publishes([
-            __DIR__ . '/resources/assets' => public_path('web/css'),
+            __DIR__ . '/resources/assets/css' => public_path('web/css/buyback-manager'),
+            __DIR__ . '/resources/assets/js' => public_path('web/js/buyback-manager'),
         ], ['public', 'seat']);
     }
 
