@@ -137,8 +137,8 @@ class AppraisalService
             'items' => $appraisal,
             'total_value' => $totalValue,
             'total_market_value' => $totalMarketValue,
-            'percentage_of_market' => $totalMarketValue > 0 
-                ? ($totalValue / $totalMarketValue) * 100 
+            'percentage_of_market' => $totalMarketValue > 0
+                ? ($totalValue / $totalMarketValue) * 100
                 : 0,
         ];
     }
