@@ -146,42 +146,15 @@ class AppraisalService
         ?int $groupId,
         ?int $categoryId
     ): float {
-        // Check for item-specific modifier
-        $itemModifier = $setting->itemModifiers()
-            ->where('type_id', $typeId)
-            ->first();
+        $percentage = $setting->getPercentageForItem($typeId, $categoryId, $groupId);
 
-        if ($itemModifier) {
-            Log::debug("[Buyback Manager] Using item modifier for type {$typeId}: {$itemModifier->percentage}%");
-            return $itemModifier->percentage;
+        if ($percentage === null) {
+            // Item is excluded
+            Log::debug("[Buyback Manager] Item {$typeId} is excluded from buyback");
+            return 0;
         }
 
-        // Check for group-specific modifier
-        if ($groupId) {
-            $groupModifier = $setting->groupModifiers()
-                ->where('group_id', $groupId)
-                ->first();
-
-            if ($groupModifier) {
-                Log::debug("[Buyback Manager] Using group modifier for group {$groupId}: {$groupModifier->percentage}%");
-                return $groupModifier->percentage;
-            }
-        }
-
-        // Check for category-specific modifier
-        if ($categoryId) {
-            $categoryModifier = $setting->categoryModifiers()
-                ->where('category_id', $categoryId)
-                ->first();
-
-            if ($categoryModifier) {
-                Log::debug("[Buyback Manager] Using category modifier for category {$categoryId}: {$categoryModifier->percentage}%");
-                return $categoryModifier->percentage;
-            }
-        }
-
-        // Use base percentage
-        Log::debug("[Buyback Manager] Using base percentage for type {$typeId}: {$setting->base_percentage}%");
-        return $setting->base_percentage;
+        Log::debug("[Buyback Manager] Using percentage for type {$typeId}: {$percentage}%");
+        return $percentage;
     }
 }
