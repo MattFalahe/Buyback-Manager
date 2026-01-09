@@ -1,0 +1,59 @@
+{
+  "name": "mattfalahe/buyback-manager",
+  "description": "Comprehensive buyback management plugin for SeAT - Contract-based item buyback system with appraisal, pricing rules, profit tracking, and statistics",
+  "type": "seat-plugin",
+  "keywords": [
+    "seat",
+    "eve",
+    "eveonline",
+    "buyback",
+    "corporation",
+    "management",
+    "contract",
+    "appraisal",
+    "trading",
+    "plugin"
+  ],
+  "license": "GPL-2.0-or-later",
+  "authors": [
+    {
+      "name": "Matt Falahe",
+      "email": "mattfalahe@gmail.com"
+    }
+  ],
+  "homepage": "https://github.com/MattFalahe/Buyback-Manager",
+  "require": {
+    "php": "^8.0",
+    "laravel/framework": "^10.0",
+    "eveseat/web": "^5.0",
+    "eveseat/services": "^5.0",
+    "mattfalahe/manager-core": "^1.0"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^10.0",
+    "orchestra/testbench": "^8.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "BuybackManager\\": "src/",
+      "BuybackManager\\Database\\Seeders\\": "src/Database/seeders"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "BuybackManager\\Tests\\": "tests/"
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "BuybackManager\\BuybackManagerServiceProvider"
+      ]
+    }
+  },
+  "scripts": {
+    "test": "vendor/bin/phpunit"
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}
