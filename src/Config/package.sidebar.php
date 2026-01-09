@@ -10,7 +10,7 @@ return [
             [
                 'name' => 'Appraisal',
                 'icon' => 'fas fa-calculator',
-                'route' => 'buyback-manager.appraisal.index',
+                'route' => 'buyback.appraisal.index',
             ],
             [
                 'name' => 'Contracts',

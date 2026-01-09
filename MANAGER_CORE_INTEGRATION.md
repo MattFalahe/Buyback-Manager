@@ -2,276 +2,253 @@
 
 ## Overview
 
-As of version 1.1.0, Buyback Manager now integrates with [Manager Core](https://github.com/MattFalahe/manager-core) to provide superior pricing functionality and cross-plugin compatibility.
+**As of version 1.0.0, Buyback Manager requires [Manager Core](https://github.com/MattFalahe/manager-core) for all pricing and appraisal functionality.**
 
-## What Changed?
+This integration provides superior pricing, item parsing, SDE validation, and a seamless user experience.
 
-### Before (v1.0.x)
-- Buyback Manager fetched prices directly from ESI
-- Maintained its own `buyback_prices` table
-- No integration with other Manager Suite plugins
-- Limited to Jita pricing only
+## Why Manager Core?
 
-### After (v1.1.0+)
-- Buyback Manager uses Manager Core's pricing service via Plugin Bridge
-- Shared price cache across all Manager Suite plugins
-- Access to comprehensive market statistics (min, max, avg, median, percentile, stddev)
-- Support for multiple markets (Jita, Amarr, Dodixie, Hek, Rens)
-- Automatic type subscription for efficient price updates
-- **Fallback to local pricing if Manager Core is unavailable**
+Buyback Manager focuses on what it does best: **buyback contract management and corporate pricing rules**. All market pricing, item parsing, and data fetching is handled by Manager Core.
 
-## Benefits
+### Division of Responsibilities
 
-### For Users
-- **Faster Price Updates**: Shared price cache means fewer API calls
-- **Better Price Data**: Access to min/max/avg/median/percentile/stddev statistics
-- **Multi-Market Support**: Choose from 5 pre-configured markets
-- **Cross-Plugin Integration**: Prices are consistent across Mining Manager, Structure Manager, etc.
-- **Price History & Trends**: View 7-day, 30-day, 90-day price trends
+| Feature | Manager Core | Buyback Manager |
+|---------|--------------|-----------------|
+| **Item Parsing** | ✅ All formats (cargo scan, assets, EFT, etc.) | ❌ |
+| **SDE Validation** | ✅ Validates item names against EVE database | ❌ |
+| **Price Fetching** | ✅ ESI market data with concurrent fetching | ❌ |
+| **Price Caching** | ✅ Shared cache for all plugins | ❌ |
+| **Market Support** | ✅ Jita, Amarr, Dodixie, Hek, Rens | ❌ |
+| **Corporate Rules** | ❌ | ✅ Base %, category %, group %, item % |
+| **Contract Tracking** | ❌ | ✅ Buyback contract management |
+| **Profit Tracking** | ❌ | ✅ Corporation profit statistics |
 
-### For Server Admins
-- **Reduced ESI Load**: One plugin fetches prices for all
-- **Lower Memory Usage**: Shared price cache instead of duplicate tables
-- **Centralized Configuration**: Configure pricing once in Manager Core
-- **Better Performance**: Batch fetching and concurrent requests
+##Installation
+
+### Requirements
+
+- Manager Core v1.0.0 or higher
+
+### Installation Steps
+
+1. **Install Manager Core first:**
+```bash
+composer require mattfalahe/manager-core
+php artisan vendor:publish --tag=manager-core-migrations
+php artisan migrate
+```
+
+2. **Then install Buyback Manager:**
+```bash
+composer require mattfalahe/buyback-manager
+php artisan vendor:publish --tag=buyback-manager-migrations
+php artisan migrate
+```
+
+3. **Configure Manager Core pricing:**
+   - Go to Manager Core → Settings
+   - Choose price provider (ESI recommended)
+   - Configure markets (Jita default)
+
+4. **Configure Buyback Manager:**
+   - Go to Buyback Manager → Settings
+   - Create corporation buyback settings
+   - Set base percentage and modifiers
 
 ## How It Works
 
-### Architecture
+### Appraisal Flow
 
 ```
-Buyback Manager
-      ↓
-Plugin Bridge (checks if Manager Core is available)
-      ↓
-Manager Core Pricing Service
-      ↓
-ESI Market Data (with concurrent batch fetching)
-      ↓
-Shared Price Cache (manager_core_market_prices table)
+User pastes items in Buyback Manager
+         ↓
+Buyback Manager sends raw input to Manager Core
+         ↓
+Manager Core:
+  1. Parses items (cargo scan, assets, etc.)
+  2. Validates against SDE (EVE database)
+  3. Fetches live prices from ESI
+  4. Returns 100% market value
+         ↓
+Buyback Manager:
+  1. Applies corporation base percentage
+  2. Applies category modifiers (e.g., Ore: 95%)
+  3. Applies group modifiers (e.g., Compressed Ore: 98%)
+  4. Applies item modifiers (e.g., Tritanium: 85%)
+  5. Shows buyback price to user
 ```
 
-### Pricing Flow
+### Example
 
-1. **Appraisal Request**: User submits items for appraisal
-2. **Type Subscription**: Buyback Manager subscribes item types to Manager Core
-3. **Price Fetch**: Manager Core fetches prices from ESI (if not cached)
-4. **Price Application**: Buyback Manager applies pricing rules (category/group/item modifiers)
-5. **Final Price**: User sees buyback price with applied percentage
-
-### Fallback Behavior
-
-If Manager Core is not available:
-- Buyback Manager automatically falls back to local `PricingService`
-- Prices fetched directly from ESI
-- Uses `buyback_prices` table for caching
-- **No functionality is lost**
-
-This ensures Buyback Manager works standalone if Manager Core is removed.
-
-## Installation
-
-### New Installations
-
-1. Install Manager Core:
-```bash
-composer require mattfalahe/manager-core
+**Items pasted:**
+```
+Tritanium    1000000
+Pyerite      500000
 ```
 
-2. Install Buyback Manager:
-```bash
-composer require mattfalahe/buyback-manager
+**Manager Core returns:**
+- Tritanium: 6.50 ISK each = 6,500,000 ISK total (100% market)
+- Pyerite: 12.00 ISK each = 6,000,000 ISK total (100% market)
+- **Total Market Value: 12,500,000 ISK**
+
+**Buyback Manager applies rules:**
+- Corporation base: 90%
+- Tritanium modifier: 85% (overrides base)
+- Pyerite modifier: 95% (overrides base)
+
+**Final buyback:**
+- Tritanium: 5.525 ISK each = 5,525,000 ISK (85%)
+- Pyerite: 11.40 ISK each = 5,700,000 ISK (95%)
+- **Total Buyback Value: 11,225,000 ISK (89.8% of market)**
+
+## Features
+
+### Appraisal Tab
+
+The **Appraisal** tab in Buyback Manager provides:
+
+✅ **Powered by Manager Core** - All parsing and pricing handled by Manager Core
+✅ **Multi-format parsing** - Cargo scan, assets, inventory copy-paste
+✅ **SDE Validation** - Invalid items are detected and reported
+✅ **Live ESI Prices** - Fetched in real-time with concurrent requests
+✅ **Corporate Modifiers** - Automatic application of buyback rules
+✅ **Item Breakdown** - See market price vs buyback price per item
+✅ **Loading Animation** - Fun messages while prices are being fetched
+
+### API Reference
+
+Buyback Manager uses these Manager Core capabilities via Plugin Bridge:
+
+#### `appraisal.create`
+Creates a full appraisal with parsing and pricing.
+
+```php
+$appraisal = $bridge->call('ManagerCore', 'appraisal.create', [
+    $rawInput,  // User's pasted items
+    [
+        'market' => 'jita',
+        'price_percentage' => 100,  // Get 100% market value
+    ]
+]);
+
+// Returns:
+// - $appraisal->items (collection of AppraisalItem models)
+// - Each item has: type_id, type_name, quantity, sell_price, group_id, category_id
 ```
 
-3. Run migrations:
-```bash
-php artisan migrate
-```
+## Migration Guide (v0.x to v1.0)
 
-Manager Core will automatically discover Buyback Manager via Plugin Bridge.
+### Breaking Changes
 
-### Upgrading from v1.0.x
+❌ **Removed:**
+- `PricingService` class
+- `BuybackPrice` model
+- `buyback_prices` database table
+- `UpdatePrices` job
+- Local ESI price fetching
 
-1. Install Manager Core:
-```bash
-composer require mattfalahe/manager-core
-php artisan migrate
-```
+✅ **Added:**
+- Manager Core requirement (mandatory)
+- Plugin Bridge integration
+- Appraisal tab with Manager Core
+- Automatic price subscription
 
-2. Update Buyback Manager:
-```bash
-composer update mattfalahe/buyback-manager
-php artisan migrate
-```
+### Upgrade Steps
 
-3. **Optional**: Clean up old price data:
-```sql
--- After verifying Manager Core integration works
-TRUNCATE TABLE buyback_prices;
-```
+1. Install Manager Core (see Installation above)
+2. Update Buyback Manager to v1.0.0
+3. Run migrations: `php artisan migrate`
+4. Old `buyback_prices` table will be automatically dropped
+5. All existing buyback settings and contracts are preserved
+6. Corporate pricing rules (modifiers) are preserved
 
-The `buyback_prices` table will be **deprecated** but not removed for backward compatibility.
+### Data Migration
+
+- ✅ Buyback settings → **Preserved**
+- ✅ Category/Group/Item modifiers → **Preserved**
+- ✅ Contract history → **Preserved**
+- ❌ `buyback_prices` table → **Removed** (Manager Core handles all pricing)
 
 ## Configuration
 
-### Manager Core Settings
+### Buyback Settings
 
-Configure pricing in Manager Core settings:
+In Buyback Manager → Settings:
 
-- **Price Provider**: ESI (live market data) or SeAT Price Provider
-- **Markets**: Jita, Amarr, Dodixie, Hek, Rens (or add custom markets)
-- **Cache Duration**: How long to cache prices (default: 1 hour)
-- **Update Frequency**: Scheduled price updates (default: every 4 hours)
+- **Corporation**: Which corporation this buyback is for
+- **Enabled**: Toggle buyback on/off
+- **Base Percentage**: Default buyback % (e.g., 90%)
+- **Price Source**: Market to use (Jita, Amarr, etc.) - fetched from Manager Core
 
-### Buyback Manager Settings
+### Pricing Modifiers
 
-Buyback-specific settings remain unchanged:
+Set different percentages for:
 
-- **Base Percentage**: Default buyback percentage (e.g., 90%)
-- **Pricing Rules**: Category/group/item-level price modifiers
-- **Price Source**: Currently only supports Jita (more markets coming soon)
+- **Categories** (e.g., Ore: 95%, Minerals: 92%)
+- **Groups** (e.g., Compressed Ore: 98%)
+- **Individual Items** (e.g., Tritanium: 85%)
 
-## Advanced Features
-
-### Type Subscriptions
-
-Manager Core tracks which plugins need which item prices. When Buyback Manager appraises items:
-
-```php
-// Automatic subscription
-$bridge->call('ManagerCore', 'pricing.subscribeTypes', [
-    'BuybackManager',  // Plugin name
-    $typeIds,          // Array of type IDs
-    'jita',            // Market
-    5                  // Priority (higher = more important)
-]);
-```
-
-This ensures Manager Core always keeps buyback-relevant items priced.
-
-### Pricing Statistics
-
-Manager Core provides comprehensive statistics:
-
-```php
-$priceData = $bridge->call('ManagerCore', 'pricing.getPrice', [$typeId, 'jita', 'sell']);
-
-// Returns:
-[
-    'price_min' => 5.50,      // Lowest sell order
-    'price_max' => 6.25,      // Highest sell order
-    'price_avg' => 5.85,      // Volume-weighted average
-    'price_median' => 5.80,   // Median price
-    'price_percentile' => 5.60, // 5th percentile
-    'price_stddev' => 0.25,   // Standard deviation
-    'volume' => 1250000,      // Total volume
-    'order_count' => 47,      // Number of orders
-    'updated_at' => '2026-01-08 14:30:00'
-]
-```
-
-Buy back Manager uses `price_min` (lowest sell) for conservative pricing.
-
-### Price Trends
-
-Coming soon: Access to 7-day, 30-day, 90-day price trends:
-
-```php
-$trend = $bridge->call('ManagerCore', 'pricing.getTrend', [$typeId, 'jita', 7]);
-
-// Returns: 'rising', 'falling', or 'stable'
-```
+Priority order: **Item > Group > Category > Base**
 
 ## Troubleshooting
 
-### Check Integration Status
+### "Manager Core not available"
 
-Run the diagnostic command:
+**Cause**: Manager Core plugin is not installed or not registered.
 
+**Solution**:
 ```bash
-php artisan manager-core:diagnose-bridge
-```
-
-This shows:
-- Registered plugins
-- Plugin capabilities
-- Integration health
-
-### View Logs
-
-Check Laravel logs for integration messages:
-
-```bash
-tail -f storage/logs/laravel.log | grep "Buyback Manager"
-```
-
-Look for:
-- `[Buyback Manager] Using Manager Core for pricing` ✅ Integration active
-- `[Buyback Manager] Manager Core not available, using local pricing` ⚠️ Fallback mode
-
-### Force Price Update
-
-Update prices manually:
-
-```bash
-php artisan manager-core:update-prices --market=jita
-```
-
-### Clear Cache
-
-If prices seem stale:
-
-```bash
+composer require mattfalahe/manager-core
+php artisan migrate
 php artisan cache:clear
+```
+
+### Appraisal shows "No valid items found"
+
+**Cause**: Items aren't recognized in EVE's database (SDE).
+
+**Solution**: Check spelling of item names. Manager Core validates against official EVE item names.
+
+### Prices are 0.00 ISK
+
+**Cause**: Prices haven't been fetched yet.
+
+**Solution**: This shouldn't happen in v1.0+ as prices are fetched immediately. If it does:
+```bash
 php artisan manager-core:update-prices --market=jita
 ```
 
-## Migration Timeline
+### Error: "Class ManagerCore\Services\PluginBridge not found"
 
-### v1.1.0 (Current)
-- ✅ Manager Core integration added
-- ✅ Automatic fallback to local pricing
-- ✅ `buyback_prices` table deprecated but retained
+**Cause**: Manager Core is not properly installed.
 
-### v1.2.0 (Planned)
-- Multi-market support in Buyback Manager
-- Price trend integration
-- Enhanced statistics display
-
-### v2.0.0 (Future)
-- Remove `buyback_prices` table
-- Remove local `PricingService`
-- Manager Core becomes required dependency (not optional)
-
-## API Reference
-
-### Plugin Bridge Capabilities
-
-Buyback Manager uses these Manager Core capabilities:
-
-```php
-// Get single item price
-$bridge->call('ManagerCore', 'pricing.getPrice', [$typeId, $market, $priceType]);
-
-// Get multiple item prices
-$bridge->call('ManagerCore', 'pricing.getPrices', [$typeIds, $market, $priceType]);
-
-// Subscribe types for automatic updates
-$bridge->call('ManagerCore', 'pricing.subscribeTypes', [$pluginName, $typeIds, $market, $priority]);
-
-// Get price trend
-$bridge->call('ManagerCore', 'pricing.getTrend', [$typeId, $market, $days]);
+**Solution**:
+```bash
+composer install
+composer dump-autoload
+php artisan cache:clear
 ```
+
+## Performance
+
+### Concurrent Fetching
+
+Manager Core fetches prices for multiple items concurrently (10 at a time), providing **~10x faster** price updates compared to sequential fetching.
+
+### Shared Cache
+
+All plugins using Manager Core share the same price cache, eliminating duplicate ESI calls and reducing server load.
+
+### Smart Subscriptions
+
+When you create an appraisal, items are automatically subscribed for future updates. Manager Core's scheduled job keeps prices fresh.
 
 ## Support
 
-For issues related to:
-- **Pricing functionality**: Open issue in [Manager Core](https://github.com/MattFalahe/manager-core/issues)
-- **Buyback-specific features**: Open issue in [Buyback Manager](https://github.com/MattFalahe/Buyback-Manager/issues)
-- **Plugin Bridge integration**: Open issue in [Manager Core](https://github.com/MattFalahe/manager-core/issues)
+- **Issues**: https://github.com/MattFalahe/Buyback-Manager/issues
+- **Manager Core Issues**: https://github.com/MattFalahe/manager-core/issues
+- **Documentation**: https://github.com/MattFalahe/Buyback-Manager/wiki
 
-## Credits
+## License
 
-Manager Core integration designed and implemented by Matt Falahe.
-
-Inspired by go-evepraisal's architecture and EVE Online's market mechanics.
+GPL-2.0-or-later

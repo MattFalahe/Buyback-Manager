@@ -3,34 +3,28 @@
 namespace BuybackManager\Services;
 
 use BuybackManager\Models\BuybackSetting;
-use Seat\Eveapi\Models\Sde\InvType;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * AppraisalService - Handles buyback appraisals via Manager Core integration
+ */
 class AppraisalService
 {
-    protected PricingService $pricingService;
     protected $bridge;
-    protected $useManagerCore;
 
-    public function __construct(PricingService $pricingService)
+    public function __construct()
     {
-        $this->pricingService = $pricingService;
-
-        // Check if Manager Core is available
-        try {
-            $this->bridge = app(\ManagerCore\Services\PluginBridge::class);
-            $this->useManagerCore = $this->bridge->hasCapability('ManagerCore', 'pricing.getPrice');
-
-            if ($this->useManagerCore) {
-                Log::info('[Buyback Manager] Using Manager Core for pricing');
-            }
-        } catch (\Exception $e) {
-            $this->useManagerCore = false;
-            Log::info('[Buyback Manager] Manager Core not available, using local pricing');
-        }
+        $this->bridge = app(\ManagerCore\Services\PluginBridge::class);
     }
 
-    public function appraise(array $items, int $corporationId): array
+    /**
+     * Create appraisal from raw input text
+     *
+     * @param string $rawInput
+     * @param int $corporationId
+     * @return array
+     */
+    public function createAppraisal(string $rawInput, int $corporationId): array
     {
         $setting = BuybackSetting::where('corporation_id', $corporationId)
             ->where('enabled', true)
@@ -43,103 +37,151 @@ class AppraisalService
             ];
         }
 
-        // Subscribe to types if using Manager Core
-        if ($this->useManagerCore) {
-            try {
-                $typeIds = array_column($items, 'type_id');
-                $market = $setting->price_source === 'jita' ? 'jita' : 'jita';
-                $this->bridge->call('ManagerCore', 'pricing.subscribeTypes', ['BuybackManager', $typeIds, $market, 5]);
-                Log::info('[Buyback Manager] Subscribed ' . count($typeIds) . ' types to Manager Core');
-            } catch (\Exception $e) {
-                Log::warning('[Buyback Manager] Failed to subscribe types: ' . $e->getMessage());
-            }
-        }
+        try {
+            // Use Manager Core to parse and price items
+            $market = $setting->price_source === 'jita' ? 'jita' : 'jita';
 
-        $appraisal = [];
-        $totalValue = 0;
-        $totalMarketValue = 0;
+            Log::info('[Buyback Manager] Creating appraisal via Manager Core', [
+                'corporation_id' => $corporationId,
+                'market' => $market
+            ]);
 
-        foreach ($items as $item) {
-            $typeId = $item['type_id'];
-            $quantity = $item['quantity'];
+            $appraisal = $this->bridge->call('ManagerCore', 'appraisal.create', [
+                $rawInput,
+                [
+                    'market' => $market,
+                    'price_percentage' => 100, // Get 100% market value
+                ]
+            ]);
 
-            // Get item info from SDE
-            $type = InvType::find($typeId);
-            if (!$type) {
-                continue;
+            if (!$appraisal) {
+                throw new \Exception('Manager Core failed to create appraisal');
             }
 
-            $categoryId = $type->group->categoryID ?? null;
-            $groupId = $type->groupID ?? null;
+            Log::info('[Buyback Manager] Received appraisal from Manager Core', [
+                'item_count' => $appraisal->items->count(),
+                'total_sell' => $appraisal->total_sell
+            ]);
 
-            // Get buyback percentage for this item
-            $percentage = $setting->getPercentageForItem($typeId, $categoryId, $groupId);
+            // Convert Manager Core items to buyback format with corporate rules
+            $buybackItems = [];
+            $totalMarketValue = 0;
+            $totalBuybackValue = 0;
 
-            if ($percentage === null) {
-                // Item is excluded
-                continue;
+            foreach ($appraisal->items as $item) {
+                $marketPrice = $item->sell_price; // Manager Core's sell price (100%)
+
+                // Get buyback percentage for this item
+                $percentage = $this->getPercentageForItem(
+                    $setting,
+                    $item->type_id,
+                    $item->group_id,
+                    $item->category_id
+                );
+
+                $buybackPrice = $marketPrice * ($percentage / 100);
+                $quantity = $item->quantity;
+
+                $buybackItems[] = [
+                    'type_id' => $item->type_id,
+                    'type_name' => $item->type_name,
+                    'quantity' => $quantity,
+                    'market_price' => $marketPrice,
+                    'buyback_price' => $buybackPrice,
+                    'percentage' => $percentage,
+                    'total_market' => $marketPrice * $quantity,
+                    'total_buyback' => $buybackPrice * $quantity,
+                    'volume' => $item->total_volume,
+                ];
+
+                $totalMarketValue += $marketPrice * $quantity;
+                $totalBuybackValue += $buybackPrice * $quantity;
             }
 
-            // Get market price - use Manager Core if available, otherwise fall back to local pricing
-            if ($this->useManagerCore) {
-                try {
-                    // Manager Core uses market names (jita, amarr, etc.) instead of region IDs
-                    $market = $setting->price_source === 'jita' ? 'jita' : 'jita'; // TODO: Map region_id to market name
+            Log::info('[Buyback Manager] Applied buyback rules', [
+                'corporation_id' => $corporationId,
+                'item_count' => count($buybackItems),
+                'total_market' => $totalMarketValue,
+                'total_buyback' => $totalBuybackValue
+            ]);
 
-                    $priceData = $this->bridge->call('ManagerCore', 'pricing.getPrice', [$typeId, $market, 'sell']);
-                    $marketPrice = $priceData['price_min'] ?? $priceData['price_avg'] ?? null;
-
-                    if (!$marketPrice) {
-                        throw new \Exception("No price data returned from Manager Core");
-                    }
-                } catch (\Exception $e) {
-                    Log::warning("[Buyback Manager] Failed to get price from Manager Core for type {$typeId}: " . $e->getMessage());
-                    // Fall back to local pricing
-                    $regionId = $setting->price_source === 'jita'
-                        ? PricingService::JITA_REGION_ID
-                        : $setting->region_id;
-                    $marketPrice = $this->pricingService->getPrice($typeId, $regionId, 'sell');
-                }
-            } else {
-                $regionId = $setting->price_source === 'jita'
-                    ? PricingService::JITA_REGION_ID
-                    : $setting->region_id;
-                $marketPrice = $this->pricingService->getPrice($typeId, $regionId, 'sell');
-            }
-
-            if (!$marketPrice) {
-                continue;
-            }
-
-            $buybackPrice = $marketPrice * ($percentage / 100);
-            $itemTotal = $buybackPrice * $quantity;
-            $marketTotal = $marketPrice * $quantity;
-
-            $appraisal[] = [
-                'type_id' => $typeId,
-                'type_name' => $type->typeName,
-                'quantity' => $quantity,
-                'market_price' => $marketPrice,
-                'buyback_price' => $buybackPrice,
-                'percentage' => $percentage,
-                'total_value' => $itemTotal,
-                'market_value' => $marketTotal,
-                'category_id' => $categoryId,
-                'group_id' => $groupId,
+            return [
+                'success' => true,
+                'items' => $buybackItems,
+                'total_market_value' => $totalMarketValue,
+                'total_buyback_value' => $totalBuybackValue,
+                'average_percentage' => $totalMarketValue > 0
+                    ? ($totalBuybackValue / $totalMarketValue) * 100
+                    : 0,
+                'corporation' => $setting->corporation,
+                'market' => $market,
+                'raw_input' => $rawInput,
             ];
 
-            $totalValue += $itemTotal;
-            $totalMarketValue += $marketTotal;
+        } catch (\Exception $e) {
+            Log::error('[Buyback Manager] Failed to create appraisal', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return [
+                'success' => false,
+                'message' => 'Failed to create appraisal: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Get buyback percentage for an item based on corporation rules
+     *
+     * @param BuybackSetting $setting
+     * @param int $typeId
+     * @param int|null $groupId
+     * @param int|null $categoryId
+     * @return float
+     */
+    protected function getPercentageForItem(
+        BuybackSetting $setting,
+        int $typeId,
+        ?int $groupId,
+        ?int $categoryId
+    ): float {
+        // Check for item-specific modifier
+        $itemModifier = $setting->itemModifiers()
+            ->where('type_id', $typeId)
+            ->first();
+
+        if ($itemModifier) {
+            Log::debug("[Buyback Manager] Using item modifier for type {$typeId}: {$itemModifier->percentage}%");
+            return $itemModifier->percentage;
         }
 
-        return [
-            'success' => true,
-            'items' => $appraisal,
-            'total_value' => $totalValue,
-            'total_market_value' => $totalMarketValue,
-            'percentage_of_market' => $totalMarketValue > 0
-                ? ($totalValue / $totalMarketValue) * 100
-                : 0,
-        ];
+        // Check for group-specific modifier
+        if ($groupId) {
+            $groupModifier = $setting->groupModifiers()
+                ->where('group_id', $groupId)
+                ->first();
+
+            if ($groupModifier) {
+                Log::debug("[Buyback Manager] Using group modifier for group {$groupId}: {$groupModifier->percentage}%");
+                return $groupModifier->percentage;
+            }
+        }
+
+        // Check for category-specific modifier
+        if ($categoryId) {
+            $categoryModifier = $setting->categoryModifiers()
+                ->where('category_id', $categoryId)
+                ->first();
+
+            if ($categoryModifier) {
+                Log::debug("[Buyback Manager] Using category modifier for category {$categoryId}: {$categoryModifier->percentage}%");
+                return $categoryModifier->percentage;
+            }
+        }
+
+        // Use base percentage
+        Log::debug("[Buyback Manager] Using base percentage for type {$typeId}: {$setting->base_percentage}%");
+        return $setting->base_percentage;
     }
 }

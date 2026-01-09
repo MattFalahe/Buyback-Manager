@@ -14,11 +14,10 @@ Route::group([
     // Public appraisal (no specific permission needed)
     Route::group([
         'prefix' => 'appraisal',
-        'as' => 'buyback-manager.appraisal.',
+        'as' => 'buyback.appraisal.',
     ], function () {
         Route::get('/', [AppraisalController::class, 'index'])->name('index');
-        Route::post('/appraise', [AppraisalController::class, 'appraise'])->name('appraise');
-        Route::post('/quick/{type_id}', [AppraisalController::class, 'quick'])->name('quick');
+        Route::post('/create', [AppraisalController::class, 'create'])->name('create');
     });
 
     // Buyback management (requires permission)
