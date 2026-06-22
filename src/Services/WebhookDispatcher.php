@@ -5,6 +5,7 @@ namespace BuybackManager\Services;
 use BuybackManager\Models\BuybackNotificationLog;
 use BuybackManager\Models\BuybackWebhook;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -284,6 +285,13 @@ class WebhookDispatcher
                 'inline' => true,
             ];
         }
+        if ($issuer = $this->resolveIssuer($payload)) {
+            $fields[] = [
+                'name' => 'Posted by',
+                'value' => $issuer,
+                'inline' => true,
+            ];
+        }
         if (isset($payload['market'])) {
             $fields[] = [
                 'name' => 'Market',
@@ -291,10 +299,14 @@ class WebhookDispatcher
                 'inline' => true,
             ];
         }
-        if (isset($payload['mode'])) {
+        $sendTo = $payload['send_to'] ?? null;
+        if (! $sendTo && isset($payload['target_type'])) {
+            $sendTo = $this->targetTypeLabel((string) $payload['target_type']);
+        }
+        if ($sendTo) {
             $fields[] = [
-                'name' => 'Mode',
-                'value' => ucfirst((string) $payload['mode']),
+                'name' => 'Send to',
+                'value' => (string) $sendTo,
                 'inline' => true,
             ];
         }
@@ -328,5 +340,41 @@ class WebhookDispatcher
         }
 
         return $fields;
+    }
+
+    /**
+     * Resolve the offer/contract issuer to "Character (Corporation)" using
+     * SeAT's tables. Returns null when no issuer id is in the payload.
+     */
+    private function resolveIssuer(array $payload): ?string
+    {
+        $charId = (int) ($payload['issuer_character_id'] ?? $payload['issuer_id'] ?? 0);
+        if ($charId <= 0) {
+            return null;
+        }
+
+        $name = DB::table('character_infos')->where('character_id', $charId)->value('name');
+        $corpId = DB::table('character_affiliations')->where('character_id', $charId)->value('corporation_id');
+        $corpName = $corpId
+            ? DB::table('corporation_infos')->where('corporation_id', $corpId)->value('name')
+            : null;
+
+        $name = $name ?: ('Character #' . $charId);
+
+        return $corpName ? ($name . ' (' . $corpName . ')') : $name;
+    }
+
+    /**
+     * Friendly label for a contract target type, used when the frozen
+     * send-to name is unavailable.
+     */
+    private function targetTypeLabel(string $type): string
+    {
+        return match ($type) {
+            'my_corp' => 'My Corporation',
+            'corp' => 'Specific Corporation',
+            'player' => 'Specific Player',
+            default => ucfirst($type),
+        };
     }
 }

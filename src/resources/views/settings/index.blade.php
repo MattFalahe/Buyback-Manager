@@ -4,7 +4,7 @@
 @section('page_header', 'Buyback Settings')
 
 @push('head')
-    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/buyback-manager.css') }}?v=3">
+    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/buyback-manager.css') }}?v=4">
     <style>
         /* Inner settings sidebar — matches the canonical pattern from
            Mining Manager / Structure Manager. Scoped to

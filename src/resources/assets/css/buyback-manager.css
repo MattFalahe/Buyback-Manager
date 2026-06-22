@@ -181,6 +181,20 @@
     transform: translateY(0);
 }
 
+/* Modals render outside .buyback-manager-wrapper, so the scoped gradient
+   above never reaches modal buttons (the Save button fell back to a bare,
+   near-invisible button). Style modal-footer primary buttons directly with
+   hard-coded theme colours so they stay visible regardless of scope. */
+.modal-footer .btn-bb-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    color: #fff;
+}
+.modal-footer .btn-bb-primary:hover {
+    background: linear-gradient(135deg, #5568d3 0%, #6a3d8f 100%);
+    color: #fff;
+}
+
 .buyback-manager-dashboard .btn-bb-secondary,
 .buyback-manager-wrapper .btn-bb-secondary {
     background-color: var(--bb-dark-card);
