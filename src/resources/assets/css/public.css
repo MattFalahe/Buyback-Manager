@@ -1,0 +1,297 @@
+/* ===========================================================
+   Buyback Manager - public landing page (standalone)
+   Loaded only by resources/views/public/show.blade.php, which
+   renders outside SeAT's authed shell. The dynamic accent colour,
+   background image and overlay opacity are injected inline by the
+   view; everything structural lives here. Served from the app
+   origin, so CSP-safe.
+   =========================================================== */
+
+.bb-public-body {
+    --bb-pub-accent: #1d9e75;
+    margin: 0;
+    padding: 0;
+    background: #0d1117;
+    color: #e6edf3;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.bb-public-wrap {
+    max-width: 860px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 0 20px 48px;
+    box-sizing: border-box;
+    flex: 0 0 auto;
+}
+
+/* --- Hero --- */
+.bb-public-hero {
+    position: relative;
+    flex: 1 0 auto;
+    min-height: 42vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin: 0 0 32px;
+    padding: 56px 20px 48px;
+    background-color: #161b22;
+    background-size: cover;
+    background-position: center;
+    text-align: center;
+    overflow: hidden;
+}
+.bb-public-hero-overlay {
+    position: absolute;
+    inset: 0;
+    background: #0d1117;
+    z-index: 0;
+}
+.bb-public-hero > *:not(.bb-public-hero-overlay) {
+    position: relative;
+    z-index: 1;
+}
+.bb-public-logo {
+    width: 96px;
+    height: 96px;
+    border-radius: 12px;
+    object-fit: cover;
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    background: #0d1117;
+    margin-bottom: 16px;
+}
+.bb-public-logo-frame {
+    display: inline-block;
+    margin-bottom: 16px;
+    padding: 10px;
+    background: #ffffff;
+    border-radius: 4px;
+    line-height: 0;
+}
+.bb-public-logo-frame .bb-public-logo {
+    margin-bottom: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+}
+.bb-public-title {
+    font-size: 32px;
+    font-weight: 600;
+    margin: 0 0 8px;
+}
+.bb-public-ticker {
+    display: inline-block;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13px;
+    color: var(--bb-pub-accent);
+    border: 1px solid var(--bb-pub-accent);
+    border-radius: 6px;
+    padding: 2px 10px;
+    margin-bottom: 16px;
+}
+.bb-public-blurb {
+    font-size: 17px;
+    color: #c9d1d9;
+    max-width: 620px;
+    margin: 8px auto 26px;
+}
+.bb-public-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bb-pub-accent);
+    color: #06150f;
+    font-weight: 600;
+    font-size: 16px;
+    padding: 13px 26px;
+    border-radius: 8px;
+    text-decoration: none;
+}
+.bb-public-cta:hover {
+    filter: brightness(1.08);
+    color: #06150f;
+    text-decoration: none;
+}
+
+/* --- Sections --- */
+.bb-public-section {
+    margin: 0 0 36px;
+}
+.bb-public-section h2 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* --- Rates --- */
+.bb-rate-cards {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+}
+.bb-rate-card {
+    flex: 1;
+    min-width: 150px;
+    background: #161b22;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 16px 18px;
+}
+.bb-rate-card .label {
+    font-size: 13px;
+    color: #8b949e;
+}
+.bb-rate-card .value {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--bb-pub-accent);
+}
+.bb-rate-card .sub {
+    font-size: 12px;
+    color: #6e7681;
+}
+.bb-rate-list {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    overflow: hidden;
+}
+.bb-rate-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 11px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.bb-rate-row:last-child {
+    border-bottom: 0;
+}
+.bb-rate-row .pct {
+    font-weight: 600;
+}
+.bb-most-wanted {
+    font-size: 11px;
+    font-weight: 600;
+    background: rgba(234, 179, 8, 0.15);
+    color: #f5c451;
+    border-radius: 5px;
+    padding: 2px 8px;
+    margin-left: 8px;
+    white-space: nowrap;
+}
+.bb-side-badge {
+    font-size: 11px;
+    color: #8b949e;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 5px;
+    padding: 1px 7px;
+    margin-left: 8px;
+    white-space: nowrap;
+}
+.bb-rates-market {
+    font-size: 13px;
+    color: #8b949e;
+    margin: -6px 0 14px;
+}
+
+/* --- Steps --- */
+.bb-steps {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.bb-step {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    padding: 10px 0;
+}
+.bb-step-num {
+    flex: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--bb-pub-accent);
+    color: #06150f;
+    font-weight: 600;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.bb-step-text {
+    font-size: 15px;
+    color: #c9d1d9;
+    padding-top: 3px;
+}
+.bb-note {
+    margin-top: 14px;
+    font-size: 13px;
+    color: #8b949e;
+    background: #161b22;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 10px 14px;
+}
+
+/* --- Footers --- */
+.bb-corp-footer {
+    font-size: 14px;
+    color: #8b949e;
+    text-align: center;
+    margin: 24px 0;
+}
+.bb-brand-footer {
+    flex: 0 0 auto;
+    max-width: 860px;
+    width: 100%;
+    margin: 0 auto;
+    box-sizing: border-box;
+    text-align: center;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 22px 20px 32px;
+}
+.bb-brand-footer .brand {
+    font-size: 15px;
+    font-weight: 600;
+    color: #e6edf3;
+}
+.bb-brand-footer .slogan {
+    font-size: 14px;
+    color: var(--bb-pub-accent);
+    margin-top: 4px;
+    font-style: italic;
+}
+.bb-brand-footer .sub {
+    font-size: 13px;
+    color: #8b949e;
+    margin-top: 2px;
+}
+.bb-brand-footer .brand a {
+    color: inherit;
+    text-decoration: none;
+}
+.bb-brand-footer .brand a:hover {
+    color: var(--bb-pub-accent);
+}
+.bb-opsec {
+    font-size: 11px;
+    color: #6e7681;
+    margin-top: 10px;
+}
+
+@media (max-width: 600px) {
+    .bb-public-title {
+        font-size: 26px;
+    }
+    .bb-rate-cards {
+        flex-direction: column;
+    }
+}
