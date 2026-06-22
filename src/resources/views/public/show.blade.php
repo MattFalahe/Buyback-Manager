@@ -53,7 +53,11 @@
             <div class="bb-rate-list">
                 @foreach($rates['items'] as $item)
                 <div class="bb-rate-row">
-                    <span>{{ $item['name'] }}@if($item['featured'])<span class="bb-most-wanted">&#9733; most wanted</span>@endif@if($item['price_side'])<span class="bb-side-badge">{{ $item['price_side'] }}</span>@endif</span>
+                    <span>
+                        {{ $item['name'] }}
+                        @if($item['featured'])<span class="bb-most-wanted">&#9733; most wanted</span>@endif
+                        @if($item['price_side'])<span class="bb-side-badge">{{ $item['price_side'] }}</span>@endif
+                    </span>
                     <span class="pct">{{ $item['percentage'] }}%</span>
                 </div>
                 @endforeach
