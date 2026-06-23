@@ -293,9 +293,13 @@ class WebhookDispatcher
             ];
         }
         if (isset($payload['market'])) {
+            $marketValue = ucfirst((string) $payload['market']);
+            if (! empty($payload['provider'])) {
+                $marketValue = $this->providerLabel((string) $payload['provider']) . ' @ ' . $marketValue;
+            }
             $fields[] = [
                 'name' => 'Market',
-                'value' => (string) $payload['market'],
+                'value' => $marketValue,
                 'inline' => true,
             ];
         }
@@ -313,8 +317,8 @@ class WebhookDispatcher
         if (isset($payload['expires_at'])) {
             $fields[] = [
                 'name' => 'Lock expires',
-                'value' => (string) $payload['expires_at'],
-                'inline' => true,
+                'value' => $this->formatExpiry((string) $payload['expires_at']),
+                'inline' => false,
             ];
         }
         if (isset($payload['contract_id'])) {
@@ -376,5 +380,34 @@ class WebhookDispatcher
             'player' => 'Specific Player',
             default => ucfirst($type),
         };
+    }
+
+    private function providerLabel(string $provider): string
+    {
+        return match ($provider) {
+            'manager-core' => 'Manager Core',
+            'fuzzwork' => 'Fuzzwork',
+            'janice' => 'Janice',
+            default => ucfirst($provider),
+        };
+    }
+
+    /**
+     * Render an expiry ISO timestamp as EVE (UTC) time plus Discord's
+     * locale-aware timestamp markdown, so each reader also sees the time in
+     * their own timezone and a live countdown. Falls back to the raw
+     * string if parsing fails.
+     */
+    private function formatExpiry(string $iso): string
+    {
+        try {
+            $ts = \Illuminate\Support\Carbon::parse($iso);
+            $unix = $ts->getTimestamp();
+
+            return $ts->utc()->format('Y-m-d H:i') . ' EVE'
+                . "\n<t:{$unix}:f> · <t:{$unix}:R>";
+        } catch (\Throwable $e) {
+            return $iso;
+        }
     }
 }
