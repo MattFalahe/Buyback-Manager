@@ -88,6 +88,11 @@ class BuybackSetting extends Model
         return $this->hasMany(BuybackPricingRule::class, 'setting_id');
     }
 
+    public function locationRules()
+    {
+        return $this->hasMany(BuybackLocationRule::class, 'setting_id');
+    }
+
     // ------------------------------------------------------------
     // Contract target helpers
     // ------------------------------------------------------------
@@ -177,13 +182,48 @@ class BuybackSetting extends Model
             ? 'We confirm the contract by hand and pay out the locked value.'
             : 'We detect the contract automatically and pay out the locked value.';
 
-        return [
+        $steps = [
             'Paste your items into the appraisal tool and log in to publish an offer.',
             'You get a locked price and a short offer id (for example bb-zj2cc262), held for ' . $lockHours . ' hours.',
             'Create an in-game item exchange contract to ' . $label . '.',
             'Paste the offer id into the contract Description.',
             $closing,
         ];
+
+        // When the corp restricts buyback to specific locations, spell that
+        // out right after the "create the contract" step so members do not
+        // get rejected after hauling.
+        $locations = $this->allowedLocationLabels();
+        if (! empty($locations)) {
+            array_splice($steps, 3, 0, [
+                'Create the contract at one of our buyback locations: ' . implode('; ', $locations) . '. Contracts made anywhere else are rejected.',
+            ]);
+        }
+
+        return $steps;
+    }
+
+    /**
+     * True when this corp restricts buyback to specific locations.
+     */
+    public function hasLocationRestriction(): bool
+    {
+        return $this->locationRules()->exists();
+    }
+
+    /**
+     * Human labels for the allowed locations, for instructions + display.
+     *
+     * @return array<int, string>
+     */
+    public function allowedLocationLabels(): array
+    {
+        return $this->locationRules()
+            ->orderBy('location_type')
+            ->orderBy('location_name')
+            ->get()
+            ->map(fn ($r) => ($r->location_name ?: ('#' . $r->location_id)) . ' (' . $r->location_type . ')')
+            ->all();
     }
 
     /**

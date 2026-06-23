@@ -215,6 +215,13 @@
                             <li>
                                 Set <strong>Send to</strong>: <code>{{ $offer->sendToLabel() }}</code>
                             </li>
+                            @if($setting && $setting->hasLocationRestriction())
+                            <li>
+                                <strong>Location matters:</strong> create the contract at one of our buyback locations &mdash;
+                                {{ implode('; ', $setting->allowedLocationLabels()) }}.
+                                <small class="text-muted d-block">Contracts created anywhere else are automatically rejected.</small>
+                            </li>
+                            @endif
                             <li>
                                 <strong>Put this offer ID in the contract Description / Info field:</strong>
                                 <div style="display:flex; gap:0.4rem; margin-top:0.3rem; align-items:stretch;">

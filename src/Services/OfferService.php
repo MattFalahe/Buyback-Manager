@@ -194,6 +194,27 @@ class OfferService
     }
 
     /**
+     * System-side rejection of a still-pending offer — e.g. the member's
+     * contract appeared at a location outside the corp's allowed buyback
+     * locations. Captures the reason and announces buyback.offer.rejected.
+     * No-op unless the offer is still pending.
+     */
+    public function rejectPending(BuybackOffer $offer, string $reason): bool
+    {
+        if ($offer->status !== BuybackOffer::STATUS_PENDING) {
+            return false;
+        }
+
+        $offer->update([
+            'status' => BuybackOffer::STATUS_REJECTED,
+            'rejected_reason' => $reason,
+        ]);
+
+        $this->eventPublisher->publish('buyback.offer.rejected', $this->envelopeFor($offer));
+        return true;
+    }
+
+    /**
      * Mark an offer as matched to a buyback contract. Called by
      * OfferMatcher when ContractService syncs a new EVE contract that
      * pairs with this offer.

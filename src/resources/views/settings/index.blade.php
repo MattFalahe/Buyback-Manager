@@ -271,6 +271,11 @@
                                                title="Public landing page{{ $setting->public_page_enabled ? ' (live)' : '' }}">
                                                 <i class="fa fa-globe"></i>
                                             </a>
+                                            <a href="{{ route('buyback-manager.settings.locations.index', $setting->id) }}"
+                                               class="btn btn-xs btn-default"
+                                               title="Buyback locations">
+                                                <i class="fa fa-map-marker-alt"></i>
+                                            </a>
                                             <form action="{{ route('buyback-manager.settings.destroy', $setting->id) }}"
                                                   method="POST"
                                                   style="display: inline;"

@@ -9,6 +9,7 @@ use BuybackManager\Http\Controllers\OfferController;
 use BuybackManager\Http\Controllers\WebhookController;
 use BuybackManager\Http\Controllers\HelpController;
 use BuybackManager\Http\Controllers\BuybackPublicController;
+use BuybackManager\Http\Controllers\LocationController;
 
 Route::group([
     'prefix' => 'buyback-manager',
@@ -86,6 +87,14 @@ Route::group([
         // Public landing page editor
         Route::get('/{id}/public', [SettingsController::class, 'editPublic'])->name('public.edit');
         Route::post('/{id}/public', [SettingsController::class, 'updatePublic'])->name('public.update');
+
+        // Buyback location restrictions (allow-list). The SDE search
+        // endpoint is registered before the /{id}/locations routes; their
+        // URL shapes don't overlap, but ordering it first is unambiguous.
+        Route::get('/locations/search', [LocationController::class, 'search'])->name('locations.search');
+        Route::get('/{id}/locations', [LocationController::class, 'index'])->name('locations.index');
+        Route::post('/{id}/locations', [LocationController::class, 'store'])->name('locations.store');
+        Route::delete('/{id}/locations/{rule_id}', [LocationController::class, 'destroy'])->name('locations.destroy');
 
         // Pricing rules
         Route::get('/{setting_id}/rules', [SettingsController::class, 'rules'])->name('rules');

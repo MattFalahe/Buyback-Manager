@@ -54,14 +54,18 @@ class ContractService
 
     protected EventPublisher $eventPublisher;
 
+    protected LocationResolver $locationResolver;
+
     public function __construct(
         OfferMatcher $offerMatcher,
         OfferService $offerService,
-        EventPublisher $eventPublisher
+        EventPublisher $eventPublisher,
+        LocationResolver $locationResolver
     ) {
         $this->offerMatcher = $offerMatcher;
         $this->offerService = $offerService;
         $this->eventPublisher = $eventPublisher;
+        $this->locationResolver = $locationResolver;
     }
 
     public function syncContracts(): void
@@ -165,6 +169,20 @@ class ContractService
             // contract to the corp). Skip silently. Either way, nothing is
             // added to the Contracts list — the operator asked for only
             // valid-offer contracts.
+            return;
+        }
+
+        // Location gate: if the corp restricts buyback to specific
+        // locations, reject contracts created anywhere else. The offer
+        // flips to rejected (with a reason that rides the offer_rejected
+        // Discord category), so the next sync won't re-match it and no
+        // tracked contract is created.
+        if (! $this->locationResolver->isAllowed((int) ($contract->start_location_id ?? 0), $setting)) {
+            $this->offerService->rejectPending(
+                $offer,
+                'Contract created outside the allowed buyback locations.'
+            );
+            Log::info('[Buyback Manager] Offer ' . $offer->public_id . ' rejected: contract ' . $contract->contract_id . ' at disallowed location ' . ($contract->start_location_id ?? 'unknown'));
             return;
         }
 
