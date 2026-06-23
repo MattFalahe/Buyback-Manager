@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex">
     <title>{{ $corpName }} Buyback</title>
-    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/public.css') }}?v=5">
+    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/public.css') }}?v=6">
     <style>
         .bb-public-body { --bb-pub-accent: {{ $accent }}; }
         @if($backgroundUrl)
@@ -29,7 +29,9 @@
         <a class="bb-public-cta" href="{{ $loginUrl }}">Log in to appraise &amp; sell</a>
     </div>
 
-    <div class="bb-public-wrap">
+    <div class="bb-public-wrap {{ $layout === 'split' ? 'bb-public-wrap-split' : '' }}">
+
+        <div class="bb-public-sections">
 
         @if($rates)
         <div class="bb-public-section">
@@ -77,6 +79,8 @@
                 @endforeach
             </ol>
             <div class="bb-note">These steps follow this corporation's buyback setup. Log in to get your offer id and start a sale.</div>
+        </div>
+
         </div>
 
         @if($setting->public_footer_text)

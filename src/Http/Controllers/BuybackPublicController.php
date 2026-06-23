@@ -46,6 +46,7 @@ class BuybackPublicController extends Controller
             'instructions'  => $setting->publicContractInstructions(),
             'rates'         => $setting->public_show_rates ? $this->buildRates($setting) : null,
             'loginUrl'      => route('buyback.appraisal.index'),
+            'layout'        => $setting->public_layout === 'split' ? 'split' : 'stacked',
         ]);
     }
 

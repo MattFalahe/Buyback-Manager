@@ -42,6 +42,7 @@ class BuybackSetting extends Model
         'public_show_rates',
         'public_show_all_rules',
         'public_show_pricing_detail',
+        'public_layout',
         'public_appraisal_enabled',
         'public_headline',
         'public_blurb',

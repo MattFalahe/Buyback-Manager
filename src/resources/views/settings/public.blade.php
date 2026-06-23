@@ -76,6 +76,15 @@
                     </div>
                 </div>
 
+                <div class="form-group">
+                    <label for="public_layout">Page layout</label>
+                    <select id="public_layout" name="public_layout" class="form-control" style="max-width:340px;">
+                        <option value="stacked" {{ old('public_layout', $setting->public_layout ?: 'stacked') === 'stacked' ? 'selected' : '' }}>Stacked &mdash; rates above instructions (default)</option>
+                        <option value="split" {{ old('public_layout', $setting->public_layout) === 'split' ? 'selected' : '' }}>Side by side &mdash; rates left, instructions right</option>
+                    </select>
+                    <small class="form-text text-muted">Side by side widens the page into two columns; it stacks automatically on narrow screens.</small>
+                </div>
+
                 <hr>
 
                 <div class="form-group">
