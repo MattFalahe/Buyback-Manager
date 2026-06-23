@@ -44,6 +44,10 @@ Pick who receives the contracts, matching EVE's own visibility rules:
 - Override the base percentage per **item**, **group**, or **category**, with item > group > category > base precedence.
 - Each rule picks the price side: `buy`, `sell`, or `split`. Rules can also exclude an item entirely.
 
+### 📍 Location restrictions
+- Optionally restrict buyback to specific **regions, constellations, systems, stations, or citadels** — mix freely, since a region entry covers everything inside it.
+- Contracts created anywhere else are automatically **rejected** with a reason, and the allowed locations are shown to members on the offer and public pages. A searchable picker resolves names from the SDE.
+
 ### 🔔 Discord notifications
 - Per-corporation or global webhooks with six subscribable categories.
 - Role mentions via a picker that reads your SeAT Discord integration, plus a Routing Map that shows which webhook announces which category.

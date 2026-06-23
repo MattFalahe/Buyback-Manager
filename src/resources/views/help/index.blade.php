@@ -23,6 +23,7 @@
                         <li class="nav-item"><a href="#" class="nav-link" data-section="getting-started"><i class="fas fa-rocket"></i> Getting Started</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-section="pricing"><i class="fas fa-coins"></i> Pricing &amp; Cache</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-section="rules"><i class="fas fa-sliders-h"></i> Pricing Rules</a></li>
+                        <li class="nav-item"><a href="#" class="nav-link" data-section="locations"><i class="fas fa-map-marker-alt"></i> Locations</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-section="workflow"><i class="fas fa-route"></i> Offer Workflow</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-section="detection"><i class="fas fa-file-contract"></i> Contracts &amp; Detection</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-section="notifications"><i class="fab fa-discord"></i> Discord Notifications</a></li>
@@ -465,6 +466,24 @@
                         <i class="fas fa-unlock"></i>
                         <strong>Appraisal and offers are open to all members:</strong> any logged in SeAT user can run an appraisal and publish an offer against an enabled corporation, without either permission. The permissions above gate the director facing surfaces only.
                     </div>
+                </div>
+            </div>
+
+            {{-- LOCATIONS --}}
+            <div id="locations" class="help-section">
+                <div class="help-card">
+                    <h3><i class="fas fa-map-marker-alt"></i> Location Restrictions</h3>
+                    <p>By default a contract is accepted no matter where it was created. You can restrict buyback to specific places so members can't run your buyback from the other side of the map.</p>
+
+                    <h4>Setting it up</h4>
+                    <p>In <strong>Settings</strong>, click the <i class="fas fa-map-marker-alt"></i> location button on a corporation, then add one or more allowed locations. Search by name and pick a <strong>region, constellation, system, station, or citadel</strong>. Mix granularities freely &mdash; a region entry covers every station and structure inside it, so "The Forge" accepts all of it while "Jita IV-4" accepts only that station.</p>
+
+                    <div class="info-box">
+                        <i class="fas fa-ban"></i>
+                        With one or more locations set, a contract created anywhere else is <strong>rejected</strong>: the offer flips to rejected with the reason "Contract created outside the allowed buyback locations," which rides the offer-rejected Discord category. An empty list means no restriction.
+                    </div>
+
+                    <p>The allowed locations are shown to members in the offer instructions and on the public page, so they know where to contract before hauling.</p>
                 </div>
             </div>
 

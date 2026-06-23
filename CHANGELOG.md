@@ -34,6 +34,10 @@ The first public release of Buyback Manager. It turns a corporation buyback prog
 - Per-item, per-group, and per-category rules with item > group > category > base precedence.
 - Per-rule price side (buy, sell, split) and the ability to exclude an item from buyback entirely.
 
+**Location restrictions**
+- Optionally restrict buyback to specific regions, constellations, systems, stations, or citadels, mixed freely (a region covers everything inside it). An empty list accepts any location.
+- Contracts created outside the allowed locations are rejected with a reason that rides the offer-rejected Discord category; the allowed locations are surfaced to members on the offer and public pages. A searchable picker resolves names from the SDE.
+
 **Discord notifications**
 - Per-corporation or global webhooks with six subscribable categories (Offer Published, Offer Matched, Offer Rejected, Contract Unmatched, Contract Completed, Contract Cancelled).
 - Role mentions via a picker that reads detected Discord roles from the SeAT Discord integration.
