@@ -79,6 +79,12 @@
     border-radius: 0;
     background: transparent;
 }
+/* "No box" — logo straight on the hero image, no panel/border/rounding. */
+.bb-public-logo.bb-logo-none {
+    border: none;
+    border-radius: 0;
+    background: transparent;
+}
 .bb-public-title {
     font-size: 32px;
     font-weight: 600;

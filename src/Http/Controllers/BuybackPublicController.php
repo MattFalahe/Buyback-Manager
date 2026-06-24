@@ -47,6 +47,7 @@ class BuybackPublicController extends Controller
             'rates'         => $setting->public_show_rates ? $this->buildRates($setting) : null,
             'loginUrl'      => route('buyback.appraisal.index'),
             'layout'        => $setting->public_layout === 'split' ? 'split' : 'stacked',
+            'logoStyle'     => in_array($setting->public_logo_style, ['dark', 'none', 'light'], true) ? $setting->public_logo_style : 'dark',
         ]);
     }
 

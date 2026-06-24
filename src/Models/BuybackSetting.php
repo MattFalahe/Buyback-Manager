@@ -51,6 +51,7 @@ class BuybackSetting extends Model
         'public_background_path',
         'public_logo_path',
         'public_logo_bg',
+        'public_logo_style',
         'public_footer_text',
     ];
 

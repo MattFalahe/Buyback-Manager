@@ -352,7 +352,7 @@ class SettingsController extends Controller
             'public_footer_text'     => 'nullable|string|max:500',
             'public_background'      => 'nullable|image|mimes:jpeg,png,webp|max:5120',
             'public_logo'            => 'nullable|image|mimes:jpeg,png,webp|max:5120',
-            'public_logo_bg'         => 'nullable|boolean',
+            'public_logo_style'      => 'nullable|in:dark,none,light',
             'remove_background'      => 'nullable|boolean',
             'remove_logo'            => 'nullable|boolean',
         ]);
@@ -368,7 +368,7 @@ class SettingsController extends Controller
             'public_accent_color'    => $request->input('public_accent_color') ?: null,
             'public_overlay_opacity' => (int) $request->input('public_overlay_opacity', 55),
             'public_footer_text'     => $request->input('public_footer_text'),
-            'public_logo_bg'         => $request->has('public_logo_bg'),
+            'public_logo_style'      => in_array($request->input('public_logo_style'), ['dark', 'none', 'light'], true) ? $request->input('public_logo_style') : 'dark',
         ];
 
         // Background: store new first, then drop the old (no orphan pointer).

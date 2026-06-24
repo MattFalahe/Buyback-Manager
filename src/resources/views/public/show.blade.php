@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex">
     <title>{{ $corpName }} Buyback</title>
-    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/public.css') }}?v=6">
+    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/public.css') }}?v=7">
     <style>
         .bb-public-body { --bb-pub-accent: {{ $accent }}; }
         @if($backgroundUrl)
@@ -18,10 +18,10 @@
 
     <div class="bb-public-hero">
         <div class="bb-public-hero-overlay"></div>
-        @if($setting->public_logo_bg)
+        @if($logoStyle === 'light')
             <div class="bb-public-logo-frame"><img class="bb-public-logo" src="{{ $logoUrl }}" alt="{{ $corpName }} logo"></div>
         @else
-            <img class="bb-public-logo" src="{{ $logoUrl }}" alt="{{ $corpName }} logo">
+            <img class="bb-public-logo {{ $logoStyle === 'none' ? 'bb-logo-none' : '' }}" src="{{ $logoUrl }}" alt="{{ $corpName }} logo">
         @endif
         <h1 class="bb-public-title">{{ $setting->public_headline ?: ($corpName . ' Buyback') }}</h1>
         <div class="bb-public-ticker">{{ $ticker }}</div>

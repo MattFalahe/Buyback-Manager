@@ -157,9 +157,14 @@
                     @endif
                     <input type="file" class="form-control-file" id="public_logo" name="public_logo" accept="image/jpeg,image/png,image/webp">
                     <small class="form-text text-muted">Defaults to the EVE corporation logo when none is uploaded.</small>
-                    <div class="custom-control custom-checkbox" style="margin-top:10px;">
-                        <input type="checkbox" class="custom-control-input" id="public_logo_bg" name="public_logo_bg" value="1" {{ old('public_logo_bg', $setting->public_logo_bg) ? 'checked' : '' }}>
-                        <label class="custom-control-label" for="public_logo_bg">Show a solid square background behind the logo</label>
+                    <div style="margin-top:10px;">
+                        <label for="public_logo_style">Logo background</label>
+                        <select id="public_logo_style" name="public_logo_style" class="form-control" style="max-width:340px;">
+                            <option value="dark" {{ old('public_logo_style', $setting->public_logo_style ?: 'dark') === 'dark' ? 'selected' : '' }}>Dark box (default)</option>
+                            <option value="none" {{ old('public_logo_style', $setting->public_logo_style) === 'none' ? 'selected' : '' }}>No box &mdash; logo directly on the image</option>
+                            <option value="light" {{ old('public_logo_style', $setting->public_logo_style) === 'light' ? 'selected' : '' }}>White square</option>
+                        </select>
+                        <small class="form-text text-muted">"No box" suits a transparent logo; the dark box suits the square EVE corp logo.</small>
                     </div>
                 </div>
 
