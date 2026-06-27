@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex">
     <title>{{ $corpName }} Buyback</title>
-    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/public.css') }}?v=7">
+    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/public.css') }}?v=8">
     <style>
         .bb-public-body { --bb-pub-accent: {{ $accent }}; }
         @if($backgroundUrl)
@@ -83,6 +83,16 @@
 
         </div>
 
+        @if($appraisalEnabled)
+        <div class="bb-public-section bb-estimate-section">
+            <h2>Quick estimate</h2>
+            <p class="bb-estimate-note">Paste your items to see what we'd pay. Preview only &mdash; log in to lock it as an offer.</p>
+            <textarea id="bb-estimate-input" class="bb-estimate-input" rows="5" placeholder="Paste items, one per line (e.g. Tritanium  1000)"></textarea>
+            <button type="button" id="bb-estimate-btn" class="bb-public-cta" style="margin-top:12px; border:none; cursor:pointer;">Estimate</button>
+            <div id="bb-estimate-result" class="bb-estimate-result" style="display:none;"></div>
+        </div>
+        @endif
+
         @if($setting->public_footer_text)
             <div class="bb-corp-footer">{{ $setting->public_footer_text }}</div>
         @endif
@@ -95,5 +105,40 @@
         <div class="sub">Every delivery measured. Every contribution rewarded.</div>
         <div class="bb-opsec">No member names, volumes, or contract history are shown on this page.</div>
     </footer>
+
+    @if($appraisalEnabled)
+    <script>
+        (function () {
+            var btn = document.getElementById('bb-estimate-btn');
+            if (!btn) return;
+            var input = document.getElementById('bb-estimate-input');
+            var out = document.getElementById('bb-estimate-result');
+            var url = "{{ route('buyback-manager.public.estimate', ['ticker' => $ticker]) }}";
+            var token = "{{ csrf_token() }}";
+            function isk(n) { return new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(n) + ' ISK'; }
+            btn.addEventListener('click', function () {
+                var items = (input.value || '').trim();
+                out.style.display = 'block';
+                if (items.length < 3) { out.textContent = 'Paste some items first.'; return; }
+                btn.disabled = true;
+                out.textContent = 'Estimating...';
+                fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
+                    body: JSON.stringify({ items: items })
+                }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+                .then(function (res) {
+                    btn.disabled = false;
+                    if (!res.ok || !res.j.success) { out.textContent = (res.j && res.j.message) ? res.j.message : 'Could not estimate.'; return; }
+                    var j = res.j;
+                    out.innerHTML = '<div class="bb-estimate-total">' + isk(j.total_buyback_value) + '</div>'
+                        + '<div class="bb-estimate-sub">' + j.item_count + ' item type(s) &middot; ' + j.average_percentage + '% of market'
+                        + (j.truncated ? ' &middot; list truncated' : '') + '</div>'
+                        + '<div class="bb-estimate-sub">Log in to lock this as an offer.</div>';
+                }).catch(function () { btn.disabled = false; out.textContent = 'Could not estimate.'; });
+            });
+        })();
+    </script>
+    @endif
 </body>
 </html>

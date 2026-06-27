@@ -55,6 +55,7 @@ The first public release of Buyback Manager. It turns a corporation buyback prog
 - An optional per-corporation public page at `/buyback/{ticker}` that advertises rates, shows config-driven contract instructions, and funnels members into the appraisal via EVE SSO. No login required to view.
 - Brandable per corp: uploaded background and logo (with an optional solid square backdrop behind the logo), accent colour, dim overlay, headline, blurb, and footer. Images stream from the app origin, so they need no `storage:link` and satisfy CSP on Docker and bare-metal alike.
 - Configurable rate display: a "most wanted" flag to spotlight featured items, an option to list every non-excluded pricing rule rather than only the featured ones, and an option to show the sourced market and each rule's price side (buy / sell / split).
+- Optional no-login estimate calculator: visitors paste items and get a buyback estimate without logging in (preview only, rate-limited; they log in to lock an offer). Plus a page-layout choice (stacked or side-by-side) and a logo-background style (dark box, none, or white square).
 
 **Diagnostics**
 - An admin-only Diagnostic page (not in the sidebar) with Health Checks, Master Test, System Validation, Settings Health, Data Integrity, Contract Trace, and Notification Testing tabs.

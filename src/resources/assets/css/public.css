@@ -232,6 +232,43 @@
     margin: -6px 0 14px;
 }
 
+/* Public no-login estimate calculator */
+.bb-estimate-note {
+    font-size: 14px;
+    color: #8b949e;
+    margin: 0 0 12px;
+}
+.bb-estimate-input {
+    width: 100%;
+    box-sizing: border-box;
+    background: #161b22;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    color: #e6edf3;
+    padding: 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13px;
+    resize: vertical;
+}
+.bb-estimate-result {
+    margin-top: 16px;
+    background: #161b22;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 16px 18px;
+    color: #c9d1d9;
+}
+.bb-estimate-total {
+    font-size: 26px;
+    font-weight: 600;
+    color: var(--bb-pub-accent);
+}
+.bb-estimate-sub {
+    font-size: 13px;
+    color: #8b949e;
+    margin-top: 4px;
+}
+
 /* --- Steps --- */
 .bb-steps {
     list-style: none;

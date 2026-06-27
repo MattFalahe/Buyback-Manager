@@ -139,4 +139,8 @@ Route::group([
         ->name('buyback-manager.public.show');
     Route::get('/{ticker}/asset/{kind}', [BuybackPublicController::class, 'image'])
         ->name('buyback-manager.public.image');
+    // No-login appraisal preview. Throttled — it hits the pricing provider.
+    Route::post('/{ticker}/estimate', [BuybackPublicController::class, 'estimate'])
+        ->middleware('throttle:10,1')
+        ->name('buyback-manager.public.estimate');
 });

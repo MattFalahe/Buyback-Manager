@@ -3,7 +3,9 @@
 namespace BuybackManager\Http\Controllers;
 
 use BuybackManager\Models\BuybackSetting;
+use BuybackManager\Services\AppraisalService;
 use BuybackManager\Services\BuybackPublicService;
+use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -48,6 +50,7 @@ class BuybackPublicController extends Controller
             'loginUrl'      => route('buyback.appraisal.index'),
             'layout'        => $setting->public_layout === 'split' ? 'split' : 'stacked',
             'logoStyle'     => in_array($setting->public_logo_style, ['dark', 'none', 'light'], true) ? $setting->public_logo_style : 'dark',
+            'appraisalEnabled' => (bool) $setting->public_appraisal_enabled,
         ]);
     }
 
@@ -88,6 +91,42 @@ class BuybackPublicController extends Controller
             Log::warning('[Buyback Manager] public image stream failed: ' . $e->getMessage());
             abort(404);
         }
+    }
+
+    /**
+     * Public, no-login appraisal preview. Runs the corp's normal appraisal
+     * (which itself requires an enabled programme) and returns totals only
+     * as JSON — no offer is created. Gated by public_appraisal_enabled and
+     * rate-limited at the route. Members log in to lock the real offer.
+     */
+    public function estimate(string $ticker, Request $request, BuybackPublicService $service, AppraisalService $appraisal)
+    {
+        $setting = $service->resolveByTicker($ticker);
+        if (! $setting || ! $setting->public_appraisal_enabled) {
+            abort(404);
+        }
+
+        $request->validate([
+            'items' => 'required|string|min:3|max:50000',
+        ]);
+
+        $result = $appraisal->createAppraisal($request->input('items'), (int) $setting->corporation_id);
+
+        if (! ($result['success'] ?? false)) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['message'] ?? 'Could not estimate.',
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'total_buyback_value' => (float) $result['total_buyback_value'],
+            'total_market_value' => (float) $result['total_market_value'],
+            'average_percentage' => round((float) ($result['average_percentage'] ?? 0), 1),
+            'item_count' => is_array($result['items'] ?? null) ? count($result['items']) : 0,
+            'truncated' => (bool) ($result['truncated'] ?? false),
+        ]);
     }
 
     /**

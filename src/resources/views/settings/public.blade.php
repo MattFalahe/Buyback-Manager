@@ -74,6 +74,10 @@
                         <input type="checkbox" class="custom-control-input" id="public_show_pricing_detail" name="public_show_pricing_detail" value="1" {{ old('public_show_pricing_detail', $setting->public_show_pricing_detail) ? 'checked' : '' }}>
                         <label class="custom-control-label" for="public_show_pricing_detail">Show the market and the price side (buy / sell / split)</label>
                     </div>
+                    <div class="custom-control custom-checkbox" style="margin-top:8px;">
+                        <input type="checkbox" class="custom-control-input" id="public_appraisal_enabled" name="public_appraisal_enabled" value="1" {{ old('public_appraisal_enabled', $setting->public_appraisal_enabled) ? 'checked' : '' }}>
+                        <label class="custom-control-label" for="public_appraisal_enabled">Enable the no-login estimate calculator (visitors paste items and see what you'd pay)</label>
+                    </div>
                 </div>
 
                 <div class="form-group">
