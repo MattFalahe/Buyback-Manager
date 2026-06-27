@@ -23,6 +23,7 @@ The first public release of Buyback Manager. It turns a corporation buyback prog
 - Unmatched-attempt review signal when a contract references an id that does not resolve, logged for the operator rather than silently dropped.
 - Status-transition tracking that records completion, cancellation, and rejection of buyback contracts.
 - CSV export of the filtered contracts list, honouring the same per-user corporation visibility as the on-screen list.
+- Idle-contract reminder: a matched contract left unaccepted past the corp's auto-nudge window (`private_auto_nudge_hours`, 0 to disable) pings the Contract Nudge category once.
 
 **Pricing**
 - Three providers: Fuzzwork (free, The Forge), Janice (API key, regional markets, with a raw appraisal endpoint for large lists), and Manager Core (optional).
@@ -39,7 +40,7 @@ The first public release of Buyback Manager. It turns a corporation buyback prog
 - Contracts created outside the allowed locations are rejected with a reason that rides the offer-rejected Discord category; the allowed locations are surfaced to members on the offer and public pages. A searchable picker resolves names from the SDE.
 
 **Discord notifications**
-- Per-corporation or global webhooks with six subscribable categories (Offer Published, Offer Matched, Offer Rejected, Contract Unmatched, Contract Completed, Contract Cancelled).
+- Per-corporation or global webhooks with seven subscribable categories (Offer Published, Offer Matched, Offer Rejected, Contract Unmatched, Contract Completed, Contract Cancelled, Contract Nudge).
 - Role mentions via a picker that reads detected Discord roles from the SeAT Discord integration.
 - A Notification Routing Map showing which webhook announces which category.
 - De-duplicated, per-webhook rate-limited delivery so a single event never double-pings.

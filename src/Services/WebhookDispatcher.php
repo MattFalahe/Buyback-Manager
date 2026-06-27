@@ -49,6 +49,7 @@ class WebhookDispatcher
         'buyback.contract.completed' => BuybackWebhook::CATEGORY_CONTRACT_COMPLETED,
         'buyback.contract.cancelled' => BuybackWebhook::CATEGORY_CONTRACT_CANCELLED,
         'buyback.contract.rejected' => BuybackWebhook::CATEGORY_OFFER_REJECTED,
+        'buyback.contract.nudge' => BuybackWebhook::CATEGORY_CONTRACT_NUDGE,
     ];
 
     private const HTTP_TIMEOUT = 10;
@@ -243,6 +244,7 @@ class WebhookDispatcher
             'buyback.contract.completed' => 'Buyback Completed' . ($valueText ? " — {$valueText}" : ''),
             'buyback.contract.cancelled' => 'Buyback Contract Cancelled' . ($contractId ? " #{$contractId}" : ''),
             'buyback.contract.rejected' => 'Buyback Contract Rejected' . ($contractId ? " #{$contractId}" : ''),
+            'buyback.contract.nudge' => 'Buyback contract awaiting action' . ($contractId ? " #{$contractId}" : ''),
             default => 'Buyback Event: ' . $eventName,
         };
     }
@@ -260,6 +262,7 @@ class WebhookDispatcher
             'buyback.offer.expired',
             'buyback.contract.unmatched',
             'buyback.contract.cancelled',
+            'buyback.contract.nudge',
             'buyback.offer.cancelled' => 0xeab308,
             'buyback.contract.rejected',
             'buyback.offer.rejected' => 0xef4444,

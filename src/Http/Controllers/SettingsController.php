@@ -87,6 +87,7 @@ class SettingsController extends Controller
             'contract_unmatched' => ['Contract referenced an offer id that did not resolve (review)', ['buyback.contract.unmatched']],
             'contract_completed' => ['Completed buybacks', ['buyback.contract.completed']],
             'contract_cancelled' => ['Cancelled contracts', ['buyback.contract.cancelled']],
+            'contract_nudge' => ['Matched contract still awaiting acceptance past the auto-nudge window', ['buyback.contract.nudge']],
         ];
 
         $map = [];

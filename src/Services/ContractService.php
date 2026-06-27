@@ -78,6 +78,8 @@ class ContractService
         foreach ($settings as $setting) {
             $this->syncContractsForSetting($setting);
         }
+
+        $this->nudgeStaleContracts();
     }
 
     protected function syncContractsForSetting(BuybackSetting $setting): void
@@ -346,6 +348,75 @@ class ContractService
         }
 
         return $env;
+    }
+
+    /**
+     * Reminder pass: matched contracts still awaiting acceptance (status
+     * 'outstanding') that have sat longer than their corp's auto-nudge
+     * window fire buyback.contract.nudge once (guarded by nudged_at).
+     * Folded into the sync cycle so it needs no extra cron.
+     *
+     * The column is named private_auto_nudge_hours for historical reasons
+     * (it began as a private-mode feature); a value of 0 disables it.
+     */
+    protected function nudgeStaleContracts(): void
+    {
+        $settings = BuybackSetting::where('enabled', true)
+            ->where('private_auto_nudge_hours', '>', 0)
+            ->get()
+            ->keyBy('corporation_id');
+
+        if ($settings->isEmpty()) {
+            return;
+        }
+
+        $candidates = BuybackContract::whereNull('nudged_at')
+            ->where('status', 'outstanding')
+            ->whereNotNull('offer_id')
+            ->whereIn('corporation_id', $settings->keys()->all())
+            ->with('offer')
+            ->get();
+
+        foreach ($candidates as $contract) {
+            $setting = $settings->get($contract->corporation_id);
+            $hours = $setting ? (int) $setting->private_auto_nudge_hours : 0;
+
+            if ($hours <= 0 || $contract->issued_date === null) {
+                continue;
+            }
+            if ($contract->issued_date->copy()->addHours($hours)->isFuture()) {
+                continue; // not stale yet
+            }
+
+            // Stamp first so a failure in the publish path can't loop-nudge.
+            $contract->update(['nudged_at' => now()]);
+            $this->eventPublisher->publish('buyback.contract.nudge', $this->buildNudgeEnvelope($contract, $setting));
+        }
+    }
+
+    /**
+     * Envelope for buyback.contract.nudge (idle-contract reminder).
+     */
+    protected function buildNudgeEnvelope(BuybackContract $contract, BuybackSetting $setting): array
+    {
+        return [
+            'source_plugin' => 'buyback-manager',
+            'schema_version' => 1,
+            'event_id' => 'bb-evt-' . Str::uuid()->toString(),
+            'corporation_id' => (int) $setting->corporation_id,
+            'contract_id' => (int) $contract->contract_id,
+            'issuer_id' => (int) $contract->issuer_id,
+            'issuer_character_id' => (int) $contract->issuer_id,
+            'status' => (string) $contract->status,
+            'total_value' => (float) $contract->total_value,
+            'total_buyback_value' => (float) $contract->total_value,
+            'items_count' => (int) $contract->items_count,
+            'offer_public_id' => $contract->offer_public_id,
+            'send_to' => optional($contract->offer)->sendToLabel(),
+            'nudge_hours' => (int) $setting->private_auto_nudge_hours,
+            'issued_date' => optional($contract->issued_date)->toIso8601String(),
+            'url' => route('buyback-manager.contracts.show', $contract->id),
+        ];
     }
 
     /**

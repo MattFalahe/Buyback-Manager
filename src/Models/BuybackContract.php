@@ -21,6 +21,7 @@ class BuybackContract extends Model
         'items_count',
         'issued_date',
         'completed_date',
+        'nudged_at',
     ];
 
     protected $casts = [
@@ -32,6 +33,7 @@ class BuybackContract extends Model
         'items_count' => 'integer',
         'issued_date' => 'datetime',
         'completed_date' => 'datetime',
+        'nudged_at' => 'datetime',
     ];
 
     public function corporation()

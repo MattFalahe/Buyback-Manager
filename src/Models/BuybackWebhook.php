@@ -27,6 +27,7 @@ class BuybackWebhook extends Model
     public const CATEGORY_CONTRACT_UNMATCHED = 'contract_unmatched';
     public const CATEGORY_CONTRACT_COMPLETED = 'contract_completed';
     public const CATEGORY_CONTRACT_CANCELLED = 'contract_cancelled';
+    public const CATEGORY_CONTRACT_NUDGE = 'contract_nudge';
 
     public const ALL_CATEGORIES = [
         self::CATEGORY_OFFER_PUBLISHED,
@@ -35,6 +36,7 @@ class BuybackWebhook extends Model
         self::CATEGORY_CONTRACT_UNMATCHED,
         self::CATEGORY_CONTRACT_COMPLETED,
         self::CATEGORY_CONTRACT_CANCELLED,
+        self::CATEGORY_CONTRACT_NUDGE,
     ];
 
     protected $table = 'buyback_webhooks';
