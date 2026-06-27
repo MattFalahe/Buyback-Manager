@@ -44,7 +44,7 @@ class BuybackPublicService
 
         return BuybackSetting::with('corporation')
             ->where('corporation_id', $corpId)
-            ->when($requireEnabled, fn ($q) => $q->where('public_page_enabled', true))
+            ->when($requireEnabled, fn ($q) => $q->where('public_page_enabled', true)->where('enabled', true))
             ->first();
     }
 
