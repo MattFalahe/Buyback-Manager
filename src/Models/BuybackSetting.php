@@ -50,7 +50,6 @@ class BuybackSetting extends Model
         'public_overlay_opacity',
         'public_background_path',
         'public_logo_path',
-        'public_logo_bg',
         'public_logo_style',
         'public_footer_text',
     ];
@@ -71,7 +70,6 @@ class BuybackSetting extends Model
         'public_show_all_rules' => 'boolean',
         'public_show_pricing_detail' => 'boolean',
         'public_appraisal_enabled' => 'boolean',
-        'public_logo_bg' => 'boolean',
         'public_overlay_opacity' => 'integer',
     ];
 
