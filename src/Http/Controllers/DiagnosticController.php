@@ -54,6 +54,7 @@ class DiagnosticController extends Controller
         'buyback_subscribed_types',
         'buyback_webhooks',
         'buyback_notification_log',
+        'buyback_location_rules',
     ];
 
     /**
@@ -72,6 +73,9 @@ class DiagnosticController extends Controller
         'invTypes',
         'invGroups',
         'invCategories',
+        // SDE — location resolution for buyback location rules
+        'mapDenormalize',
+        'universe_structures',
     ];
 
     /**
@@ -757,6 +761,20 @@ class DiagnosticController extends Controller
             'count' => $orphanedRules,
             'status' => $orphanedRules > 0 ? 'warn' : 'ok',
         ];
+
+        // Orphan location rules
+        if (Schema::hasTable('buyback_location_rules')) {
+            $orphanedLocations = DB::table('buyback_location_rules as l')
+                ->leftJoin('buyback_settings as s', 'l.setting_id', '=', 's.id')
+                ->whereNull('s.id')
+                ->count();
+            $issues[] = [
+                'table' => 'buyback_location_rules',
+                'check' => 'Orphans (no matching buyback_setting)',
+                'count' => $orphanedLocations,
+                'status' => $orphanedLocations > 0 ? 'warn' : 'ok',
+            ];
+        }
 
         // Settings without a CorporationInfo
         $orphanedSettings = DB::table('buyback_settings as s')
