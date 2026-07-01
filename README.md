@@ -123,7 +123,7 @@ When [Manager Core](https://github.com/MattFalahe/manager-core) is installed, Bu
 
 - **Regional market pricing** through Manager Core's pricing service and shared cache.
 - **Pricing preferences** in Manager Core, where an admin can override the market centrally.
-- **EventBus** publishing of offer and contract events (`offer.published / matched / expired / cancelled / rejected` and `contract.created / matched / unmatched / completed / cancelled / rejected`) for other plugins to consume.
+- **EventBus** publishing of offer and contract events (`offer.published / matched / expired / cancelled / rejected` and `contract.created / matched / unmatched / completed / cancelled / rejected / nudge`) for other plugins to consume.
 
 Install or uninstall Manager Core in any order. There is no composer dependency between them.
 

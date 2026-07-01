@@ -63,7 +63,7 @@ The first public release of Buyback Manager. It turns a corporation buyback prog
 - A Sync Now action to run a detection pass on demand.
 
 **Help & operations**
-- A Help & Documentation page in the sidebar covering the full workflow, pricing, rules, detection modes, notifications, Manager Core, the public page, custom CSS styling, permissions, and troubleshooting.
+- A Help & Documentation page in the sidebar covering the full workflow, pricing, rules, locations, detection modes, notifications, Manager Core, the public page, custom CSS styling, permissions, commands & configuration, and troubleshooting.
 - Two scheduled jobs registered automatically: `buyback-manager:sync-contracts` (every 15 minutes) and `buyback-manager:expire-offers` (every 5 minutes).
 - Two permissions: `buyback-manager.view` and `buyback-manager.settings`.
 

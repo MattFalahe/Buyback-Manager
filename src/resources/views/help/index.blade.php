@@ -31,6 +31,7 @@
                         <li class="nav-item"><a href="#" class="nav-link" data-section="integration"><i class="fas fa-plug"></i> Manager Core</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-section="permissions"><i class="fas fa-user-shield"></i> Permissions</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-section="custom-styling"><i class="fas fa-paint-brush"></i> Custom Styling</a></li>
+                        <li class="nav-item"><a href="#" class="nav-link" data-section="commands"><i class="fas fa-terminal"></i> Commands &amp; Config</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-section="troubleshooting"><i class="fas fa-stethoscope"></i> Troubleshooting</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-section="faq"><i class="fas fa-question-circle"></i> FAQ</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-section="support"><i class="fas fa-life-ring"></i> Support</a></li>
@@ -397,14 +398,15 @@
                     <h3><i class="fab fa-discord"></i> Discord notifications</h3>
                     <p>Buyback Manager owns its own Discord delivery. You add webhooks on the Settings page (Discord Webhooks tab), choose which categories each one announces, and optionally mention a role. A webhook can be scoped to one corporation or made global.</p>
 
-                    <h4>The six notification categories</h4>
+                    <h4>The seven notification categories</h4>
                     <table class="plugin-info-table">
                         <tr><td>Offer Published</td><td>An offer is published (also used for expiry and cancellation notices).</td></tr>
                         <tr><td>Offer Matched</td><td>An offer is paired to a contract.</td></tr>
-                        <tr><td>Offer Rejected</td><td>An offer or contract is declined.</td></tr>
+                        <tr><td>Offer Rejected</td><td>An offer or contract is declined (a contract created outside the allowed locations lands here too).</td></tr>
                         <tr><td>Contract Unmatched</td><td>A contract referenced an offer id that did not resolve (review signal).</td></tr>
                         <tr><td>Contract Completed</td><td>A buyback contract is finished.</td></tr>
                         <tr><td>Contract Cancelled</td><td>A buyback contract is cancelled.</td></tr>
+                        <tr><td>Contract Nudge</td><td>A matched contract has sat unaccepted past the corp's auto-nudge window.</td></tr>
                     </table>
 
                     <div class="info-box">
@@ -437,16 +439,17 @@
                         </div>
                     @endif
 
-                    <h4>What it adds</h4>
+                    <h4>What Buyback Manager consumes from Manager Core</h4>
                     <ul>
-                        <li><strong>Regional market pricing</strong> through Manager Core's pricing service, with its own shared cache.</li>
-                        <li><strong>Pricing preferences</strong> in Manager Core, where an admin can override the market used centrally.</li>
-                        <li><strong>EventBus</strong> publishing of offer and contract events so other plugins can react.</li>
+                        <li><strong>Regional market pricing</strong> through Manager Core's pricing service, with its own shared cache (bypasses the local price cache).</li>
+                        <li><strong>Pricing preferences</strong> registered in Manager Core, where an admin can override the market used centrally.</li>
                     </ul>
 
+                    <h4>What Buyback Manager publishes to Manager Core</h4>
+                    <p>Every offer and contract lifecycle transition is published to Manager Core's EventBus &mdash; an integration surface other plugins can subscribe to, separate from and in addition to the Discord categories above. Standalone installs simply get the Discord notifications.</p>
                     <div class="purple-box">
                         <i class="fas fa-broadcast-tower"></i>
-                        <strong>Events published to the bus:</strong> offers (<code>published</code>, <code>matched</code>, <code>expired</code>, <code>cancelled</code>, <code>rejected</code>) and contracts (<code>created</code>, <code>matched</code>, <code>unmatched</code>, <code>completed</code>, <code>cancelled</code>, <code>rejected</code>). These are an integration surface for other plugins, separate from the Discord categories above.
+                        <strong>Events published:</strong> offers (<code>published</code>, <code>matched</code>, <code>expired</code>, <code>cancelled</code>, <code>rejected</code>) and contracts (<code>created</code>, <code>matched</code>, <code>unmatched</code>, <code>completed</code>, <code>cancelled</code>, <code>rejected</code>, <code>nudge</code>).
                     </div>
                 </div>
             </div>
@@ -500,20 +503,22 @@
                         The <strong>Log in to appraise &amp; sell</strong> button sends visitors through EVE SSO into the normal appraisal flow. Viewing the page needs no login; only publishing an offer does.
                     </div>
 
-                    <h4>Branding</h4>
+                    <h4>Branding &amp; layout</h4>
                     <ul>
                         <li><strong>Headline, blurb and footer</strong> &mdash; your own copy for the hero and a small footer line.</li>
                         <li><strong>Accent colour</strong> &mdash; recolours the buttons and highlights.</li>
                         <li><strong>Background image</strong> &mdash; uploaded and shown behind the hero, with a <strong>dim overlay</strong> slider so the text stays readable over any image.</li>
-                        <li><strong>Logo</strong> &mdash; defaults to the EVE corporation logo; upload your own, and optionally sit it on a <strong>solid square backdrop</strong> so a logo with transparency stands out.</li>
+                        <li><strong>Logo</strong> &mdash; defaults to the EVE corporation logo; upload your own. Choose its background: a dark box (default), no box (logo straight on the image, best for a transparent logo), or a white square.</li>
+                        <li><strong>Page layout</strong> &mdash; stacked (rates above instructions) or side by side (rates left, instructions right); it stacks on mobile.</li>
                     </ul>
 
-                    <h4>Rates</h4>
+                    <h4>Rates &amp; estimate</h4>
                     <ul>
                         <li><strong>Show the rates section</strong> &mdash; the base rate and price-lock cards.</li>
                         <li><strong>Most wanted</strong> &mdash; flag any pricing rule as featured on the Pricing Rules page to spotlight it with a star.</li>
                         <li><strong>List all pricing rules</strong> &mdash; show every rule, not just the featured ones (excluded items are never shown).</li>
                         <li><strong>Market and price side</strong> &mdash; show the sourced market plus each rule's side (buy / sell / split).</li>
+                        <li><strong>No-login estimate</strong> &mdash; an optional calculator where visitors paste items and see what you'd pay before logging in. Preview only (no offer is created) and rate-limited; it exposes your rates to anyone with the link.</li>
                     </ul>
 
                     <div class="purple-box">
@@ -579,6 +584,34 @@
                         <i class="fas fa-lightbulb"></i>
                         Keep your tweaks in SeAT's custom stylesheet, never in the plugin's own files — the plugin's CSS is replaced on every update, but your <code>custom-layout.css</code> survives.
                     </div>
+                </div>
+            </div>
+
+            {{-- COMMANDS & CONFIG --}}
+            <div id="commands" class="help-section">
+                <div class="help-card">
+                    <h3><i class="fas fa-terminal"></i> Commands &amp; configuration</h3>
+
+                    <h4>Scheduled commands</h4>
+                    <p>Buyback Manager registers two Artisan commands and their schedules automatically &mdash; you normally never run them by hand. The Diagnostic page's Health Checks tab confirms both are present with the right cadence.</p>
+                    <table class="plugin-info-table">
+                        <tr><td><code>buyback-manager:sync-contracts</code></td><td>Every 15 minutes. Reads SeAT's synced contracts, matches them to offers by the pasted offer id, enforces location rules, fires the lifecycle events + Discord notifications, sends idle-contract nudges, and prunes the notification log.</td></tr>
+                        <tr><td><code>buyback-manager:expire-offers</code></td><td>Every 5 minutes. Flips pending offers past their lock window to <em>expired</em>.</td></tr>
+                    </table>
+                    <div class="info-box">
+                        <i class="fas fa-play"></i>
+                        To force a detection pass on demand without waiting for the schedule, use the <strong>Sync Now</strong> button on the Diagnostic page.
+                    </div>
+
+                    <h4>Configuration variables</h4>
+                    <p>Almost all configuration is per-corporation on the <strong>Settings</strong> page (rates, provider, contract target, locations, public page). A small set of code-level defaults lives in the plugin's config file (<code>Config/buyback-manager.config.php</code>) and rarely needs changing:</p>
+                    <table class="plugin-info-table">
+                        <tr><td><code>defaults.base_percentage</code></td><td>Buyback rate a new corporation setting starts with (90).</td></tr>
+                        <tr><td><code>defaults.price_source</code></td><td>Price source a new setting starts with (<code>jita</code>).</td></tr>
+                        <tr><td><code>defaults.jita_region_id</code></td><td>The Forge region id used for Jita pricing (10000002).</td></tr>
+                        <tr><td><code>public.upload_disk</code></td><td>Filesystem disk for public-page image uploads (<code>public</code>). Point it at a shared or S3 disk on a multi-server install.</td></tr>
+                        <tr><td><code>public.max_upload_kb</code></td><td>Per-image size ceiling for public-page uploads (5120 KB).</td></tr>
+                    </table>
                 </div>
             </div>
 
