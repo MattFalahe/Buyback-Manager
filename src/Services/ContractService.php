@@ -184,6 +184,11 @@ class ContractService
                 $offer,
                 'Contract created outside the allowed buyback locations.'
             );
+            // The offer is now rejected, so on the next sync this contract's
+            // bb-id no longer resolves to a pending offer. Pre-set the
+            // unmatched-alert guard so it does NOT also fire a redundant
+            // contract.unmatched review ping for the same contract.
+            \Illuminate\Support\Facades\Cache::add('bb:unmatched_alerted:' . $contract->contract_id, true, now()->addDays(7));
             Log::info('[Buyback Manager] Offer ' . $offer->public_id . ' rejected: contract ' . $contract->contract_id . ' at disallowed location ' . ($contract->start_location_id ?? 'unknown'));
             return;
         }
