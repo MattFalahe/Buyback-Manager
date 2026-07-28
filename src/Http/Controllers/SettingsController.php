@@ -82,7 +82,7 @@ class SettingsController extends Controller
         // category => [human description, the buyback.* events that map here]
         $catMeta = [
             'offer_published' => ['New offers published', ['buyback.offer.published', 'buyback.offer.expired', 'buyback.offer.cancelled']],
-            'offer_matched' => ['Offers/contracts matched', ['buyback.offer.matched', 'buyback.contract.matched']],
+            'offer_matched' => ['Offers/contracts matched', ['buyback.contract.matched']],
             'offer_rejected' => ['Offers/contracts rejected', ['buyback.offer.rejected', 'buyback.contract.rejected']],
             'contract_unmatched' => ['Contract referenced an offer id that did not resolve (review)', ['buyback.contract.unmatched']],
             'contract_completed' => ['Completed buybacks', ['buyback.contract.completed']],

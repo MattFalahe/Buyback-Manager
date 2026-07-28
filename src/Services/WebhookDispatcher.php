@@ -35,7 +35,6 @@ class WebhookDispatcher
         'buyback.offer.published' => BuybackWebhook::CATEGORY_OFFER_PUBLISHED,
         'buyback.offer.expired' => BuybackWebhook::CATEGORY_OFFER_PUBLISHED,
         'buyback.offer.cancelled' => BuybackWebhook::CATEGORY_OFFER_PUBLISHED,
-        'buyback.offer.matched' => BuybackWebhook::CATEGORY_OFFER_MATCHED,
         'buyback.offer.rejected' => BuybackWebhook::CATEGORY_OFFER_REJECTED,
         // First-sighting contract events. `contract.created` deliberately
         // omitted — first sightings fire matched OR unmatched only, which
@@ -43,6 +42,15 @@ class WebhookDispatcher
         // `contract.created` would double-deliver to any webhook
         // subscribing to offer_matched (it'd get matched + created for
         // matched contracts, or unmatched + created for unmatched).
+        //
+        // `offer.matched` is omitted for the same reason: OfferService's
+        // markMatched() is only ever called from ContractService, one line
+        // before it publishes `contract.matched`, so the pair ALWAYS fires
+        // together. Mapping both to offer_matched sent two Discord messages
+        // for a single match (the payload_hash dedup can't catch it — the
+        // event names differ, so the hashes differ). `contract.matched`
+        // carries the richer payload, so it is the one that announces.
+        // Both are still published to the Manager Core EventBus.
         'buyback.contract.matched' => BuybackWebhook::CATEGORY_OFFER_MATCHED,
         'buyback.contract.unmatched' => BuybackWebhook::CATEGORY_CONTRACT_UNMATCHED,
         // Lifecycle transitions after first sighting.
