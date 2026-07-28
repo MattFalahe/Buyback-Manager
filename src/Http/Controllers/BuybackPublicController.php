@@ -110,9 +110,22 @@ class BuybackPublicController extends Controller
             'items' => 'required|string|min:3|max:50000',
         ]);
 
-        $result = $appraisal->createAppraisal($request->input('items'), (int) $setting->corporation_id);
+        try {
+            $result = $appraisal->createAppraisal($request->input('items'), (int) $setting->corporation_id);
+        } catch (\Throwable $e) {
+            // Never let a provider/parser fault surface as an unhandled 500
+            // (the browser would get an HTML error page instead of JSON).
+            Log::warning('[Buyback Manager] public estimate failed for ' . $ticker . ': ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'The estimate could not be completed. Please try again later.',
+            ], 500);
+        }
 
         if (! ($result['success'] ?? false)) {
+            Log::info('[Buyback Manager] public estimate returned no result for ' . $ticker . ': ' . ($result['message'] ?? 'unknown'));
+
             return response()->json([
                 'success' => false,
                 'message' => $result['message'] ?? 'Could not estimate.',

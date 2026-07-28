@@ -126,10 +126,25 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
                     body: JSON.stringify({ items: items })
-                }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+                }).then(function (r) {
+                    // Read as text first: a 404/419/500 returns an HTML error
+                    // page, and calling r.json() on that throws, which would
+                    // hide the real status behind a generic failure message.
+                    return r.text().then(function (body) {
+                        var parsed = null;
+                        try { parsed = JSON.parse(body); } catch (e) {}
+                        return { ok: r.ok, status: r.status, j: parsed };
+                    });
+                })
                 .then(function (res) {
                     btn.disabled = false;
-                    if (!res.ok || !res.j.success) { out.textContent = (res.j && res.j.message) ? res.j.message : 'Could not estimate.'; return; }
+                    if (!res.j) {
+                        out.textContent = res.status === 419
+                            ? 'Your session expired. Refresh the page and try again.'
+                            : 'Estimate failed (HTTP ' + res.status + '). Ask an admin to check the SeAT log.';
+                        return;
+                    }
+                    if (!res.ok || !res.j.success) { out.textContent = res.j.message || 'Could not estimate.'; return; }
                     var j = res.j;
                     out.innerHTML = '<div class="bb-estimate-total">' + isk(j.total_buyback_value) + '</div>'
                         + '<div class="bb-estimate-sub">' + j.item_count + ' item type(s) &middot; ' + j.average_percentage + '% of market'
