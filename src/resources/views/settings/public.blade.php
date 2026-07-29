@@ -135,7 +135,7 @@
                     <label for="public_background">Background image</label>
                     @if($setting->public_background_path)
                         <div style="margin-bottom:8px;">
-                            <img src="{{ route('buyback-manager.public.image', ['ticker' => $setting->corp_ticker, 'kind' => 'background']) }}?v={{ optional($setting->updated_at)->timestamp }}"
+                            <img src="{{ route('buyback-manager.public.image', ['ticker' => $setting->corp_ticker, 'kind' => 'background'], false) }}?v={{ optional($setting->updated_at)->timestamp }}"
                                  alt="Current background" style="max-height:120px; border-radius:6px; border:1px solid #454d55;">
                         </div>
                         <div class="custom-control custom-checkbox mb-2">
@@ -150,7 +150,7 @@
                 <div class="form-group">
                     <label for="public_logo">Logo (optional)</label>
                     <div style="margin-bottom:8px;">
-                        <img src="{{ $setting->public_logo_path ? route('buyback-manager.public.image', ['ticker' => $setting->corp_ticker, 'kind' => 'logo']) . '?v=' . optional($setting->updated_at)->timestamp : ('https://images.evetech.net/corporations/' . $setting->corporation_id . '/logo?size=64') }}"
+                        <img src="{{ $setting->public_logo_path ? route('buyback-manager.public.image', ['ticker' => $setting->corp_ticker, 'kind' => 'logo'], false) . '?v=' . optional($setting->updated_at)->timestamp : ('https://images.evetech.net/corporations/' . $setting->corporation_id . '/logo?size=64') }}"
                              alt="Current logo" style="height:64px; width:64px; border-radius:8px; border:1px solid #454d55;">
                     </div>
                     @if($setting->public_logo_path)

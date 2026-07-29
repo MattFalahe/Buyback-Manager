@@ -29,12 +29,16 @@ class BuybackPublicController extends Controller
 
         $overlay = max(0, min(100, (int) ($setting->public_overlay_opacity ?? 55))) / 100;
 
+        // Relative asset URLs: an absolute one inherits the scheme Laravel
+        // derived from APP_URL / proxy headers, which breaks under a strict
+        // CSP (or as mixed content) when that scheme does not match how the
+        // page was actually served. Root-relative is always same-origin.
         $backgroundUrl = ! empty($setting->public_background_path)
-            ? route('buyback-manager.public.image', ['ticker' => $setting->corp_ticker, 'kind' => 'background'])
+            ? route('buyback-manager.public.image', ['ticker' => $setting->corp_ticker, 'kind' => 'background'], false)
             : null;
 
         $logoUrl = ! empty($setting->public_logo_path)
-            ? route('buyback-manager.public.image', ['ticker' => $setting->corp_ticker, 'kind' => 'logo'])
+            ? route('buyback-manager.public.image', ['ticker' => $setting->corp_ticker, 'kind' => 'logo'], false)
             : ('https://images.evetech.net/corporations/' . $setting->corporation_id . '/logo?size=128');
 
         return view('buyback-manager::public.show', [
@@ -47,7 +51,7 @@ class BuybackPublicController extends Controller
             'logoUrl'       => $logoUrl,
             'instructions'  => $setting->publicContractInstructions(),
             'rates'         => $setting->public_show_rates ? $this->buildRates($setting) : null,
-            'loginUrl'      => route('buyback.appraisal.index'),
+            'loginUrl'      => route('buyback.appraisal.index', [], false),
             'layout'        => $setting->public_layout === 'split' ? 'split' : 'stacked',
             'logoStyle'     => in_array($setting->public_logo_style, ['dark', 'none', 'light'], true) ? $setting->public_logo_style : 'dark',
             'appraisalEnabled' => (bool) $setting->public_appraisal_enabled,

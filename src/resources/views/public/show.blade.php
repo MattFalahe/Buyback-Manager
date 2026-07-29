@@ -113,7 +113,12 @@
             if (!btn) return;
             var input = document.getElementById('bb-estimate-input');
             var out = document.getElementById('bb-estimate-result');
-            var url = "{{ route('buyback-manager.public.estimate', ['ticker' => $ticker]) }}";
+            // Relative URL on purpose: an absolute one carries whatever scheme
+            // Laravel derived from APP_URL / the proxy headers, and if that is
+            // http while the page is served over https the browser treats it as
+            // cross-origin and a "connect-src 'self'" CSP blocks the fetch.
+            // A root-relative path is always same-origin.
+            var url = "{{ route('buyback-manager.public.estimate', ['ticker' => $ticker], false) }}";
             var token = "{{ csrf_token() }}";
             function isk(n) { return new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(n) + ' ISK'; }
             function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
