@@ -52,6 +52,12 @@ class BuybackPublicController extends Controller
             'instructions'  => $setting->publicContractInstructions(),
             'rates'         => $setting->public_show_rates ? $this->buildRates($setting) : null,
             'loginUrl'      => route('buyback.appraisal.index', [], false),
+            // Already signed in? Send them straight to the appraisal instead of
+            // through a login flow. Buyback Manager never initiates its own SSO
+            // request and never asks for ESI scopes, so an existing session
+            // must not be pushed through a re-auth that could alter the scopes
+            // the user previously granted SeAT.
+            'isLoggedIn'    => auth()->check(),
             'layout'        => $setting->public_layout === 'split' ? 'split' : 'stacked',
             'logoStyle'     => in_array($setting->public_logo_style, ['dark', 'none', 'light'], true) ? $setting->public_logo_style : 'dark',
             'appraisalEnabled' => (bool) $setting->public_appraisal_enabled,

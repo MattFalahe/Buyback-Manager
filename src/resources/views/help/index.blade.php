@@ -500,7 +500,12 @@
                     <p>Open <strong>Settings</strong>, find the corporation in the Configured Corps table, and click the <i class="fas fa-globe"></i> globe button in its Actions column. Tick <strong>Enable the public page</strong> and save. The editor shows the exact public URL; while the page is disabled that URL returns 404, so nothing is exposed until you choose to publish.</p>
                     <div class="info-box">
                         <i class="fas fa-sign-in-alt"></i>
-                        The <strong>Log in to appraise &amp; sell</strong> button sends visitors through EVE SSO into the normal appraisal flow. Viewing the page needs no login; only publishing an offer does.
+                        The call to action sends visitors into the normal appraisal flow. Viewing the page and using the optional estimate calculator need no login &mdash; only publishing an offer does. If the visitor already has a SeAT session the button links them straight to the appraisal, so they are never pushed through a login again.
+                    </div>
+
+                    <div class="success-box">
+                        <i class="fas fa-user-shield"></i>
+                        <strong>No ESI scopes required.</strong> Buyback Manager never starts its own EVE SSO request and never asks for scopes, so it cannot change or reduce what a member has already granted SeAT. To publish an offer a member only needs a SeAT login with at least one character registered in the corporation &mdash; whatever scopes that character's token carries. Appraising and estimating touch no character data at all. Contract detection reads the corporation's (or the designated operator's) own contract feed, never the seller's.
                     </div>
 
                     <h4>Branding &amp; layout</h4>

@@ -26,7 +26,9 @@
         <h1 class="bb-public-title">{{ $setting->public_headline ?: ($corpName . ' Buyback') }}</h1>
         <div class="bb-public-ticker">{{ $ticker }}</div>
         <p class="bb-public-blurb">{{ $setting->public_blurb ?: 'We buy your items at competitive rates, with fast and locked-in payouts.' }}</p>
-        <a class="bb-public-cta" href="{{ $loginUrl }}">Log in to appraise &amp; sell</a>
+        <a class="bb-public-cta" href="{{ $loginUrl }}">
+            {{ $isLoggedIn ? 'Appraise & sell now' : 'Log in to sell your items' }}
+        </a>
     </div>
 
     <div class="bb-public-wrap {{ $layout === 'split' ? 'bb-public-wrap-split' : '' }}">
