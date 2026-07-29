@@ -146,7 +146,13 @@ class OfferService
         // Publish lifecycle event AFTER the transaction commits.
         $this->eventPublisher->publish('buyback.offer.published', $this->envelopeFor($offer));
 
-        return ['success' => true, 'offer' => $offer];
+        // Report any rule-excluded items back to the caller so the member is
+        // told what was left out of the offer instead of finding out later.
+        return [
+            'success' => true,
+            'offer' => $offer,
+            'excluded' => is_array($appraisal['excluded'] ?? null) ? $appraisal['excluded'] : [],
+        ];
     }
 
     /**

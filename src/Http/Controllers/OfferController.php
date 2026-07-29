@@ -113,9 +113,17 @@ class OfferController extends Controller
                 ->with('error', $result['message'] ?? 'Could not publish offer');
         }
 
+        $message = 'Offer published — share the URL with your buyback director.';
+        if (! empty($result['excluded'])) {
+            $names = implode(', ', array_map(fn ($e) => $e['type_name'], $result['excluded']));
+            $message .= ' Note: ' . count($result['excluded']) . ' item(s) are not accepted in buyback and were'
+                . ' left out of this offer (' . $names . '). Do not include them in the contract; ask a'
+                . ' director for a custom quote instead.';
+        }
+
         return redirect()
             ->route('buyback-manager.offers.show', $result['offer']->public_id)
-            ->with('success', 'Offer published — share the URL with your buyback director.');
+            ->with('success', $message);
     }
 
     /**

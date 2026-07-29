@@ -139,6 +139,12 @@ class BuybackPublicController extends Controller
             'average_percentage' => round((float) ($result['average_percentage'] ?? 0), 1),
             'item_count' => is_array($result['items'] ?? null) ? count($result['items']) : 0,
             'truncated' => (bool) ($result['truncated'] ?? false),
+            // Items excluded by a pricing rule — surfaced so visitors know
+            // they were not valued, rather than silently missing.
+            'excluded' => array_map(
+                fn ($e) => ['name' => (string) $e['type_name'], 'quantity' => (int) $e['quantity']],
+                is_array($result['excluded'] ?? null) ? $result['excluded'] : []
+            ),
         ]);
     }
 

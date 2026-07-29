@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex">
     <title>{{ $corpName }} Buyback</title>
-    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/public.css') }}?v=8">
+    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/public.css') }}?v=9">
     <style>
         .bb-public-body { --bb-pub-accent: {{ $accent }}; }
         @if($backgroundUrl)
@@ -116,6 +116,7 @@
             var url = "{{ route('buyback-manager.public.estimate', ['ticker' => $ticker]) }}";
             var token = "{{ csrf_token() }}";
             function isk(n) { return new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(n) + ' ISK'; }
+            function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
             btn.addEventListener('click', function () {
                 var items = (input.value || '').trim();
                 out.style.display = 'block';
@@ -146,10 +147,20 @@
                     }
                     if (!res.ok || !res.j.success) { out.textContent = res.j.message || 'Could not estimate.'; return; }
                     var j = res.j;
+                    var notAccepted = '';
+                    if (j.excluded && j.excluded.length) {
+                        var names = j.excluded.map(function (e) {
+                            return esc(e.name) + ' &times; ' + new Intl.NumberFormat('en-US').format(e.quantity);
+                        }).join(', ');
+                        notAccepted = '<div class="bb-estimate-warn"><strong>' + j.excluded.length
+                            + ' item(s) not accepted</strong> and not included in this estimate: ' + names
+                            + '. Ask us for a custom quote on those.</div>';
+                    }
                     out.innerHTML = '<div class="bb-estimate-total">' + isk(j.total_buyback_value) + '</div>'
                         + '<div class="bb-estimate-sub">' + j.item_count + ' item type(s) &middot; ' + j.average_percentage + '% of market'
                         + (j.truncated ? ' &middot; list truncated' : '') + '</div>'
-                        + '<div class="bb-estimate-sub">Log in to lock this as an offer.</div>';
+                        + '<div class="bb-estimate-sub">Log in to lock this as an offer.</div>'
+                        + notAccepted;
                 }).catch(function () { btn.disabled = false; out.textContent = 'Could not estimate.'; });
             });
         })();

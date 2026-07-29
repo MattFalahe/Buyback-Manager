@@ -30,6 +30,20 @@
                         resolved items. Split the paste into smaller batches if you need to appraise the rest.
                     </div>
                 @endif
+                @if(! empty($excluded))
+                    <div class="alert alert-warning">
+                        <i class="fa fa-exclamation-triangle"></i>
+                        <strong>{{ count($excluded) }} {{ \Illuminate\Support\Str::plural('item', count($excluded)) }} not accepted.</strong>
+                        These are not part of our buyback service right now, so they are
+                        <strong>not valued or included</strong> in the total below. Leave them out of the
+                        contract, and ask a buyback director for a custom quote if you want to sell them.
+                        <ul style="margin:0.5rem 0 0; padding-left:1.2rem;">
+                            @foreach($excluded as $ex)
+                                <li>{{ $ex['type_name'] }} &times; {{ number_format($ex['quantity']) }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
                 <div class="row mb-4">
                     <div class="col-md-4">
                         <div class="info-box bg-success">

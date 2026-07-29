@@ -91,6 +91,7 @@ class AppraisalService
             return [
                 'success' => true,
                 'items' => $result['items'],
+                'excluded' => $result['excluded'],
                 'total_market_value' => $result['total_market'],
                 'total_buyback_value' => $result['total_buyback'],
                 'average_percentage' => $result['total_market'] > 0
@@ -334,6 +335,7 @@ class AppraisalService
         $defaultSide = $this->resolveDefaultSide($setting);
 
         $buybackItems = [];
+        $excludedItems = [];
         $totalMarket = 0;
         $totalBuyback = 0;
 
@@ -344,7 +346,16 @@ class AppraisalService
 
             $ruleData = $setting->getRuleForItem($typeId, $categoryId, $groupId);
             if ($ruleData === null) {
-                continue; // excluded
+                // Excluded by a pricing rule. Report it back rather than
+                // dropping it silently — the member needs to know the item
+                // was not valued so they can ask for a custom quote and not
+                // include it in the contract.
+                $excludedItems[] = [
+                    'type_id' => $typeId,
+                    'type_name' => $item->type_name,
+                    'quantity' => (int) $item->quantity,
+                ];
+                continue;
             }
 
             $percentage = (float) $ruleData['percentage'];
@@ -379,6 +390,7 @@ class AppraisalService
 
         return [
             'items' => $buybackItems,
+            'excluded' => $excludedItems,
             'total_market' => $totalMarket,
             'total_buyback' => $totalBuyback,
         ];
