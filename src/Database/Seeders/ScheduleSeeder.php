@@ -7,6 +7,14 @@ use Seat\Services\Seeding\AbstractScheduleSeeder;
 
 class ScheduleSeeder extends AbstractScheduleSeeder
 {
+    /**
+     * Registers the plugin's schedules.
+     *
+     * updateOrInsert rather than the inherited firstOrCreate: keying on the
+     * command alone means a later change to a cron expression is actually
+     * applied to the existing row, instead of being silently ignored because
+     * the row already exists.
+     */
     public function run(): void
     {
         foreach ($this->getSchedules() as $job) {
@@ -14,11 +22,6 @@ class ScheduleSeeder extends AbstractScheduleSeeder
                 ['command' => $job['command']],
                 $job
             );
-        }
-
-        $deprecated = $this->getDeprecatedSchedules();
-        if (! empty($deprecated)) {
-            DB::table('schedules')->whereIn('command', $deprecated)->delete();
         }
     }
 
@@ -33,21 +36,6 @@ class ScheduleSeeder extends AbstractScheduleSeeder
                 'ping_before' => null,
                 'ping_after' => null,
             ],
-        ];
-    }
-
-    /**
-     * Commands that no longer exist. Listed here so the seeder deletes
-     * their rows from the schedules table — otherwise SeAT would keep
-     * trying to run a command that has been removed from the plugin.
-     *
-     * `expire-offers` belonged to the retired offer workflow: quotes are no
-     * longer locked with an expiry, so nothing needs sweeping.
-     */
-    public function getDeprecatedSchedules(): array
-    {
-        return [
-            'buyback-manager:expire-offers',
         ];
     }
 }
