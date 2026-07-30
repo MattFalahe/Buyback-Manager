@@ -49,6 +49,7 @@ Pick who receives the contracts, matching EVE's own visibility rules:
 ### 🧮 Pricing rules
 - Override the base percentage per **item**, **group**, or **category**, with item > group > category > base precedence.
 - Each rule picks the price side: `buy`, `sell`, or `split`. Rules can also exclude an item entirely, and excluded items are reported to the seller instead of silently dropped.
+- Groups and categories come from EVE's own item database, and groups are narrower than their names suggest: a category such as *Charge* covers all ammunition, while covering "all missiles" takes several group rules. Faction and Tech II variants frequently sit in their own group, so confirm which group an item really belongs to before relying on a group rule. If an appraisal prices an item at your base percentage, no rule matched it.
 
 ### 📍 Location restrictions
 - Optionally restrict buyback to specific **regions, constellations, systems, stations, or citadels** — mix freely, since a region entry covers everything inside it.

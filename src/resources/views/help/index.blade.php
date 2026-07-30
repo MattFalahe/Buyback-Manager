@@ -323,6 +323,29 @@
                         <i class="fas fa-sort-amount-down"></i>
                         <strong>Precedence: item &gt; group &gt; category &gt; base.</strong> The most specific matching rule wins. A rule can also exclude an item entirely (no buyback for that type).
                     </div>
+
+                    <h4>Choosing between a group and a category</h4>
+                    <p>Groups and categories both come straight from EVE's own item database, and <strong>groups are far narrower than their names suggest</strong>. A category is the broad bucket; the groups inside it are small, specific subdivisions:</p>
+
+                    <table class="plugin-info-table">
+                        <tr><td>Category <strong>Charge</strong></td><td>Every kind of ammunition: missiles, hybrid charges, crystals, projectile ammo, and more. One rule covers the lot.</td></tr>
+                        <tr><td>Group <strong>(one ammo type)</strong></td><td>Only that one kind of ammunition. Covering "all missiles" takes several group rules, not one.</td></tr>
+                    </table>
+
+                    <div class="warning-box">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Faction and Tech II variants often sit in their own group.</strong> EVE frequently splits advanced ammunition into a separate group from the Tech I version, so a rule on the basic group will not catch the faction or Tech II equivalents. Always confirm the group an item actually belongs to before relying on a group rule &mdash; a plausible sounding group name is not proof it contains the items you mean.
+                    </div>
+
+                    <div class="info-box">
+                        <i class="fas fa-search"></i>
+                        <strong>How to tell a rule did not match:</strong> run an appraisal and look at the percentage on the line. If an item comes back at your <em>base</em> percentage, no rule matched it. If you expected it to be excluded and it is priced instead, your rule is pointing at the wrong group or category.
+                    </div>
+
+                    <div class="success-box">
+                        <i class="fas fa-lightbulb"></i>
+                        <strong>Practical approach:</strong> use a <strong>category</strong> rule for broad strokes (exclude all ammo, all ships), then add narrower <strong>group</strong> or <strong>item</strong> rules for the specific things you do want to buy. Precedence means the narrower rules win, so you get wide coverage without listing every group by hand.
+                    </div>
                 </div>
             </div>
 
