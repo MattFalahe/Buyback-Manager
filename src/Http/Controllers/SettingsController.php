@@ -81,10 +81,9 @@ class SettingsController extends Controller
     {
         // category => [human description, the buyback.* events that map here]
         $catMeta = [
-            'offer_published' => ['New offers published', ['buyback.offer.published', 'buyback.offer.expired', 'buyback.offer.cancelled']],
-            'offer_matched' => ['Offers/contracts matched', ['buyback.contract.matched']],
-            'offer_rejected' => ['Offers/contracts rejected', ['buyback.offer.rejected', 'buyback.contract.rejected']],
-            'contract_unmatched' => ['Contract referenced an offer id that did not resolve (review)', ['buyback.contract.unmatched']],
+            'contract_matched' => ['Contract matched its appraisal key cleanly', ['buyback.contract.matched']],
+            'contract_flagged' => ['Contract matched but needs review (price drift, stale quote, wrong location, reused key, item mismatch)', ['buyback.contract.flagged']],
+            'contract_unmatched' => ['Contract quoted an appraisal key that did not resolve (review)', ['buyback.contract.unmatched']],
             'contract_completed' => ['Completed buybacks', ['buyback.contract.completed']],
             'contract_cancelled' => ['Cancelled contracts', ['buyback.contract.cancelled']],
             'contract_nudge' => ['Matched contract still awaiting acceptance past the auto-nudge window', ['buyback.contract.nudge']],
@@ -178,8 +177,11 @@ class SettingsController extends Controller
             'target_type' => 'required|in:my_corp,corp,player',
             'target_corporation_id' => 'nullable|integer|exists:corporation_infos,corporation_id',
             'target_corporation_name' => 'nullable|string|max:255',
-            'offer_lock_hours' => 'nullable|integer|min:1|max:168',
-            'private_auto_nudge_hours' => 'nullable|integer|min:0|max:168',
+            'max_deviation_percent' => 'nullable|numeric|min:0|max:100',
+            'appraisal_stale_hours' => 'nullable|integer|min:1|max:720',
+            'auto_nudge_hours' => 'nullable|integer|min:0|max:720',
+            'appraisal_item_retention_days' => 'nullable|integer|min:1|max:365',
+            'appraisal_retention_days' => 'nullable|integer|min:1|max:3650',
         ]);
 
         $targetType = $validated['target_type'] ?? BuybackSetting::TARGET_MY_CORP;
@@ -220,13 +222,13 @@ class SettingsController extends Controller
             $validated['character_id'] = null;
         }
 
-        // Legacy mode column, derived for the offer-visibility layer.
-        $validated['buyback_mode'] = $targetType === BuybackSetting::TARGET_PLAYER ? 'private' : 'public';
-
         $validated['enabled'] = $request->has('enabled');
         $validated['fallback_to_jita'] = $request->has('fallback_to_jita');
-        $validated['offer_lock_hours'] = $validated['offer_lock_hours'] ?? 24;
-        $validated['private_auto_nudge_hours'] = $validated['private_auto_nudge_hours'] ?? 48;
+        $validated['max_deviation_percent'] = $validated['max_deviation_percent'] ?? 1.00;
+        $validated['appraisal_stale_hours'] = $validated['appraisal_stale_hours'] ?? 48;
+        $validated['auto_nudge_hours'] = $validated['auto_nudge_hours'] ?? 48;
+        $validated['appraisal_item_retention_days'] = $validated['appraisal_item_retention_days'] ?? 14;
+        $validated['appraisal_retention_days'] = $validated['appraisal_retention_days'] ?? 180;
 
         // Capture the previous state so we can detect provider transitions
         // and (un)subscribe MC accordingly.

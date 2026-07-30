@@ -258,12 +258,12 @@
                                                     data-manager-core-variant="{{ $setting->manager_core_variant }}"
                                                     data-fallback-to-jita="{{ $setting->fallback_to_jita ? 1 : 0 }}"
                                                     data-price-cache-ttl-minutes="{{ $setting->price_cache_ttl_minutes ?? 60 }}"
-                                                    data-buyback-mode="{{ $setting->buyback_mode ?? 'public' }}"
+                                                    data-max-deviation-percent="{{ $setting->max_deviation_percent ?? '1.00' }}"
+                                                    data-appraisal-stale-hours="{{ $setting->appraisal_stale_hours ?? 48 }}"
                                                     data-target-type="{{ $setting->target_type ?? 'my_corp' }}"
                                                     data-target-corporation-id="{{ $setting->target_corporation_id }}"
                                                     data-target-corporation-name="{{ $setting->target_corporation_name }}"
-                                                    data-offer-lock-hours="{{ $setting->offer_lock_hours ?? 24 }}"
-                                                    data-private-auto-nudge-hours="{{ $setting->private_auto_nudge_hours ?? 48 }}">
+                                                    data-auto-nudge-hours="{{ $setting->auto_nudge_hours ?? 48 }}">
                                                 <i class="fa fa-edit"></i>
                                             </button>
                                             <a href="{{ route('buyback-manager.settings.public.edit', $setting->id) }}"
@@ -353,7 +353,7 @@
                                     <div class="form-group">
                                         <label for="target_type">Where do members send the contract? <span class="text-danger">*</span></label>
                                         <select name="target_type" id="target_type" class="form-control bb-target-selector" required>
-                                            <option value="my_corp" selected>My Corporation (anyone in corp can buy)</option>
+                                            <option value="my_corp" selected>My Corporation (any member with contract rights accepts)</option>
                                             <option value="corp">Specific Corporation</option>
                                             <option value="player">Specific Player</option>
                                         </select>
@@ -366,18 +366,45 @@
                                 </div>
                                 <div class="col-md-3">
                                     <div class="form-group">
-                                        <label for="offer_lock_hours">Offer lock (hours)</label>
-                                        <input type="number" name="offer_lock_hours" id="offer_lock_hours" class="form-control"
-                                               value="24" min="1" max="168" step="1">
-                                        <small class="text-muted">Frozen quote validity (1–168 h).</small>
+                                        <label for="max_deviation_percent">Price tolerance (%)</label>
+                                        <input type="number" name="max_deviation_percent" id="max_deviation_percent" class="form-control"
+                                               value="1.00" min="0" max="100" step="0.01">
+                                        <small class="text-muted">Flag a contract if the asked ISK drifts further than this from the quote.</small>
                                     </div>
                                 </div>
-                                <div class="col-md-3 bb-target-player-fields" style="display:none;">
+                                <div class="col-md-3">
                                     <div class="form-group">
-                                        <label for="private_auto_nudge_hours">Auto-nudge (hours)</label>
-                                        <input type="number" name="private_auto_nudge_hours" id="private_auto_nudge_hours" class="form-control"
-                                               value="48" min="0" max="168" step="1">
-                                        <small class="text-muted">Ping queue if idle. 0 disables.</small>
+                                        <label for="appraisal_stale_hours">Quote freshness (hours)</label>
+                                        <input type="number" name="appraisal_stale_hours" id="appraisal_stale_hours" class="form-control"
+                                               value="48" min="1" max="720" step="1">
+                                        <small class="text-muted">Older quotes are flagged as stale.</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label for="auto_nudge_hours">Auto-nudge (hours)</label>
+                                        <input type="number" name="auto_nudge_hours" id="auto_nudge_hours" class="form-control"
+                                               value="48" min="0" max="720" step="1">
+                                        <small class="text-muted">Remind if a contract sits unaccepted. 0 disables.</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label for="appraisal_item_retention_days">Keep item detail (days)</label>
+                                        <input type="number" name="appraisal_item_retention_days" id="appraisal_item_retention_days" class="form-control"
+                                               value="14" min="1" max="365" step="1">
+                                        <small class="text-muted">Line-by-line appraisal rows.</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label for="appraisal_retention_days">Keep appraisals (days)</label>
+                                        <input type="number" name="appraisal_retention_days" id="appraisal_retention_days" class="form-control"
+                                               value="180" min="1" max="3650" step="1">
+                                        <small class="text-muted">Totals kept for statistics.</small>
                                     </div>
                                 </div>
                             </div>
@@ -755,9 +782,9 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="form-group">
-                                <label for="edit_target_type">Where do members send the contract?</label>
+                                <label for="edit_target_type">Contract goes to</label>
                                 <select name="target_type" id="edit_target_type" class="form-control bb-target-selector" required>
-                                    <option value="my_corp">My Corporation (anyone in corp can buy)</option>
+                                    <option value="my_corp">My Corporation (any member with contract rights accepts)</option>
                                     <option value="corp">Specific Corporation</option>
                                     <option value="player">Specific Player</option>
                                 </select>
@@ -765,14 +792,14 @@
                         </div>
                         <div class="col-md-3">
                             <div class="form-group">
-                                <label for="edit_offer_lock_hours">Lock (h)</label>
-                                <input type="number" name="offer_lock_hours" id="edit_offer_lock_hours" class="form-control" min="1" max="168" step="1">
+                                <label for="edit_max_deviation_percent">Tolerance (%)</label>
+                                <input type="number" name="max_deviation_percent" id="edit_max_deviation_percent" class="form-control" min="0" max="100" step="0.01">
                             </div>
                         </div>
-                        <div class="col-md-3 bb-target-player-fields" style="display:none;">
+                        <div class="col-md-3">
                             <div class="form-group">
-                                <label for="edit_private_auto_nudge_hours">Auto-nudge (h)</label>
-                                <input type="number" name="private_auto_nudge_hours" id="edit_private_auto_nudge_hours" class="form-control" min="0" max="168" step="1">
+                                <label for="edit_appraisal_stale_hours">Quote freshness (h)</label>
+                                <input type="number" name="appraisal_stale_hours" id="edit_appraisal_stale_hours" class="form-control" min="1" max="720" step="1">
                             </div>
                         </div>
                     </div>
@@ -1036,8 +1063,8 @@
             $('#edit_target_type').val(btn.data('target-type') || 'my_corp');
             $('#edit_target_corporation_id').val((btn.data('target-corporation-id') || '').toString());
             $('#edit_target_corporation_name').val(btn.data('target-corporation-name') || '');
-            $('#edit_offer_lock_hours').val(btn.data('offer-lock-hours') || 24);
-            $('#edit_private_auto_nudge_hours').val(btn.data('private-auto-nudge-hours') || 48);
+            $('#edit_max_deviation_percent').val(btn.data('max-deviation-percent') || '1.00');
+            $('#edit_appraisal_stale_hours').val(btn.data('appraisal-stale-hours') || 48);
 
             // Re-run visibility toggles so the right sub-panels are open.
             $('#edit_price_provider').trigger('change');

@@ -4,7 +4,6 @@ namespace BuybackManager;
 
 use Seat\Services\AbstractSeatPlugin;
 use BuybackManager\Console\Commands\SyncContractsCommand;
-use BuybackManager\Console\Commands\ExpirePendingOffersCommand;
 use BuybackManager\Database\Seeders\ScheduleSeeder;
 
 class BuybackManagerServiceProvider extends AbstractSeatPlugin
@@ -82,7 +81,6 @@ class BuybackManagerServiceProvider extends AbstractSeatPlugin
         if ($this->app->runningInConsole()) {
             $this->commands([
                 SyncContractsCommand::class,
-                ExpirePendingOffersCommand::class,
             ]);
         }
     }

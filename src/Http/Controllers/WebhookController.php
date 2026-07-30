@@ -148,35 +148,37 @@ class WebhookController extends Controller
         }
 
         // Build a synthetic envelope that looks like a real
-        // buyback.offer.published event so the dispatcher's embed
+        // buyback.contract.matched event so the dispatcher's embed
         // builder produces a recognisable preview.
         $synthetic = [
             'source_plugin' => 'buyback-manager',
             'schema_version' => 1,
             'event_id' => 'bb-test-' . \Illuminate\Support\Str::uuid()->toString(),
             'corporation_id' => $hook->corporation_id ?? 0,
-            'offer_public_id' => 'bb-TEST123',
-            'mode' => 'public',
-            'status' => 'pending',
+            'contract_id' => 999999999,
+            'appraisal_public_id' => 'bb-test1234',
+            'status' => 'outstanding',
             'total_market_value' => 100000000.00,
             'total_buyback_value' => 90000000.00,
+            'asked_price' => 90000000.00,
+            'deviation_percent' => 0.0,
+            'flags' => [],
             'average_percentage' => 90.0,
             'market' => 'jita',
             'provider' => 'fuzzwork',
-            'expires_at' => now()->addHours(24)->toIso8601String(),
             'items_count' => 3,
             'url' => route('buyback-manager.settings.webhooks.index'),
         ];
 
         // Drop the dedup row if one already exists for this exact
         // synthetic payload — keeps test-fires re-runnable.
-        $payloadHash = BuybackNotificationLog::computeHash('buyback.offer.published', $synthetic);
+        $payloadHash = BuybackNotificationLog::computeHash('buyback.contract.matched', $synthetic);
         BuybackNotificationLog::where('webhook_id', $hook->id)
             ->where('payload_hash', $payloadHash)
             ->delete();
 
         try {
-            $this->dispatcher->dispatch('buyback.offer.published', $synthetic);
+            $this->dispatcher->dispatch('buyback.contract.matched', $synthetic);
             return $redirect(['success', 'Test event dispatched. Check the Recent dispatches log for the result.']);
         } catch (\Throwable $e) {
             return $redirect(['error', 'Test dispatch threw: ' . $e->getMessage()]);

@@ -2,7 +2,9 @@
 
 namespace BuybackManager\Http\Controllers;
 
+use BuybackManager\Models\BuybackAppraisal;
 use BuybackManager\Models\BuybackSetting;
+use BuybackManager\Services\AppraisalRecordService;
 use BuybackManager\Services\AppraisalService;
 use BuybackManager\Services\BuybackPublicService;
 use Illuminate\Http\Request;
@@ -65,6 +67,48 @@ class BuybackPublicController extends Controller
     }
 
     /**
+     * The stored appraisal, as a public page.
+     *
+     * This URL is the artefact the whole flow hangs on: it holds the key to
+     * paste into the contract Description, the itemised breakdown behind
+     * the quote, the contract instructions for this corporation, and the
+     * locations we accept from. Shareable, and readable without an account.
+     *
+     * Keys are random and unguessable, so possession of the URL is the
+     * access check — there is nothing user-specific on the page beyond the
+     * quote the visitor just generated.
+     */
+    public function appraisal(string $ticker, string $key, BuybackPublicService $service)
+    {
+        $setting = $service->resolveByTicker($ticker);
+        if (! $setting) {
+            abort(404);
+        }
+
+        $appraisal = BuybackAppraisal::with(['items', 'corporation'])
+            ->where('public_id', strtolower($key))
+            ->where('corporation_id', $setting->corporation_id)
+            ->first();
+
+        if (! $appraisal) {
+            abort(404);
+        }
+
+        return view('buyback-manager::public.appraisal', [
+            'setting'      => $setting,
+            'appraisal'    => $appraisal,
+            'corpName'     => optional($setting->corporation)->name ?? ('Corporation #' . $setting->corporation_id),
+            'ticker'       => $setting->corp_ticker,
+            'accent'       => $this->safeAccent($setting->public_accent_color),
+            'instructions' => $setting->publicContractInstructions(),
+            'locations'    => $setting->allowedLocationLabels(),
+            'excluded'     => $appraisal->excluded_json ?? [],
+            'staleHours'   => $setting->staleAfterHours(),
+            'publicUrl'    => route('buyback-manager.public.show', ['ticker' => $setting->corp_ticker], false),
+        ]);
+    }
+
+    /**
      * Stream an uploaded public image (background or logo) directly from
      * the upload disk. Mirrors HR Manager's hero stream: sidesteps
      * `storage:link` and serves from the app origin so CSP is satisfied.
@@ -109,8 +153,13 @@ class BuybackPublicController extends Controller
      * as JSON — no offer is created. Gated by public_appraisal_enabled and
      * rate-limited at the route. Members log in to lock the real offer.
      */
-    public function estimate(string $ticker, Request $request, BuybackPublicService $service, AppraisalService $appraisal)
-    {
+    public function estimate(
+        string $ticker,
+        Request $request,
+        BuybackPublicService $service,
+        AppraisalService $appraisal,
+        AppraisalRecordService $records
+    ) {
         $setting = $service->resolveByTicker($ticker);
         if (! $setting || ! $setting->public_appraisal_enabled) {
             abort(404);
@@ -142,6 +191,12 @@ class BuybackPublicController extends Controller
             ], 422);
         }
 
+        // Store it so the visitor gets a key they can paste into the
+        // contract, plus a shareable page. Attributed when they happen to
+        // be signed in, otherwise recorded as a guest.
+        $user = $request->user();
+        $record = $records->store($result, (int) $setting->corporation_id, $user?->id, null);
+
         return response()->json([
             'success' => true,
             'total_buyback_value' => (float) $result['total_buyback_value'],
@@ -149,6 +204,10 @@ class BuybackPublicController extends Controller
             'average_percentage' => round((float) ($result['average_percentage'] ?? 0), 1),
             'item_count' => is_array($result['items'] ?? null) ? count($result['items']) : 0,
             'truncated' => (bool) ($result['truncated'] ?? false),
+            'appraisal_key' => $record?->public_id,
+            'appraisal_url' => $record
+                ? route('buyback-manager.public.appraisal', ['ticker' => $setting->corp_ticker, 'key' => $record->public_id], false)
+                : null,
             // Items excluded by a pricing rule — surfaced so visitors know
             // they were not valued, rather than silently missing.
             'excluded' => array_map(
@@ -199,7 +258,7 @@ class BuybackPublicController extends Controller
 
         return [
             'base_percentage' => (float) $setting->base_percentage,
-            'lock_hours' => (int) ($setting->offer_lock_hours ?: 24),
+            'stale_hours' => $setting->staleAfterHours(),
             'items' => $items,
             'show_detail' => $showDetail,
             'market' => $showDetail ? $this->marketLabel($setting) : null,

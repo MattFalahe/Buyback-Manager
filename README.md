@@ -1,62 +1,68 @@
 # Buyback Manager
 
-A buyback programme for [SeAT](https://github.com/eveseat/seat) 5.x. Let your corporation buy items from members at a configurable percentage of market value, with a quote-then-contract workflow that locks the price the moment a member accepts it.
+A buyback programme for [SeAT](https://github.com/eveseat/seat) 5.x. Let your corporation buy items at a configurable percentage of market value, with an appraise-then-contract workflow that **needs no login at all** for the person selling.
 
 Buyback Manager works standalone on free Fuzzwork pricing or your own Janice key. [Manager Core](https://github.com/MattFalahe/manager-core) is an optional upgrade that adds regional market pricing, a shared price cache, and a cross-plugin event feed. Nothing here requires it.
 
-> **Mental model:** an offer is a price quote with a receipt number. The quote is locked the moment it is published, so the value never drifts while the member is hauling and contracting. The receipt number (the offer id) is how the in-game contract is matched back to the quote.
+> **Mental model:** an appraisal is a price quote with a receipt number. The receipt number (the appraisal key) is how an in-game contract is matched back to the quote it came from, so you can tell whether the seller asked for what you actually offered.
 
 ---
 
 ## How it works
 
-1. A member pastes their items into the **Appraisal** tool and gets a valuation using the corporation's provider and pricing rules.
-2. They **publish it as an offer**. The prices freeze and the offer gets a short id (for example `bb-zj2cc262`) and an expiry (the lock window you set).
-3. The member creates an in-game item exchange **contract** to the target the offer names, and pastes the offer id into the contract's **Description**.
-4. Buyback Manager **syncs contracts** on a schedule, reads the offer id from the Description, and pairs the contract to the pending offer at its frozen value.
-5. The offer is marked matched and any configured **Discord webhooks** announce it.
+1. A seller pastes their items into the **Appraisal** tool, or into the public page with no account at all.
+2. They get a valuation plus a short single-use **appraisal key** (for example `bb-zj2cc262`) and a shareable page with the full breakdown.
+3. They create an in-game item exchange **contract** to the target you name, set the price to the quoted value, and paste the key into the contract's **Description**.
+4. Buyback Manager **syncs contracts** on a schedule, resolves the key back to the appraisal, and compares the two.
+5. A clean contract is announced normally. Anything off is **flagged for review** with the reason, so a director checks it before paying.
 
-A contract with no valid offer id in its Description is ignored, which keeps unrelated and deleted contracts out of the list.
+A contract with no key in its Description is ignored, which keeps unrelated and deleted contracts out of the list.
 
 ---
 
 ## Features
 
-### 💱 Quote-then-contract workflow
-- Frozen-price offers with a configurable lock window, so a member always gets exactly the value they were quoted.
-- Account-aware matching: a member can quote with their main and contract from an alt on the same SeAT account. A different account cannot claim someone else's offer id.
-- Offer lifecycle: pending, matched, expired, cancelled, rejected. Lapsed offers are swept automatically.
-- Export the filtered contracts list to CSV for payout reconciliation and record-keeping.
+### 🔑 Appraise-then-contract, no login needed
+- Every appraisal returns a single-use key and a public, shareable appraisal page.
+- Signing in is optional: it only adds history under **My Appraisals**. No account, no ESI scopes, and no permission is needed to sell.
+- Two-tier retention keeps months of totals for statistics while pruning the bulky line-item rows early. Housekeeping runs inside the sync cycle, so there is no extra cron.
+
+### 🔍 Checked, not guessed
+The quote is a reference, not a price lock. Every contract is compared to its appraisal and flagged when something does not line up:
+- the asked price drifts past your tolerance (with the direction, so asking *more* stands out)
+- the quote was already stale when they contracted
+- the contract's items do not match what was priced
+- the key had already been used
+- the contract was created outside the locations you accept from
 
 ### 🎯 Three contract-target modes
 Pick who receives the contracts, matching EVE's own visibility rules:
 - **My Corporation** (visible to the whole corp): scans your corporation's contract feed.
 - **Specific Corporation** (visible to that corp's directors): reads the named corporation's feed.
-- **Specific Player** (visible only to the receiver): reads the designated character's personal contract feed.
+- **Specific Player** (visible only to the receiver): reads the designated character's personal feed.
 
 ### 💰 Flexible pricing
 - Providers: **Fuzzwork** (free, no key), **Janice** (API key, regional markets), or **Manager Core** (optional).
 - Both-sides pricing (buy and sell per item) so rules can apply to either side of the spread, or the midpoint.
 - Three-layer fallback (configured market, then a Jita fallback, then the local cache) so one upstream outage never zeroes a contract.
-- Local price cache with a per-corp TTL. Manager Core bypasses it because it maintains its own.
 
 ### 🧮 Pricing rules
 - Override the base percentage per **item**, **group**, or **category**, with item > group > category > base precedence.
-- Each rule picks the price side: `buy`, `sell`, or `split`. Rules can also exclude an item entirely.
+- Each rule picks the price side: `buy`, `sell`, or `split`. Rules can also exclude an item entirely, and excluded items are reported to the seller instead of silently dropped.
 
 ### 📍 Location restrictions
 - Optionally restrict buyback to specific **regions, constellations, systems, stations, or citadels** — mix freely, since a region entry covers everything inside it.
-- Contracts created anywhere else are automatically **rejected** with a reason, and the allowed locations are shown to members on the offer and public pages. A searchable picker resolves names from the SDE.
+- Contracts from anywhere else are flagged for review, and the accepted locations are shown on the public page and every appraisal page. A searchable picker resolves names from the SDE.
 
 ### 🔔 Discord notifications
 - Per-corporation or global webhooks with six subscribable categories.
 - Role mentions via a picker that reads your SeAT Discord integration, plus a Routing Map that shows which webhook announces which category.
-- De-duplicated and rate-limited delivery. No double pings.
+- De-duplicated and rate-limited delivery, and a contract's first sighting fires exactly one of matched, flagged or unmatched. No double pings.
 
 ### 🌐 Public landing page
-- An optional per-corporation public page at `/buyback/{ticker}` that advertises your rates, shows config-driven "how to sell" instructions, and links members into the appraisal via EVE SSO. No login required to view.
-- Brandable per corp: uploaded background and logo (with an optional square backdrop behind the logo), accent colour, dim overlay, headline, blurb, and footer. Images are served from your own server, so they need no `storage:link` and satisfy SeAT's content-security policy on Docker and bare-metal alike.
-- Configurable rates: flag "most wanted" items, optionally list every rule (not just the featured ones), and optionally show the sourced market and each rule's price side (buy / sell / split).
+- An optional per-corporation page at `/buyback/{ticker}` that advertises your rates, runs the no-login appraisal, and issues keys.
+- Brandable per corp: uploaded background and logo (dark, no box, or white square), accent colour, dim overlay, headline, blurb, footer, and a stacked or side-by-side layout. Images are served from your own server, so they need no `storage:link` and satisfy a strict content-security policy.
+- Configurable rates: flag "most wanted" items, optionally list every rule, and optionally show the sourced market and each rule's price side.
 
 ### 🩺 Diagnostics
 - An admin-only Diagnostic page with Health Checks, Master Test, System Validation, Settings Health, Data Integrity, Contract Trace, and Notification Testing.
@@ -90,7 +96,7 @@ The SeAT Docker stack auto-runs migrations when the container restarts, so a sta
 php artisan migrate
 ```
 
-The sidebar entry, scheduled jobs, and permissions register automatically.
+The sidebar entry, scheduled job, and permissions register automatically.
 
 ---
 
@@ -99,8 +105,8 @@ The sidebar entry, scheduled jobs, and permissions register automatically.
 1. Open **Buyback Manager > Settings** and add the corporation that will run the programme.
 2. Choose a **contract target** (My Corporation, a specific corporation, or a specific player).
 3. Pick a **pricing provider** and set the base percentage (default 90%).
-4. Optionally add **pricing rules** and a **Discord webhook**.
-5. Enable the setting, then run an **Appraisal** to confirm prices and publish a test offer.
+4. Optionally add **pricing rules**, **locations**, and a **Discord webhook**.
+5. Enable the setting, then run an **Appraisal** to confirm prices and that you get a key back.
 
 > **Player target mode** reads a personal contract feed, so the designated character must be registered in SeAT with a token carrying the `read_character_contracts` scope.
 
@@ -111,9 +117,9 @@ The sidebar entry, scheduled jobs, and permissions register automatically.
 | Permission | Grants |
 |---|---|
 | `buyback-manager.view` | View the Contracts list, Statistics, and the Help page. |
-| `buyback-manager.settings` | Manage corporation settings, pricing rules, and Discord webhooks. Opens the admin-only Diagnostic page. |
+| `buyback-manager.settings` | Manage corporation settings, pricing rules, locations, and Discord webhooks. Opens the admin-only Diagnostic page. |
 
-Appraisal and publishing offers are open to any logged-in member without either permission. The permissions gate the director-facing surfaces only.
+Selling needs no permission at all: the public page works without an account. The permissions gate the director-facing surfaces only.
 
 ---
 
@@ -123,28 +129,28 @@ When [Manager Core](https://github.com/MattFalahe/manager-core) is installed, Bu
 
 - **Regional market pricing** through Manager Core's pricing service and shared cache.
 - **Pricing preferences** in Manager Core, where an admin can override the market centrally.
-- **EventBus** publishing of offer and contract events (`offer.published / matched / expired / cancelled / rejected` and `contract.created / matched / unmatched / completed / cancelled / rejected / nudge`) for other plugins to consume.
+- **EventBus** publishing of `buyback.contract.matched / flagged / unmatched / completed / cancelled / nudge` for other plugins to consume.
 
 Install or uninstall Manager Core in any order. There is no composer dependency between them.
 
 ---
 
-## Scheduled jobs
+## Scheduled job
 
 | Command | Cadence | Purpose |
 |---|---|---|
-| `buyback-manager:sync-contracts` | every 15 minutes | Detect and update buyback contracts. |
-| `buyback-manager:expire-offers` | every 5 minutes | Sweep offers past their lock window. |
+| `buyback-manager:sync-contracts` | every 15 minutes | Detect contracts, resolve appraisal keys, raise review flags, notify, nudge idle contracts, and prune old data. |
 
-Both register automatically. The Diagnostic page's Health Checks tab confirms they are present, and its Sync Now button runs a detection pass on demand.
+It registers automatically. The Diagnostic page's Health Checks tab confirms it is present, and its Sync Now button runs a detection pass on demand.
 
 ---
 
 ## Known limitations
 
 - Player-target detection requires the designated character's token to carry `read_character_contracts`.
-- The offer id must be pasted into the contract Description; a contract without one is not tracked by design.
+- The appraisal key must be pasted into the contract Description; a contract without one is not tracked by design.
 - Fuzzwork prices The Forge only. Use Janice or Manager Core for other markets.
+- A citadel SeAT does not know about cannot be resolved to a system, so a contract there is flagged when location rules are set.
 
 ---
 

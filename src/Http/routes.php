@@ -5,7 +5,6 @@ use BuybackManager\Http\Controllers\BuybackController;
 use BuybackManager\Http\Controllers\AppraisalController;
 use BuybackManager\Http\Controllers\SettingsController;
 use BuybackManager\Http\Controllers\DiagnosticController;
-use BuybackManager\Http\Controllers\OfferController;
 use BuybackManager\Http\Controllers\WebhookController;
 use BuybackManager\Http\Controllers\HelpController;
 use BuybackManager\Http\Controllers\BuybackPublicController;
@@ -28,20 +27,13 @@ Route::group([
             ->name('create');
     });
 
-    // Offers — any authenticated SeAT user can publish, list, and view
-    // their own offers. Visibility on individual offer detail pages is
-    // gated per-offer via OfferController::authoriseViewing.
+    // Appraisal history for the signed-in user. Guests keep their key via
+    // the public appraisal URL instead; there is nothing to log in for.
     Route::group([
-        'prefix' => 'offers',
-        'as' => 'buyback-manager.offers.',
+        'prefix' => 'appraisals',
+        'as' => 'buyback-manager.appraisals.',
     ], function () {
-        Route::get('/', [OfferController::class, 'index'])->name('index');
-        Route::post('/', [OfferController::class, 'publish'])
-            ->middleware('throttle:20,1')
-            ->name('publish');
-        Route::get('/{public_id}', [OfferController::class, 'show'])->name('show');
-        Route::post('/{public_id}/cancel', [OfferController::class, 'cancel'])->name('cancel');
-        Route::post('/{public_id}/reject', [OfferController::class, 'reject'])->name('reject');
+        Route::get('/', [AppraisalController::class, 'mine'])->name('index');
     });
 
     // Buyback management (requires permission)
@@ -139,8 +131,12 @@ Route::group([
         ->name('buyback-manager.public.show');
     Route::get('/{ticker}/asset/{kind}', [BuybackPublicController::class, 'image'])
         ->name('buyback-manager.public.image');
-    // No-login appraisal preview. Throttled — it hits the pricing provider.
+    // No-login appraisal. Throttled — it hits the pricing provider.
     Route::post('/{ticker}/estimate', [BuybackPublicController::class, 'estimate'])
         ->middleware('throttle:10,1')
         ->name('buyback-manager.public.estimate');
+    // The stored appraisal: its URL is the key the seller pastes into the
+    // contract Description, and the page they share with a director.
+    Route::get('/{ticker}/a/{key}', [BuybackPublicController::class, 'appraisal'])
+        ->name('buyback-manager.public.appraisal');
 });

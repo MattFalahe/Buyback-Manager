@@ -21,18 +21,20 @@ use Seat\Eveapi\Models\Corporation\CorporationInfo;
  */
 class BuybackWebhook extends Model
 {
-    public const CATEGORY_OFFER_PUBLISHED = 'offer_published';
-    public const CATEGORY_OFFER_MATCHED = 'offer_matched';
-    public const CATEGORY_OFFER_REJECTED = 'offer_rejected';
+    /** A contract matched its appraisal key cleanly. */
+    public const CATEGORY_CONTRACT_MATCHED = 'contract_matched';
+    /** A contract matched but needs review (price drift, stale quote, wrong location...). */
+    public const CATEGORY_CONTRACT_FLAGGED = 'contract_flagged';
+    /** A contract quoted an appraisal key that did not resolve. */
     public const CATEGORY_CONTRACT_UNMATCHED = 'contract_unmatched';
     public const CATEGORY_CONTRACT_COMPLETED = 'contract_completed';
     public const CATEGORY_CONTRACT_CANCELLED = 'contract_cancelled';
+    /** A matched contract has sat unaccepted past the auto-nudge window. */
     public const CATEGORY_CONTRACT_NUDGE = 'contract_nudge';
 
     public const ALL_CATEGORIES = [
-        self::CATEGORY_OFFER_PUBLISHED,
-        self::CATEGORY_OFFER_MATCHED,
-        self::CATEGORY_OFFER_REJECTED,
+        self::CATEGORY_CONTRACT_MATCHED,
+        self::CATEGORY_CONTRACT_FLAGGED,
         self::CATEGORY_CONTRACT_UNMATCHED,
         self::CATEGORY_CONTRACT_COMPLETED,
         self::CATEGORY_CONTRACT_CANCELLED,

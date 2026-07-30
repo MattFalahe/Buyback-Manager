@@ -143,37 +143,52 @@
 
                 <hr>
 
-                <div class="callout callout-success">
-                    <h5><i class="fas fa-lock"></i> Lock this quote</h5>
-                    <p>
-                        Publish this as an <strong>offer</strong> to lock the
-                        <strong>{{ number_format($total_buyback_value, 2) }} ISK</strong>
-                        payout. You'll get a shareable URL and step-by-step
-                        instructions for creating the in-game contract.
-                    </p>
-                    <p style="font-size:0.85rem; color:#6c757d; margin-bottom:0;">
-                        The locked value is honoured even if market prices move before the contract is created.
-                    </p>
-                </div>
+                @if(! empty($appraisal))
+                    <div class="callout callout-success">
+                        <h5><i class="fas fa-key"></i> Your appraisal key</h5>
+                        <p>
+                            Put this key in the <strong>Description</strong> of your in-game
+                            contract so we can match it to this quote of
+                            <strong>{{ number_format($total_buyback_value, 2) }} ISK</strong>.
+                        </p>
+                        <div style="display:flex; gap:0.4rem; align-items:stretch;">
+                            <input type="text" class="form-control" readonly id="bb-appraisal-key"
+                                   value="{{ $appraisal->public_id }}"
+                                   style="font-family:monospace; font-weight:700; font-size:1.05rem;"
+                                   onclick="this.select();">
+                            <button type="button" class="btn btn-bb-secondary" onclick="bbCopyKey()">
+                                <i class="fas fa-copy"></i> Copy
+                            </button>
+                        </div>
+                        <p style="font-size:0.85rem; color:#6c757d; margin:0.6rem 0 0;">
+                            The key is single use. Set the contract price to the quoted value &mdash; a
+                            different amount still reaches us but is flagged for a director to check.
+                        </p>
+                    </div>
 
-                <form method="POST" action="{{ route('buyback-manager.offers.publish') }}">
-                    @csrf
-                    <input type="hidden" name="corporation_id" value="{{ $corporation->corporation_id }}">
-                    {{-- Multi-line paste data inside a hidden textarea (NOT
-                         a hidden <input value="...">) — attribute-value
-                         whitespace normalization in some browsers strips
-                         the newlines from a hidden input, breaking the
-                         standalone parser's line splitting on re-appraisal. --}}
-                    <textarea name="items" hidden>{{ $raw_input }}</textarea>
                     <div class="btn-group-vertical btn-block">
-                        <button type="submit" class="btn btn-bb-primary btn-block">
-                            <i class="fas fa-tag"></i> Publish as Offer
-                        </button>
+                        @if(! empty($setting))
+                            <a href="{{ route('buyback-manager.public.appraisal', ['ticker' => $setting->corp_ticker, 'key' => $appraisal->public_id]) }}"
+                               class="btn btn-bb-primary btn-block" target="_blank" rel="noopener">
+                                <i class="fas fa-external-link-alt"></i> Open shareable appraisal
+                            </a>
+                        @endif
                         <a href="{{ route('buyback.appraisal.index') }}" class="btn btn-bb-secondary btn-block" style="margin-top:0.4rem;">
                             <i class="fas fa-calculator"></i> New Appraisal
                         </a>
                     </div>
-                </form>
+                @else
+                    <div class="callout callout-warning">
+                        <h5><i class="fas fa-exclamation-triangle"></i> No key generated</h5>
+                        <p style="margin-bottom:0;">
+                            This quote could not be saved, so it has no contract key. Run the
+                            appraisal again, and ask an admin to check the SeAT log if it keeps happening.
+                        </p>
+                    </div>
+                    <a href="{{ route('buyback.appraisal.index') }}" class="btn btn-bb-secondary btn-block">
+                        <i class="fas fa-calculator"></i> New Appraisal
+                    </a>
+                @endif
             </div>
         </div>
 
@@ -191,3 +206,15 @@
 </div>
 </div>
 @endsection
+
+@push('javascript')
+<script>
+    function bbCopyKey() {
+        var field = document.getElementById('bb-appraisal-key');
+        if (!field) return;
+        field.select();
+        try { document.execCommand('copy'); } catch (e) {}
+        if (navigator.clipboard) { navigator.clipboard.writeText(field.value).catch(function () {}); }
+    }
+</script>
+@endpush

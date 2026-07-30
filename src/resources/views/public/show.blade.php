@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex">
     <title>{{ $corpName }} Buyback</title>
-    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/public.css') }}?v=9">
+    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/public.css') }}?v=10">
     <style>
         .bb-public-body { --bb-pub-accent: {{ $accent }}; }
         @if($backgroundUrl)
@@ -48,9 +48,9 @@
                     <div class="sub">of market value</div>
                 </div>
                 <div class="bb-rate-card">
-                    <div class="label">Price lock</div>
-                    <div class="value">{{ $rates['lock_hours'] }}h</div>
-                    <div class="sub">quote held</div>
+                    <div class="label">Quote freshness</div>
+                    <div class="value">{{ $rates['stale_hours'] }}h</div>
+                    <div class="sub">re-checked after this</div>
                 </div>
             </div>
             @if(count($rates['items']))
@@ -88,7 +88,7 @@
         @if($appraisalEnabled)
         <div class="bb-public-section bb-estimate-section">
             <h2>Quick estimate</h2>
-            <p class="bb-estimate-note">Paste your items to see what we'd pay. Preview only &mdash; log in to lock it as an offer.</p>
+            <p class="bb-estimate-note">Paste your items to see what we'd pay. No login needed &mdash; you'll get a key to put in your contract.</p>
             <textarea id="bb-estimate-input" class="bb-estimate-input" rows="5" placeholder="Paste items, one per line (e.g. Tritanium  1000)"></textarea>
             <button type="button" id="bb-estimate-btn" class="bb-public-cta" style="margin-top:12px; border:none; cursor:pointer;">Estimate</button>
             <div id="bb-estimate-result" class="bb-estimate-result" style="display:none;"></div>
@@ -166,7 +166,9 @@
                     out.innerHTML = '<div class="bb-estimate-total">' + isk(j.total_buyback_value) + '</div>'
                         + '<div class="bb-estimate-sub">' + j.item_count + ' item type(s) &middot; ' + j.average_percentage + '% of market'
                         + (j.truncated ? ' &middot; list truncated' : '') + '</div>'
-                        + '<div class="bb-estimate-sub">Log in to lock this as an offer.</div>'
+                        + (j.appraisal_url
+                            ? '<div style="margin-top:12px;"><a class="bb-public-cta" href="' + j.appraisal_url + '">See full appraisal &amp; get your key</a></div>'
+                            : '<div class="bb-estimate-sub">Run the appraisal again to get a contract key.</div>')
                         + notAccepted;
                 }).catch(function () { btn.disabled = false; out.textContent = 'Could not estimate.'; });
             });

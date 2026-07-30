@@ -56,12 +56,13 @@
                     <thead>
                         <tr>
                             <th>Contract ID</th>
-                            <th>Offer</th>
+                            <th>Appraisal</th>
                             <th>Corporation</th>
                             <th>Issuer</th>
                             <th>Status</th>
+                            <th>Review</th>
                             <th>Items</th>
-                            <th>Total Value</th>
+                            <th>Quoted</th>
                             <th>Issued Date</th>
                             <th>Completed Date</th>
                         </tr>
@@ -71,10 +72,8 @@
                             <tr class="contract-row" data-contract-id="{{ $contract->id }}">
                                 <td>{{ $contract->contract_id }}</td>
                                 <td>
-                                    @if($contract->offer_public_id)
-                                        <a href="{{ route('buyback-manager.offers.show', $contract->offer_public_id) }}">
-                                            <code>{{ $contract->offer_public_id }}</code>
-                                        </a>
+                                    @if($contract->appraisal_public_id)
+                                        <code>{{ $contract->appraisal_public_id }}</code>
                                     @else
                                         <span class="text-muted">—</span>
                                     @endif
@@ -93,6 +92,20 @@
                                     <span class="contract-status {{ $contract->status }}">
                                         {{ ucfirst(str_replace('_', ' ', $contract->status)) }}
                                     </span>
+                                </td>
+                                <td>
+                                    @if($contract->isFlagged())
+                                        <span class="label label-danger" title="{{ implode(' | ', $contract->flagLabels()) }}">
+                                            <i class="fa fa-exclamation-triangle"></i> {{ count($contract->flags()) }}
+                                        </span>
+                                        @if($contract->deviation_percent !== null && abs((float) $contract->deviation_percent) > 0.001)
+                                            <small class="text-muted d-block">
+                                                asked {{ (float) $contract->deviation_percent > 0 ? '+' : '' }}{{ number_format((float) $contract->deviation_percent, 2) }}%
+                                            </small>
+                                        @endif
+                                    @else
+                                        <span class="label label-success"><i class="fa fa-check"></i> OK</span>
+                                    @endif
                                 </td>
                                 <td class="text-center">{{ number_format($contract->items_count) }}</td>
                                 <td class="contract-value">

@@ -11,9 +11,9 @@ class BuybackSetting extends Model
      * Contract target types. Where the member's EVE item-exchange
      * contract should be sent.
      */
-    public const TARGET_MY_CORP = 'my_corp'; // member's own corporation (was "public")
+    public const TARGET_MY_CORP = 'my_corp'; // the programme's own corporation
     public const TARGET_CORP = 'corp';       // a specific (possibly external) corporation
-    public const TARGET_PLAYER = 'player';   // a designated character (was "private")
+    public const TARGET_PLAYER = 'player';   // a designated character
 
     protected $table = 'buyback_settings';
 
@@ -32,18 +32,20 @@ class BuybackSetting extends Model
         'manager_core_variant',
         'fallback_to_jita',
         'price_cache_ttl_minutes',
-        'buyback_mode',
         'target_type',
         'target_corporation_id',
         'target_corporation_name',
-        'offer_lock_hours',
-        'private_auto_nudge_hours',
+        'max_deviation_percent',
+        'appraisal_stale_hours',
+        'appraisal_item_retention_days',
+        'appraisal_retention_days',
+        'auto_nudge_hours',
         'public_page_enabled',
         'public_show_rates',
         'public_show_all_rules',
         'public_show_pricing_detail',
-        'public_layout',
         'public_appraisal_enabled',
+        'public_layout',
         'public_headline',
         'public_blurb',
         'public_accent_color',
@@ -63,8 +65,11 @@ class BuybackSetting extends Model
         'fallback_to_jita' => 'boolean',
         'price_cache_ttl_minutes' => 'integer',
         'target_corporation_id' => 'integer',
-        'offer_lock_hours' => 'integer',
-        'private_auto_nudge_hours' => 'integer',
+        'max_deviation_percent' => 'decimal:2',
+        'appraisal_stale_hours' => 'integer',
+        'appraisal_item_retention_days' => 'integer',
+        'appraisal_retention_days' => 'integer',
+        'auto_nudge_hours' => 'integer',
         'public_page_enabled' => 'boolean',
         'public_show_rates' => 'boolean',
         'public_show_all_rules' => 'boolean',
@@ -81,6 +86,14 @@ class BuybackSetting extends Model
     public function targetCorporation()
     {
         return $this->belongsTo(CorporationInfo::class, 'target_corporation_id', 'corporation_id');
+    }
+
+    /**
+     * Convenience relation: the designated character (player target).
+     */
+    public function character()
+    {
+        return $this->belongsTo(\Seat\Eveapi\Models\Character\CharacterInfo::class, 'character_id', 'character_id');
     }
 
     public function pricingRules()
@@ -121,10 +134,6 @@ class BuybackSetting extends Model
      *               contracts. Requires SeAT to hold the operator's
      *               character token with esi-contracts.read_character_contracts.
      *
-     * Returns:
-     *   ['type' => 'corporation'|'character', 'feed_id' => int, 'assignee_id' => int]
-     * or null for an instructions-only target (BB can't see the feed).
-     *
      * @return array{type: string, feed_id: int, assignee_id: int}|null
      */
     public function resolveSyncSource(): ?array
@@ -157,55 +166,41 @@ class BuybackSetting extends Model
     }
 
     /**
-     * True when BB cannot see the target's contract feed (an external,
-     * free-text corporation target). Such offers stay pending until an
-     * operator confirms them by hand, so the public instructions say so.
+     * True when Buyback Manager cannot see the target's contract feed (an
+     * external, free-text corporation target). Such contracts have to be
+     * confirmed by hand.
      */
     public function isInstructionsOnly(): bool
     {
         return $this->resolveSyncSource() === null;
     }
 
+    // ------------------------------------------------------------
+    // Review thresholds
+    // ------------------------------------------------------------
+
     /**
-     * Build the config-aware "how to sell to us" steps shown on the public
-     * page. The wording follows the corp's contract target so a member
-     * always sees the right assignee, lock window, and confirmation note.
-     *
-     * @return array<int, string>
+     * How far the asked ISK may drift from the quote before the contract
+     * is flagged, as a percentage.
      */
-    public function publicContractInstructions(): array
+    public function deviationTolerance(): float
     {
-        $label = $this->targetDisplayLabel();
-        $lockHours = (int) ($this->offer_lock_hours ?: 24);
-
-        $closing = $this->isInstructionsOnly()
-            ? 'We confirm the contract by hand and pay out the locked value.'
-            : 'We detect the contract automatically and pay out the locked value.';
-
-        $steps = [
-            'Paste your items into the appraisal tool and log in to publish an offer.',
-            'You get a locked price and a short offer id (for example bb-zj2cc262), held for ' . $lockHours . ' hours.',
-            'Create an in-game item exchange contract to ' . $label . '.',
-            'Paste the offer id into the contract Description.',
-            $closing,
-        ];
-
-        // When the corp restricts buyback to specific locations, spell that
-        // out right after the "create the contract" step so members do not
-        // get rejected after hauling.
-        $locations = $this->allowedLocationLabels();
-        if (! empty($locations)) {
-            array_splice($steps, 3, 0, [
-                'Create the contract at one of our buyback locations: ' . implode('; ', $locations) . '. Contracts made anywhere else are rejected.',
-            ]);
-        }
-
-        return $steps;
+        return (float) ($this->max_deviation_percent ?? 1.0);
     }
 
     /**
-     * True when this corp restricts buyback to specific locations.
+     * Age in hours past which a quote is treated as stale, because market
+     * prices may have moved since it was generated.
      */
+    public function staleAfterHours(): int
+    {
+        return (int) ($this->appraisal_stale_hours ?: 48);
+    }
+
+    // ------------------------------------------------------------
+    // Locations
+    // ------------------------------------------------------------
+
     public function hasLocationRestriction(): bool
     {
         return $this->locationRules()->exists();
@@ -226,6 +221,44 @@ class BuybackSetting extends Model
             ->all();
     }
 
+    // ------------------------------------------------------------
+    // Public page
+    // ------------------------------------------------------------
+
+    /**
+     * Build the config-aware "how to sell to us" steps. The wording
+     * follows the corporation's own setup so a seller always sees the
+     * right destination, the right key instruction, and the locations we
+     * accept from.
+     *
+     * @return array<int, string>
+     */
+    public function publicContractInstructions(): array
+    {
+        $label = $this->targetDisplayLabel();
+
+        $closing = $this->isInstructionsOnly()
+            ? 'We confirm the contract by hand, check it against your appraisal, and pay out.'
+            : 'We detect the contract automatically, check it against your appraisal, and pay out.';
+
+        $steps = [
+            'Paste your items into the appraisal tool to get a quote and an appraisal key (for example bb-zj2cc262).',
+            'Create an in-game item exchange contract to ' . $label . '.',
+            'Set the price to the quoted value, and paste the appraisal key into the contract Description.',
+        ];
+
+        // When the corporation restricts where it buys, say so before the
+        // seller hauls anywhere.
+        $locations = $this->allowedLocationLabels();
+        if (! empty($locations)) {
+            $steps[] = 'Create the contract at one of our buyback locations: ' . implode('; ', $locations) . '.';
+        }
+
+        $steps[] = $closing;
+
+        return $steps;
+    }
+
     /**
      * Corp ticker from SeAT (for the public URL). Falls back to the corp
      * id when the corporation_infos row is absent.
@@ -243,24 +276,9 @@ class BuybackSetting extends Model
         return route('buyback-manager.public.show', ['ticker' => $this->corp_ticker]);
     }
 
-    /**
-     * Convenience relation: the designated character (player target).
-     */
-    public function character()
-    {
-        return $this->belongsTo(\Seat\Eveapi\Models\Character\CharacterInfo::class, 'character_id', 'character_id');
-    }
-
-    /**
-     * Derive the legacy public/private mode from the target type, so the
-     * offer-visibility layer (which keys on mode) stays consistent.
-     */
-    public function derivedMode(): string
-    {
-        return ($this->target_type ?? self::TARGET_MY_CORP) === self::TARGET_PLAYER
-            ? 'private'
-            : 'public';
-    }
+    // ------------------------------------------------------------
+    // Pricing rules
+    // ------------------------------------------------------------
 
     /**
      * Resolve the buyback rule that applies to an item: percentage,

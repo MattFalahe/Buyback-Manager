@@ -2,10 +2,10 @@
 
 namespace BuybackManager\Services;
 
-use BuybackManager\Models\BuybackOffer;
+use BuybackManager\Models\BuybackAppraisal;
 
 /**
- * 8-character unguessable public IDs for BuybackOffer URLs.
+ * 8-character unguessable public IDs for appraisal keys and URLs.
  *
  * Friendlier to paste into EVE chat or quote on Discord than a 36-char
  * UUID. Uses a disambiguated alphabet (no I/l/1/0/O confusion).
@@ -23,13 +23,13 @@ class PublicIdGenerator
     private const MAX_ATTEMPTS = 5;
 
     /**
-     * Generate a new public_id unique against BuybackOffer.
+     * Generate a new public_id unique against BuybackAppraisal.
      */
     public static function generate(): string
     {
         for ($attempt = 0; $attempt < self::MAX_ATTEMPTS; $attempt++) {
             $candidate = self::PREFIX . self::randomToken(self::LENGTH);
-            if (! BuybackOffer::where('public_id', $candidate)->exists()) {
+            if (! BuybackAppraisal::where('public_id', $candidate)->exists()) {
                 return $candidate;
             }
         }

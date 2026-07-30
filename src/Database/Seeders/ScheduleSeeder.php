@@ -33,19 +33,21 @@ class ScheduleSeeder extends AbstractScheduleSeeder
                 'ping_before' => null,
                 'ping_after' => null,
             ],
-            [
-                'command' => 'buyback-manager:expire-offers',
-                'expression' => '*/5 * * * *',
-                'allow_overlap' => false,
-                'allow_maintenance' => false,
-                'ping_before' => null,
-                'ping_after' => null,
-            ],
         ];
     }
 
+    /**
+     * Commands that no longer exist. Listed here so the seeder deletes
+     * their rows from the schedules table — otherwise SeAT would keep
+     * trying to run a command that has been removed from the plugin.
+     *
+     * `expire-offers` belonged to the retired offer workflow: quotes are no
+     * longer locked with an expiry, so nothing needs sweeping.
+     */
     public function getDeprecatedSchedules(): array
     {
-        return [];
+        return [
+            'buyback-manager:expire-offers',
+        ];
     }
 }

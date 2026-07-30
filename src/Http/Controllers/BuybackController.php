@@ -15,7 +15,7 @@ class BuybackController extends Controller
     {
         $allowedCorpIds = $this->allowedCorporationIds($request);
 
-        $query = BuybackContract::with(['corporation', 'issuer', 'items', 'offer']);
+        $query = BuybackContract::with(['corporation', 'issuer', 'items']);
         $this->applyContractScope($query, $request, $allowedCorpIds);
 
         $contracts = $query->orderBy('issued_date', 'desc')->paginate(25);
@@ -52,12 +52,15 @@ class BuybackController extends Controller
 
             fputcsv($handle, [
                 'Contract ID',
-                'Offer',
+                'Appraisal',
                 'Corporation',
                 'Issuer',
                 'Status',
                 'Items',
-                'Total Value',
+                'Quoted Value',
+                'Asked Price',
+                'Deviation %',
+                'Review Flags',
                 'Issued Date',
                 'Completed Date',
             ]);
@@ -65,12 +68,15 @@ class BuybackController extends Controller
             foreach ($contracts as $contract) {
                 fputcsv($handle, [
                     $contract->contract_id,
-                    $contract->offer_public_id ?? '',
+                    $contract->appraisal_public_id ?? '',
                     $this->csvSafe($contract->corporation->name ?? 'Unknown'),
                     $this->csvSafe($contract->issuer->name ?? 'Unknown'),
                     ucfirst(str_replace('_', ' ', $contract->status)),
                     $contract->items_count,
                     $contract->total_value,
+                    $contract->asked_price,
+                    $contract->deviation_percent,
+                    implode('; ', $contract->flags()),
                     $contract->issued_date?->format('Y-m-d H:i:s'),
                     $contract->completed_date?->format('Y-m-d H:i:s'),
                 ]);
@@ -108,7 +114,7 @@ class BuybackController extends Controller
         }
 
         $baseFilter = function ($q) use ($corporationId, $allowedCorpIds, $dateFrom, $dateTo) {
-            $q->whereNotNull('offer_id')
+            $q->whereNotNull('appraisal_id')
                 ->where('status', 'completed')
                 ->whereBetween('completed_date', [$dateFrom, $dateTo]);
 
@@ -193,8 +199,8 @@ class BuybackController extends Controller
 
     /**
      * Apply the standard buyback-contract visibility scope to a query:
-     * only offer-linked contracts (rows without offer_id are noise —
-     * random/deleted item-exchange contracts or legacy pre-offer-id rows),
+     * only appraisal-linked contracts (a row without appraisal_id never
+     * quoted a key, so it is not a buyback contract),
      * restricted to the corporations the user may see, plus an optional
      * corporation_id filter that 403s when out of scope.
      *
@@ -203,7 +209,7 @@ class BuybackController extends Controller
      */
     protected function applyContractScope($query, Request $request, ?array $allowedCorpIds): void
     {
-        $query->whereNotNull('offer_id')
+        $query->whereNotNull('appraisal_id')
             ->when($allowedCorpIds !== null, fn($q) => $q->whereIn('corporation_id', $allowedCorpIds));
 
         $corporationId = $request->get('corporation_id');

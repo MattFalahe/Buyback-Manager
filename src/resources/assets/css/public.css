@@ -268,6 +268,85 @@
     color: #8b949e;
     margin-top: 4px;
 }
+/* --- Stored appraisal page --- */
+.bb-back-link {
+    display: inline-block;
+    font-size: 13px;
+    color: #8b949e;
+    text-decoration: none;
+    margin-bottom: 20px;
+}
+.bb-back-link:hover {
+    color: var(--bb-pub-accent);
+}
+.bb-key-box {
+    margin-top: 18px;
+    background: #161b22;
+    border: 1px solid var(--bb-pub-accent);
+    border-radius: 10px;
+    padding: 16px 18px;
+}
+.bb-key-label {
+    font-size: 13px;
+    color: #c9d1d9;
+    margin-bottom: 8px;
+}
+.bb-key-row {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+    flex-wrap: wrap;
+}
+.bb-key-input {
+    flex: 1;
+    min-width: 180px;
+    background: #0d1117;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    color: #e6edf3;
+    padding: 10px 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+.bb-key-hint {
+    font-size: 12px;
+    color: #6e7681;
+    margin-top: 8px;
+}
+.bb-table-scroll {
+    overflow-x: auto;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+}
+.bb-items-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.bb-items-table th,
+.bb-items-table td {
+    padding: 9px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    white-space: nowrap;
+}
+.bb-items-table th {
+    color: #8b949e;
+    font-weight: 600;
+    text-align: left;
+    background: #161b22;
+}
+.bb-items-table td {
+    color: #c9d1d9;
+}
+.bb-items-table tr:last-child td {
+    border-bottom: 0;
+}
+.bb-items-table .num {
+    text-align: right;
+}
+
 .bb-estimate-warn {
     margin-top: 12px;
     padding: 10px 12px;

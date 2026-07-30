@@ -2,6 +2,7 @@
 
 namespace BuybackManager\Services;
 
+use BuybackManager\Models\BuybackContract;
 use BuybackManager\Models\BuybackNotificationLog;
 use BuybackManager\Models\BuybackWebhook;
 use Illuminate\Support\Facades\Cache;
@@ -15,7 +16,7 @@ use Illuminate\Support\Facades\Log;
  * Event-to-category mapping is the only thing that connects domain
  * events (buyback.offer.published, buyback.contract.matched, etc.) to
  * webhook subscription categories. This keeps the BuybackWebhook
- * categories array meaningful for operators (offer_published,
+ * categories array meaningful for operators (contract_matched,
  * contract_unmatched, etc.) without leaking event-naming details into
  * the settings UI.
  *
@@ -32,31 +33,17 @@ class WebhookDispatcher
      * BuybackWebhook stores in its JSON column.
      */
     private const EVENT_TO_CATEGORY = [
-        'buyback.offer.published' => BuybackWebhook::CATEGORY_OFFER_PUBLISHED,
-        'buyback.offer.expired' => BuybackWebhook::CATEGORY_OFFER_PUBLISHED,
-        'buyback.offer.cancelled' => BuybackWebhook::CATEGORY_OFFER_PUBLISHED,
-        'buyback.offer.rejected' => BuybackWebhook::CATEGORY_OFFER_REJECTED,
-        // First-sighting contract events. `contract.created` deliberately
-        // omitted — first sightings fire matched OR unmatched only, which
-        // already carry the "first time we saw this" context. Adding
-        // `contract.created` would double-deliver to any webhook
-        // subscribing to offer_matched (it'd get matched + created for
-        // matched contracts, or unmatched + created for unmatched).
-        //
-        // `offer.matched` is omitted for the same reason: OfferService's
-        // markMatched() is only ever called from ContractService, one line
-        // before it publishes `contract.matched`, so the pair ALWAYS fires
-        // together. Mapping both to offer_matched sent two Discord messages
-        // for a single match (the payload_hash dedup can't catch it — the
-        // event names differ, so the hashes differ). `contract.matched`
-        // carries the richer payload, so it is the one that announces.
-        // Both are still published to the Manager Core EventBus.
-        'buyback.contract.matched' => BuybackWebhook::CATEGORY_OFFER_MATCHED,
+        // First sighting fires exactly ONE of matched / flagged /
+        // unmatched, so a webhook subscribing to several of these can
+        // never be double-pinged for a single contract. (The payload_hash
+        // dedup would not catch that on its own: different event names
+        // hash differently.)
+        'buyback.contract.matched' => BuybackWebhook::CATEGORY_CONTRACT_MATCHED,
+        'buyback.contract.flagged' => BuybackWebhook::CATEGORY_CONTRACT_FLAGGED,
         'buyback.contract.unmatched' => BuybackWebhook::CATEGORY_CONTRACT_UNMATCHED,
         // Lifecycle transitions after first sighting.
         'buyback.contract.completed' => BuybackWebhook::CATEGORY_CONTRACT_COMPLETED,
         'buyback.contract.cancelled' => BuybackWebhook::CATEGORY_CONTRACT_CANCELLED,
-        'buyback.contract.rejected' => BuybackWebhook::CATEGORY_OFFER_REJECTED,
         'buyback.contract.nudge' => BuybackWebhook::CATEGORY_CONTRACT_NUDGE,
     ];
 
@@ -234,26 +221,19 @@ class WebhookDispatcher
 
     private function titleFor(string $eventName, array $payload): string
     {
-        $publicId = $payload['offer_public_id'] ?? null;
         $contractId = $payload['contract_id'] ?? null;
         $valueText = isset($payload['total_buyback_value'])
             ? number_format((float) $payload['total_buyback_value'], 2) . ' ISK'
             : null;
 
         return match ($eventName) {
-            'buyback.offer.published' => 'New Buyback Offer ' . ($publicId ? "#{$publicId}" : '') . ($valueText ? " — {$valueText}" : ''),
-            'buyback.offer.matched' => 'Offer Matched to Contract ' . ($publicId ? "#{$publicId}" : ''),
-            'buyback.offer.expired' => 'Offer Expired ' . ($publicId ? "#{$publicId}" : ''),
-            'buyback.offer.cancelled' => 'Offer Cancelled ' . ($publicId ? "#{$publicId}" : ''),
-            'buyback.offer.rejected' => 'Offer Rejected ' . ($publicId ? "#{$publicId}" : ''),
-            'buyback.contract.created' => 'Buyback Contract Created' . ($contractId ? " #{$contractId}" : ''),
-            'buyback.contract.matched' => 'Buyback Contract Matched' . ($contractId ? " #{$contractId}" : ''),
+            'buyback.contract.matched' => 'New buyback contract' . ($contractId ? " #{$contractId}" : '') . ($valueText ? " — {$valueText}" : ''),
+            'buyback.contract.flagged' => 'Buyback contract needs review' . ($contractId ? " #{$contractId}" : ''),
             'buyback.contract.unmatched' => 'Unmatched buyback attempt' . ($contractId ? " (contract #{$contractId})" : ''),
-            'buyback.contract.completed' => 'Buyback Completed' . ($valueText ? " — {$valueText}" : ''),
-            'buyback.contract.cancelled' => 'Buyback Contract Cancelled' . ($contractId ? " #{$contractId}" : ''),
-            'buyback.contract.rejected' => 'Buyback Contract Rejected' . ($contractId ? " #{$contractId}" : ''),
+            'buyback.contract.completed' => 'Buyback completed' . ($valueText ? " — {$valueText}" : ''),
+            'buyback.contract.cancelled' => 'Buyback contract cancelled' . ($contractId ? " #{$contractId}" : ''),
             'buyback.contract.nudge' => 'Buyback contract awaiting action' . ($contractId ? " #{$contractId}" : ''),
-            default => 'Buyback Event: ' . $eventName,
+            default => 'Buyback event: ' . $eventName,
         };
     }
 
@@ -262,18 +242,12 @@ class WebhookDispatcher
         // Indigo / green / yellow / red palette matching the canonical
         // design system tokens (#6366f1, #22c55e, #eab308, #ef4444).
         return match ($eventName) {
-            'buyback.offer.published',
-            'buyback.contract.created',
-            'buyback.contract.matched',
-            'buyback.offer.matched' => 0x6366f1,
+            'buyback.contract.matched' => 0x6366f1,
             'buyback.contract.completed' => 0x22c55e,
-            'buyback.offer.expired',
             'buyback.contract.unmatched',
             'buyback.contract.cancelled',
-            'buyback.contract.nudge',
-            'buyback.offer.cancelled' => 0xeab308,
-            'buyback.contract.rejected',
-            'buyback.offer.rejected' => 0xef4444,
+            'buyback.contract.nudge' => 0xeab308,
+            'buyback.contract.flagged' => 0xef4444,
             default => 0x6366f1,
         };
     }
@@ -284,8 +258,28 @@ class WebhookDispatcher
 
         if (isset($payload['total_buyback_value'])) {
             $fields[] = [
-                'name' => 'Value',
+                'name' => 'Quoted',
                 'value' => number_format((float) $payload['total_buyback_value'], 2) . ' ISK',
+                'inline' => true,
+            ];
+        }
+        // Only worth showing alongside the quote when they differ — an
+        // exact match would just repeat the line above.
+        if (isset($payload['asked_price'], $payload['deviation_percent'])
+            && $payload['deviation_percent'] !== null
+            && abs((float) $payload['deviation_percent']) > 0.001) {
+            $deviation = (float) $payload['deviation_percent'];
+            $fields[] = [
+                'name' => 'Asked',
+                'value' => number_format((float) $payload['asked_price'], 2) . ' ISK'
+                    . ' (' . ($deviation > 0 ? '+' : '') . number_format($deviation, 2) . '%)',
+                'inline' => true,
+            ];
+        }
+        if (! empty($payload['appraisal_public_id'])) {
+            $fields[] = [
+                'name' => 'Appraisal',
+                'value' => '`' . $payload['appraisal_public_id'] . '`',
                 'inline' => true,
             ];
         }
@@ -325,13 +319,6 @@ class WebhookDispatcher
                 'inline' => true,
             ];
         }
-        if (isset($payload['expires_at'])) {
-            $fields[] = [
-                'name' => 'Lock expires',
-                'value' => $this->formatExpiry((string) $payload['expires_at']),
-                'inline' => false,
-            ];
-        }
         if (isset($payload['contract_id'])) {
             $fields[] = [
                 'name' => 'Contract ID',
@@ -339,26 +326,30 @@ class WebhookDispatcher
                 'inline' => true,
             ];
         }
-        if (! empty($payload['attempted_offer_id'])) {
+        if (! empty($payload['attempted_appraisal_key'])) {
             $fields[] = [
-                'name' => 'Referenced offer (unresolved)',
-                'value' => (string) $payload['attempted_offer_id'],
+                'name' => 'Quoted key (unresolved)',
+                'value' => '`' . $payload['attempted_appraisal_key'] . '`',
                 'inline' => true,
             ];
         }
-        if (! empty($payload['rejected_reason'])) {
+        // Why the contract needs review, spelled out rather than as codes.
+        if (! empty($payload['flags']) && is_array($payload['flags'])) {
+            $labels = array_map(
+                fn ($flag) => '• ' . (BuybackContract::FLAG_LABELS[$flag] ?? $flag),
+                $payload['flags']
+            );
             $fields[] = [
-                'name' => 'Rejection reason',
-                'value' => substr((string) $payload['rejected_reason'], 0, 1024),
+                'name' => 'Needs review',
+                'value' => substr(implode("\n", $labels), 0, 1024),
                 'inline' => false,
             ];
         }
-
         return $fields;
     }
 
     /**
-     * Resolve the offer/contract issuer to "Character (Corporation)" using
+     * Resolve the contract issuer to "Character (Corporation)" using
      * SeAT's tables. Returns null when no issuer id is in the payload.
      */
     private function resolveIssuer(array $payload): ?string

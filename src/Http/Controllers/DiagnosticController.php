@@ -46,8 +46,8 @@ class DiagnosticController extends Controller
     private const PLUGIN_TABLES = [
         'buyback_settings',
         'buyback_pricing_rules',
-        'buyback_offers',
-        'buyback_offer_items',
+        'buyback_appraisals',
+        'buyback_appraisal_items',
         'buyback_contracts',
         'buyback_contract_items',
         'buyback_price_cache',
@@ -97,7 +97,6 @@ class DiagnosticController extends Controller
      */
     private const EXPECTED_SCHEDULES = [
         ['command' => 'buyback-manager:sync-contracts', 'expression' => '*/15 * * * *'],
-        ['command' => 'buyback-manager:expire-offers', 'expression' => '*/5 * * * *'],
     ];
 
     protected PriceProviderService $priceProvider;

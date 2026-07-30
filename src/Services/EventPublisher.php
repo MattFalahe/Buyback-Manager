@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Log;
 /**
  * Fan-out point for every buyback event publish.
  *
- * One call from a domain service (OfferService / ContractService)
+ * One call from a domain service (ContractService)
  * fans out to:
  *
  *   1. Manager Core EventBus (events.publish capability) — when MC is

@@ -5,25 +5,27 @@ All notable changes to Buyback Manager will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - Initial Release (2026-06-10)
+## [1.0.0] - Initial Release
 
-The first public release of Buyback Manager. It turns a corporation buyback programme into a quote-then-contract workflow: a member appraises their items, publishes a frozen-price offer, and creates an in-game contract carrying the offer id. Buyback Manager detects the contract, pairs it to the offer at its locked value, and announces the result. The plugin runs standalone on free Fuzzwork pricing or a Janice key, and treats Manager Core as an optional upgrade for regional pricing and a cross-plugin event feed rather than a dependency.
+The first public release of Buyback Manager. It turns a corporation buyback programme into an appraise-then-contract workflow that needs no login from the person selling: they appraise their items, get a single-use key, and paste it into an in-game contract. Buyback Manager detects the contract, resolves the key back to the appraisal, compares the two, and flags anything that does not line up for a director to review. The plugin runs standalone on free Fuzzwork pricing or a Janice key, and treats Manager Core as an optional upgrade for regional pricing and a cross-plugin event feed rather than a dependency.
 
 ### Added
 
-**Offer workflow**
+**Appraise-then-contract workflow**
 - Appraisal tool that values a pasted item list against a corporation's provider and pricing rules, returning both buy and sell prices per item.
-- Publish-as-offer flow that freezes the valuation, assigns a short public offer id (for example `bb-zj2cc262`), and sets an expiry from a configurable lock window.
-- Offer lifecycle with pending, matched, expired, cancelled, and rejected states, plus a My Offers page for members to track their own.
-- Account-aware matching: a contract may be issued by any character on the same SeAT account as the member who published the offer, so a member can quote with their main and contract from an alt.
+- Every appraisal is stored and returns a short single-use key (for example `bb-zj2cc262`) plus a public, shareable appraisal page with the full breakdown, the key to copy, the contract instructions, and the accepted locations.
+- No account, no ESI scopes, and no permission are needed to sell. Signing in is optional and only adds history under My Appraisals.
+- Items a programme does not buy are reported back to the seller rather than silently dropped, with a prompt to ask for a custom quote.
+- Two-tier retention: bulky line-item rows are pruned early while appraisal totals are kept for months of statistics. Housekeeping runs inside the sync cycle, so no extra cron is needed.
 
-**Contract detection**
+**Contract detection and review**
 - Three contract-target modes that mirror EVE's contract visibility: My Corporation (whole-corp feed), Specific Corporation (named corp's feed), and Specific Player (the designated character's personal feed).
-- Detection by offer id embedded in the contract Description. Contracts without a valid, claimable offer id are ignored, keeping unrelated and deleted contracts out of the list.
-- Unmatched-attempt review signal when a contract references an id that does not resolve, logged for the operator rather than silently dropped.
-- Status-transition tracking that records completion, cancellation, and rejection of buyback contracts.
-- CSV export of the filtered contracts list, honouring the same per-user corporation visibility as the on-screen list.
-- Idle-contract reminder: a matched contract left unaccepted past the corp's auto-nudge window (`private_auto_nudge_hours`, 0 to disable) pings the Contract Nudge category once.
+- Detection by appraisal key embedded in the contract Description. Contracts without a valid key are ignored, keeping unrelated and deleted contracts out of the list.
+- Every matched contract is compared against its appraisal and flagged when the asked price drifts past the corporation's tolerance (with the direction reported), the quote was already stale, the items do not match, the key had been reused, or the contract was created outside the accepted locations.
+- Unmatched-attempt review signal when a contract quotes a key that does not resolve, logged for the operator rather than silently dropped.
+- Status-transition tracking that records completion and cancellation of buyback contracts.
+- Idle-contract reminder when a matched contract is left unaccepted past the corporation's auto-nudge window (0 disables).
+- CSV export of the filtered contracts list, including asked price, deviation and review flags, honouring the same per-user corporation visibility as the on-screen list.
 
 **Pricing**
 - Three providers: Fuzzwork (free, The Forge), Janice (API key, regional markets, with a raw appraisal endpoint for large lists), and Manager Core (optional).
@@ -37,25 +39,25 @@ The first public release of Buyback Manager. It turns a corporation buyback prog
 
 **Location restrictions**
 - Optionally restrict buyback to specific regions, constellations, systems, stations, or citadels, mixed freely (a region covers everything inside it). An empty list accepts any location.
-- Contracts created outside the allowed locations are rejected with a reason that rides the offer-rejected Discord category; the allowed locations are surfaced to members on the offer and public pages. A searchable picker resolves names from the SDE.
+- Contracts created outside the accepted locations are tracked and flagged for review rather than dropped, and the accepted locations are shown on the public page and every appraisal page. A searchable picker resolves names from the SDE.
 
 **Discord notifications**
-- Per-corporation or global webhooks with seven subscribable categories (Offer Published, Offer Matched, Offer Rejected, Contract Unmatched, Contract Completed, Contract Cancelled, Contract Nudge).
+- Per-corporation or global webhooks with six subscribable categories (Contract Matched, Contract Flagged, Contract Unmatched, Contract Completed, Contract Cancelled, Contract Nudge).
+- Flagged contracts announce the quoted value, the asked price, the percentage difference and the reasons in one message.
 - Role mentions via a picker that reads detected Discord roles from the SeAT Discord integration.
 - A Notification Routing Map showing which webhook announces which category.
-- De-duplicated, per-webhook rate-limited delivery so a single event never double-pings.
+- De-duplicated, per-webhook rate-limited delivery, and a contract's first sighting fires exactly one of matched, flagged or unmatched.
 
 **Manager Core integration (optional)**
 - Automatic detection of Manager Core with a clean standalone fallback when it is absent.
 - Regional market pricing and shared cache through Manager Core's pricing service.
 - Registration in Manager Core's pricing preferences so an admin can override the market centrally.
-- EventBus publishing of the offer and contract event catalog for other plugins to consume.
+- EventBus publishing of `buyback.contract.matched / flagged / unmatched / completed / cancelled / nudge` for other plugins to consume.
 
 **Public landing page**
-- An optional per-corporation public page at `/buyback/{ticker}` that advertises rates, shows config-driven contract instructions, and funnels members into the appraisal via EVE SSO. No login required to view.
-- Brandable per corp: uploaded background and logo (with an optional solid square backdrop behind the logo), accent colour, dim overlay, headline, blurb, and footer. Images stream from the app origin, so they need no `storage:link` and satisfy CSP on Docker and bare-metal alike.
-- Configurable rate display: a "most wanted" flag to spotlight featured items, an option to list every non-excluded pricing rule rather than only the featured ones, and an option to show the sourced market and each rule's price side (buy / sell / split).
-- Optional no-login estimate calculator: visitors paste items and get a buyback estimate without logging in (preview only, rate-limited; they log in to lock an offer). Plus a page-layout choice (stacked or side-by-side) and a logo-background style (dark box, none, or white square).
+- An optional per-corporation public page at `/buyback/{ticker}` that advertises rates, runs the no-login appraisal, issues keys, and shows config-driven contract instructions.
+- Brandable per corp: uploaded background and logo (dark box, no box, or white square), accent colour, dim overlay, headline, blurb, footer, and a stacked or side-by-side layout. Images stream from the app origin, so they need no `storage:link` and satisfy a strict content-security policy.
+- Configurable rate display: a "most wanted" flag for featured items, an option to list every non-excluded rule, and an option to show the sourced market and each rule's price side.
 
 **Diagnostics**
 - An admin-only Diagnostic page (not in the sidebar) with Health Checks, Master Test, System Validation, Settings Health, Data Integrity, Contract Trace, and Notification Testing tabs.
@@ -64,7 +66,7 @@ The first public release of Buyback Manager. It turns a corporation buyback prog
 
 **Help & operations**
 - A Help & Documentation page in the sidebar covering the full workflow, pricing, rules, locations, detection modes, notifications, Manager Core, the public page, custom CSS styling, permissions, commands & configuration, and troubleshooting.
-- Two scheduled jobs registered automatically: `buyback-manager:sync-contracts` (every 15 minutes) and `buyback-manager:expire-offers` (every 5 minutes).
+- One scheduled job registered automatically: `buyback-manager:sync-contracts` (every 15 minutes), which also handles housekeeping.
 - Two permissions: `buyback-manager.view` and `buyback-manager.settings`.
 
 [1.0.0]: https://github.com/MattFalahe/Buyback-Manager/releases/tag/1.0.0

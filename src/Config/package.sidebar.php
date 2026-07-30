@@ -13,9 +13,9 @@ return [
                 'route' => 'buyback.appraisal.index',
             ],
             [
-                'name' => 'My Offers',
+                'name' => 'My Appraisals',
                 'icon' => 'fas fa-tag',
-                'route' => 'buyback-manager.offers.index',
+                'route' => 'buyback-manager.appraisals.index',
             ],
             [
                 'name' => 'Contracts',

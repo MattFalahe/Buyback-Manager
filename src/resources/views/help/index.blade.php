@@ -24,7 +24,7 @@
                         <li class="nav-item"><a href="#" class="nav-link" data-section="pricing"><i class="fas fa-coins"></i> Pricing &amp; Cache</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-section="rules"><i class="fas fa-sliders-h"></i> Pricing Rules</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-section="locations"><i class="fas fa-map-marker-alt"></i> Locations</a></li>
-                        <li class="nav-item"><a href="#" class="nav-link" data-section="workflow"><i class="fas fa-route"></i> Offer Workflow</a></li>
+                        <li class="nav-item"><a href="#" class="nav-link" data-section="workflow"><i class="fas fa-route"></i> Selling Workflow</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-section="detection"><i class="fas fa-file-contract"></i> Contracts &amp; Detection</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-section="notifications"><i class="fab fa-discord"></i> Discord Notifications</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-section="public-page"><i class="fas fa-globe"></i> Public Page</a></li>
@@ -147,18 +147,18 @@
                 {{-- Welcome --}}
                 <div class="help-card">
                     <h3><i class="fas fa-hand-sparkles"></i> Welcome</h3>
-                    <p>Buyback Manager turns a corporation buyback programme into a simple, fair workflow: a member appraises their items, publishes a locked offer, and creates an in game contract that Buyback Manager detects and records automatically. It runs on its own with free pricing, and grows richer when the rest of the suite is installed.</p>
-                    <p>This page is the full reference. Use the navigation on the left to jump to setup, pricing, the offer workflow, contract detection, Discord notifications, and troubleshooting.</p>
+                    <p>Buyback Manager turns a corporation buyback programme into a simple, fair workflow: a seller appraises their items, gets a key, and creates an in game contract carrying that key, which Buyback Manager detects, checks and records automatically. It runs on its own with free pricing, and grows richer when the rest of the suite is installed.</p>
+                    <p>This page is the full reference. Use the navigation on the left to jump to setup, pricing, the selling workflow, contract detection, Discord notifications, and troubleshooting.</p>
                 </div>
 
                 {{-- What is Buyback Manager --}}
                 <div class="help-card">
                     <h3><i class="fas fa-exchange-alt"></i> What is Buyback Manager?</h3>
-                    <p>Buyback Manager lets a corporation buy items from its members at a configurable percentage of market value. A member pastes their items into the appraisal tool, gets a valuation, and publishes it as an <strong>offer</strong>. The offer freezes the prices and hands back a short offer id. The member creates an in game contract for those items and writes that id into the contract's Description. Buyback Manager then detects the contract, pairs it to the frozen offer, and records the deal.</p>
+                    <p>Buyback Manager lets a corporation buy items at a configurable percentage of market value. A seller pastes their items into the appraisal tool, gets a valuation and a short <strong>appraisal key</strong>, then creates an in game contract for those items and writes the key into the contract's Description. Buyback Manager detects the contract, resolves the key back to the appraisal, checks the two against each other, and records the deal. None of it requires a login.</p>
 
                     <div class="purple-box">
                         <i class="fas fa-quote-left"></i>
-                        <strong>Mental model:</strong> an offer is a price quote with a receipt number. The quote is locked the moment it is published, so the value never drifts while the member is hauling and contracting. The receipt number (the offer id) is how the contract is matched back to the quote.
+                        <strong>Mental model:</strong> an appraisal is a price quote with a receipt number. The receipt number (the key) is how a contract is matched back to the quote it came from, so we can tell whether the seller asked for what we actually offered.
                     </div>
 
                     <div class="info-box">
@@ -174,7 +174,7 @@
                         <div class="feature-item">
                             <i class="fas fa-route"></i>
                             <h5>Quote-then-contract</h5>
-                            <p>Frozen-price offers with a configurable lock window, so a member always gets exactly what they were quoted.</p>
+                            <p>Every appraisal returns a single-use key. Paste it into the contract and we match the two up. No login needed.</p>
                         </div>
                         <div class="feature-item">
                             <i class="fas fa-crosshairs"></i>
@@ -193,13 +193,18 @@
                         </div>
                         <div class="feature-item">
                             <i class="fas fa-tag"></i>
-                            <h5>Offer matching</h5>
-                            <p>Contracts pair to offers by a short id, even from an alt on the same account. Noise contracts are ignored.</p>
+                            <h5>Checked, not guessed</h5>
+                            <p>We compare the asked price and items against the quote, and flag anything off for review. Noise contracts are ignored.</p>
                         </div>
                         <div class="feature-item">
                             <i class="fab fa-discord"></i>
                             <h5>Discord notifications</h5>
                             <p>Per corp or global webhooks, six categories, role mentions, and a routing map. De duplicated and rate limited.</p>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fas fa-globe"></i>
+                            <h5>Public page</h5>
+                            <p>An optional branded landing page with your rates and a no-login appraisal tool anyone can use.</p>
                         </div>
                         <div class="feature-item">
                             <i class="fas fa-plug"></i>
@@ -228,12 +233,12 @@
                         <li><strong>Pick a pricing provider</strong> (Fuzzwork, Janice, or Manager Core) and set your base percentage (the default is 90%).</li>
                         <li><strong>Add pricing rules (optional)</strong> to override the base percentage for specific items, groups, or categories.</li>
                         <li><strong>Add a Discord webhook (optional)</strong> on the Settings page Discord Webhooks tab, and pick a role to mention.</li>
-                        <li><strong>Enable the setting and test:</strong> run an <a href="{{ route('buyback.appraisal.index') }}">Appraisal</a> to confirm prices look right, then publish a test offer.</li>
+                        <li><strong>Enable the setting and test:</strong> run an <a href="{{ route('buyback.appraisal.index') }}">Appraisal</a> to confirm prices look right and that you get a key back.</li>
                     </ol>
 
                     <div class="success-box">
                         <i class="fas fa-check-circle"></i>
-                        <strong>That is the whole setup.</strong> Once a corporation setting is enabled, any logged in member can appraise and publish offers against it. Contract detection runs automatically on a schedule.
+                        <strong>That is the whole setup.</strong> Once a corporation setting is enabled, anyone can appraise against it and get a key &mdash; from the plugin or the public page. Contract detection runs automatically on a schedule.
                     </div>
                 </div>
             </div>
@@ -324,34 +329,35 @@
             {{-- WORKFLOW --}}
             <div id="workflow" class="help-section">
                 <div class="help-card">
-                    <h3><i class="fas fa-route"></i> The offer workflow</h3>
-                    <p>This is the lifecycle every buyback follows, from appraisal to a recorded deal.</p>
+                    <h3><i class="fas fa-route"></i> The selling workflow</h3>
+                    <p>This is the lifecycle every buyback follows, from appraisal to a recorded deal. <strong>No login is required</strong> at any point: a seller can do the whole thing from the public page.</p>
 
                     <ol class="step-by-step">
-                        <li><strong>Appraise.</strong> A member pastes their items into the Appraisal page and gets a valuation using the corporation's provider and rules.</li>
-                        <li><strong>Publish as an offer.</strong> The prices are frozen and the offer is given a short id like <code>bb-zj2cc262</code> and an expiry (the lock window you set, in hours).</li>
-                        <li><strong>Create the EVE contract.</strong> The member makes an item exchange contract to the target the offer names, and pastes the offer id into the contract's Description field.</li>
-                        <li><strong>Detection.</strong> Buyback Manager syncs contracts every 15 minutes (or immediately via the Diagnostic page's Sync Now button), reads the offer id from the Description, and pairs the contract to the pending offer.</li>
-                        <li><strong>Match and notify.</strong> The contract is recorded at the offer's frozen value, the offer is marked matched, and any configured Discord webhooks announce it.</li>
+                        <li><strong>Appraise.</strong> The seller pastes their items into the Appraisal page or the public page, and gets a valuation using the corporation's provider and rules.</li>
+                        <li><strong>Get the key.</strong> The appraisal is saved and handed back with a short single-use key like <code>bb-zj2cc262</code>, plus a shareable page showing the full breakdown.</li>
+                        <li><strong>Create the EVE contract.</strong> The seller makes an item exchange contract to the named target, sets the price to the quoted value, and pastes the key into the contract's Description.</li>
+                        <li><strong>Detection.</strong> Buyback Manager syncs contracts every 15 minutes (or immediately via the Diagnostic page's Sync Now button), reads the key from the Description, and resolves it to the appraisal.</li>
+                        <li><strong>Check and notify.</strong> The contract is compared against the appraisal. A clean match is announced as normal; anything off is flagged for a director to review before paying.</li>
                     </ol>
 
-                    <h4>Offer statuses</h4>
+                    <h4>What gets checked</h4>
+                    <p>The quote is a <strong>reference, not a guarantee</strong>. Nothing locks a price, so a discrepancy raises a review flag rather than binding you to an old number:</p>
                     <table class="plugin-info-table">
-                        <tr><td><code>pending</code></td><td>Published and waiting for a matching contract.</td></tr>
-                        <tr><td><code>matched</code></td><td>A contract referencing this offer was detected.</td></tr>
-                        <tr><td><code>expired</code></td><td>The lock window passed with no contract (swept every 5 minutes).</td></tr>
-                        <tr><td><code>cancelled</code></td><td>Withdrawn by the member or an admin.</td></tr>
-                        <tr><td><code>rejected</code></td><td>Declined by the operator (player target mode), with a reason.</td></tr>
+                        <tr><td>Asked price</td><td>The ISK on the contract differs from the quote by more than your tolerance (default 1%). The direction is reported, so asking <em>more</em> than quoted stands out from asking less.</td></tr>
+                        <tr><td>Stale quote</td><td>The appraisal was already older than your freshness window when the contract was made, so market prices may have moved.</td></tr>
+                        <tr><td>Item mismatch</td><td>The contract's contents do not match the items we priced.</td></tr>
+                        <tr><td>Reused key</td><td>The key had already been claimed by an earlier contract.</td></tr>
+                        <tr><td>Wrong location</td><td>The contract was created outside the locations you accept from.</td></tr>
                     </table>
 
                     <div class="warning-box">
                         <i class="fas fa-exclamation-triangle"></i>
-                        <strong>The offer id must be in the Description.</strong> A contract with no valid offer id is not treated as a buyback and is ignored. This keeps unrelated and deleted contracts out of the Contracts list.
+                        <strong>The key must be in the Description.</strong> A contract with no valid key is not treated as a buyback and is ignored. This keeps unrelated and deleted contracts out of the Contracts list.
                     </div>
 
                     <div class="info-box">
-                        <i class="fas fa-users"></i>
-                        <strong>Alts are fine:</strong> the contract can be issued by any character on the same SeAT account as the member who published the offer. A different account cannot claim someone else's offer id.
+                        <i class="fas fa-key"></i>
+                        <strong>Keys are single use.</strong> Each appraisal mints a new one, and once a contract claims it the key cannot be claimed again. Signing in is optional and only adds history under My Appraisals.
                     </div>
                 </div>
             </div>
@@ -387,7 +393,7 @@
 
                     <div class="info-box">
                         <i class="fas fa-filter"></i>
-                        <strong>What gets recorded:</strong> only contracts that carry a valid, claimable offer id appear in the <a href="{{ route('buyback-manager.contracts.index') }}">Contracts</a> list. An id that does not resolve is logged as an unmatched attempt for review, but no contract row is created.
+                        <strong>What gets recorded:</strong> only contracts that carry a valid appraisal key appear in the <a href="{{ route('buyback-manager.contracts.index') }}">Contracts</a> list. A key that does not resolve is logged as an unmatched attempt for review, but no contract row is created.
                     </div>
                 </div>
             </div>
@@ -398,12 +404,11 @@
                     <h3><i class="fab fa-discord"></i> Discord notifications</h3>
                     <p>Buyback Manager owns its own Discord delivery. You add webhooks on the Settings page (Discord Webhooks tab), choose which categories each one announces, and optionally mention a role. A webhook can be scoped to one corporation or made global.</p>
 
-                    <h4>The seven notification categories</h4>
+                    <h4>The six notification categories</h4>
                     <table class="plugin-info-table">
-                        <tr><td>Offer Published</td><td>An offer is published (also used for expiry and cancellation notices).</td></tr>
-                        <tr><td>Offer Matched</td><td>An offer is paired to a contract.</td></tr>
-                        <tr><td>Offer Rejected</td><td>An offer or contract is declined (a contract created outside the allowed locations lands here too).</td></tr>
-                        <tr><td>Contract Unmatched</td><td>A contract referenced an offer id that did not resolve (review signal).</td></tr>
+                        <tr><td>Contract Matched</td><td>A contract matched its appraisal key cleanly, with nothing to review.</td></tr>
+                        <tr><td>Contract Flagged</td><td>A contract matched but needs review: price drift, stale quote, item mismatch, reused key, or wrong location.</td></tr>
+                        <tr><td>Contract Unmatched</td><td>A contract quoted an appraisal key that did not resolve (review signal).</td></tr>
                         <tr><td>Contract Completed</td><td>A buyback contract is finished.</td></tr>
                         <tr><td>Contract Cancelled</td><td>A buyback contract is cancelled.</td></tr>
                         <tr><td>Contract Nudge</td><td>A matched contract has sat unaccepted past the corp's auto-nudge window.</td></tr>
@@ -416,7 +421,7 @@
 
                     <div class="success-box">
                         <i class="fas fa-shield-alt"></i>
-                        <strong>No double pings, no spam:</strong> each event sends at most once per webhook (duplicates are de duplicated), and each webhook is rate limited. A contract's first sighting fires a single matched or unmatched message, never both.
+                        <strong>No double pings, no spam:</strong> each event sends at most once per webhook (duplicates are de duplicated), and each webhook is rate limited. A contract's first sighting fires exactly one of matched, flagged or unmatched &mdash; never two.
                     </div>
                 </div>
             </div>
@@ -446,10 +451,10 @@
                     </ul>
 
                     <h4>What Buyback Manager publishes to Manager Core</h4>
-                    <p>Every offer and contract lifecycle transition is published to Manager Core's EventBus &mdash; an integration surface other plugins can subscribe to, separate from and in addition to the Discord categories above. Standalone installs simply get the Discord notifications.</p>
+                    <p>Every contract lifecycle transition is published to Manager Core's EventBus &mdash; an integration surface other plugins can subscribe to, separate from and in addition to the Discord categories above. Standalone installs simply get the Discord notifications.</p>
                     <div class="purple-box">
                         <i class="fas fa-broadcast-tower"></i>
-                        <strong>Events published:</strong> offers (<code>published</code>, <code>matched</code>, <code>expired</code>, <code>cancelled</code>, <code>rejected</code>) and contracts (<code>created</code>, <code>matched</code>, <code>unmatched</code>, <code>completed</code>, <code>cancelled</code>, <code>rejected</code>, <code>nudge</code>).
+                        <strong>Events published:</strong> <code>buyback.contract.matched</code>, <code>.flagged</code>, <code>.unmatched</code>, <code>.completed</code>, <code>.cancelled</code> and <code>.nudge</code>. Appraisals are not published &mdash; they are generated far too often (every public estimate) to be useful bus traffic.
                     </div>
                 </div>
             </div>
@@ -467,7 +472,7 @@
 
                     <div class="info-box">
                         <i class="fas fa-unlock"></i>
-                        <strong>Appraisal and offers are open to all members:</strong> any logged in SeAT user can run an appraisal and publish an offer against an enabled corporation, without either permission. The permissions above gate the director facing surfaces only.
+                        <strong>Selling needs no permission at all:</strong> anyone can appraise and get a key from the public page without an account, and any logged in SeAT user can do the same from the plugin. The permissions above gate the director facing surfaces only.
                     </div>
                 </div>
             </div>
@@ -483,10 +488,10 @@
 
                     <div class="info-box">
                         <i class="fas fa-ban"></i>
-                        With one or more locations set, a contract created anywhere else is <strong>rejected</strong>: the offer flips to rejected with the reason "Contract created outside the allowed buyback locations," which rides the offer-rejected Discord category. An empty list means no restriction.
+                        With one or more locations set, a contract created anywhere else is still tracked but <strong>flagged</strong> with "Created outside the accepted buyback locations", announced through the Contract Flagged category so a director can review and decline it in game. An empty list means no restriction.
                     </div>
 
-                    <p>The allowed locations are shown to members in the offer instructions and on the public page, so they know where to contract before hauling.</p>
+                    <p>The accepted locations are listed on the public page and on every appraisal page, so a seller knows where to contract before hauling anywhere.</p>
                 </div>
             </div>
 
@@ -500,12 +505,12 @@
                     <p>Open <strong>Settings</strong>, find the corporation in the Configured Corps table, and click the <i class="fas fa-globe"></i> globe button in its Actions column. Tick <strong>Enable the public page</strong> and save. The editor shows the exact public URL; while the page is disabled that URL returns 404, so nothing is exposed until you choose to publish.</p>
                     <div class="info-box">
                         <i class="fas fa-sign-in-alt"></i>
-                        The call to action sends visitors into the normal appraisal flow. Viewing the page and using the optional estimate calculator need no login &mdash; only publishing an offer does. If the visitor already has a SeAT session the button links them straight to the appraisal, so they are never pushed through a login again.
+                        The whole selling flow works with no login: a visitor appraises on the public page, gets a key and a shareable appraisal URL, and contracts in game. The call to action is only a shortcut into the richer in-plugin appraisal for people who do have an account, and it links them straight there if they are already signed in.
                     </div>
 
                     <div class="success-box">
                         <i class="fas fa-user-shield"></i>
-                        <strong>No ESI scopes required.</strong> Buyback Manager never starts its own EVE SSO request and never asks for scopes, so it cannot change or reduce what a member has already granted SeAT. To publish an offer a member only needs a SeAT login with at least one character registered in the corporation &mdash; whatever scopes that character's token carries. Appraising and estimating touch no character data at all. Contract detection reads the corporation's (or the designated operator's) own contract feed, never the seller's.
+                        <strong>No account and no ESI scopes required.</strong> Buyback Manager never starts its own EVE SSO request and never asks for scopes, so it cannot change or reduce what anyone has already granted SeAT. Appraising touches no character data at all, and contract detection reads the corporation's (or the designated operator's) own contract feed &mdash; never the seller's. Signing in is optional and only adds appraisal history.
                     </div>
 
                     <h4>Branding &amp; layout</h4>
@@ -523,7 +528,7 @@
                         <li><strong>Most wanted</strong> &mdash; flag any pricing rule as featured on the Pricing Rules page to spotlight it with a star.</li>
                         <li><strong>List all pricing rules</strong> &mdash; show every rule, not just the featured ones (excluded items are never shown).</li>
                         <li><strong>Market and price side</strong> &mdash; show the sourced market plus each rule's side (buy / sell / split).</li>
-                        <li><strong>No-login estimate</strong> &mdash; an optional calculator where visitors paste items and see what you'd pay before logging in. Preview only (no offer is created) and rate-limited; it exposes your rates to anyone with the link.</li>
+                        <li><strong>No-login appraisal</strong> &mdash; the calculator that lets anyone paste items, see what you'd pay, and get a contract key. This is the primary seller flow, so it is on by default; turn it off for an internal-only programme. Rate limited, and it does expose your rates to anyone with the link.</li>
                     </ul>
 
                     <div class="purple-box">
@@ -544,7 +549,7 @@
                     <p>Every Buyback Manager page is wrapped in a stable set of CSS hook classes, so you can restyle any part of the plugin from SeAT's own custom stylesheet or your theme — without editing the plugin's files, which are overwritten on every update.</p>
 
                     <h4>The global hook</h4>
-                    <p>Every plugin page (Appraisal, My Offers, Contracts, Statistics, Settings, Help) renders inside a single wrapper:</p>
+                    <p>Every plugin page (Appraisal, My Appraisals, Contracts, Statistics, Settings, Help) renders inside a single wrapper:</p>
                     <ul>
                         <li><code>.buyback-manager-wrapper</code> — present on every Buyback Manager page. Style it to affect the whole plugin at once, or use it as a prefix to scope an override so it only applies inside Buyback Manager.</li>
                     </ul>
@@ -598,10 +603,9 @@
                     <h3><i class="fas fa-terminal"></i> Commands &amp; configuration</h3>
 
                     <h4>Scheduled commands</h4>
-                    <p>Buyback Manager registers two Artisan commands and their schedules automatically &mdash; you normally never run them by hand. The Diagnostic page's Health Checks tab confirms both are present with the right cadence.</p>
+                    <p>Buyback Manager registers one Artisan command and its schedule automatically &mdash; you normally never run it by hand. The Diagnostic page's Health Checks tab confirms it is present with the right cadence.</p>
                     <table class="plugin-info-table">
-                        <tr><td><code>buyback-manager:sync-contracts</code></td><td>Every 15 minutes. Reads SeAT's synced contracts, matches them to offers by the pasted offer id, enforces location rules, fires the lifecycle events + Discord notifications, sends idle-contract nudges, and prunes the notification log.</td></tr>
-                        <tr><td><code>buyback-manager:expire-offers</code></td><td>Every 5 minutes. Flips pending offers past their lock window to <em>expired</em>.</td></tr>
+                        <tr><td><code>buyback-manager:sync-contracts</code></td><td>Every 15 minutes. Reads SeAT's synced contracts, resolves each appraisal key, compares the contract against its quote and raises review flags, fires the lifecycle events and Discord notifications, sends idle-contract nudges, and prunes old appraisals and notification logs.</td></tr>
                     </table>
                     <div class="info-box">
                         <i class="fas fa-play"></i>
@@ -617,6 +621,13 @@
                         <tr><td><code>public.upload_disk</code></td><td>Filesystem disk for public-page image uploads (<code>public</code>). Point it at a shared or S3 disk on a multi-server install.</td></tr>
                         <tr><td><code>public.max_upload_kb</code></td><td>Per-image size ceiling for public-page uploads (5120 KB).</td></tr>
                     </table>
+
+                    <h4>Housekeeping</h4>
+                    <p>Appraisals are generated freely and with no login, so they are pruned automatically inside the sync cycle &mdash; there is no extra cron to add. Retention is two tier and set per corporation on the Settings page:</p>
+                    <table class="plugin-info-table">
+                        <tr><td>Keep item detail</td><td>Line-by-line appraisal rows, the bulk of the data (default 14 days). Safe to drop early, because a matched contract keeps its own copy of the item snapshot.</td></tr>
+                        <tr><td>Keep appraisals</td><td>The appraisal totals, kept far longer for statistics (default 180 days).</td></tr>
+                    </table>
                 </div>
             </div>
 
@@ -628,7 +639,7 @@
 
                     <table class="plugin-info-table">
                         <tr><td>Prices wrong or zero</td><td>Diagnostic &gt; Settings Health validates each provider config; Master Test live tests a provider.</td></tr>
-                        <tr><td>Contract not picked up</td><td>Confirm the offer id is in the Description, then Diagnostic &gt; Contract Trace walks the pipeline.</td></tr>
+                        <tr><td>Contract not picked up</td><td>Confirm the appraisal key is in the Description, then Diagnostic &gt; Contract Trace walks the pipeline.</td></tr>
                         <tr><td>Contract list stale</td><td>Diagnostic &gt; Health Checks shows the last sync time and has a Sync Now button.</td></tr>
                         <tr><td>Discord not arriving</td><td>Diagnostic &gt; Notification Testing lists every webhook with its last result and a test button.</td></tr>
                         <tr><td>Tables or schedules</td><td>Diagnostic &gt; Health Checks and Data Integrity verify tables, schedules, and consistency.</td></tr>
@@ -636,7 +647,7 @@
 
                     <div class="info-box">
                         <i class="fas fa-clock"></i>
-                        <strong>Scheduled jobs:</strong> <code>buyback-manager:sync-contracts</code> detects and updates contracts (every 15 minutes) and <code>buyback-manager:expire-offers</code> sweeps lapsed offers (every 5 minutes). Both register automatically; the Health Checks tab confirms they are present.
+                        <strong>Scheduled job:</strong> <code>buyback-manager:sync-contracts</code> detects and checks contracts every 15 minutes, and handles housekeeping. It registers automatically; the Health Checks tab confirms it is present.
                     </div>
                 </div>
             </div>
@@ -653,12 +664,12 @@
 
                     <div class="faq-item">
                         <div class="faq-question"><span>Why is my contract not showing up?</span><i class="fas fa-chevron-down"></i></div>
-                        <div class="faq-answer">The most common reason is a missing offer id in the contract Description. A contract without a valid offer id is ignored by design. Check the id, then use Diagnostic &gt; Contract Trace. Also confirm the contract target matches where the contract was sent.</div>
+                        <div class="faq-answer">The most common reason is a missing appraisal key in the contract Description. A contract without a valid key is ignored by design. Check the key, then use Diagnostic &gt; Contract Trace. Also confirm the contract target matches where the contract was sent.</div>
                     </div>
 
                     <div class="faq-item">
                         <div class="faq-question"><span>Can a member contract from an alt?</span><i class="fas fa-chevron-down"></i></div>
-                        <div class="faq-answer">Yes. The contract can be issued by any character on the same SeAT account as the member who published the offer. A different account cannot claim someone else's offer id.</div>
+                        <div class="faq-answer">Yes. The key is not tied to a character or an account, so a member can appraise on one character and contract from another. Whoever issued the contract is recorded from the contract itself, and abuse is caught by the item and price checks rather than by an account gate.</div>
                     </div>
 
                     <div class="faq-item">
@@ -667,8 +678,8 @@
                     </div>
 
                     <div class="faq-item">
-                        <div class="faq-question"><span>What happens when an offer expires?</span><i class="fas fa-chevron-down"></i></div>
-                        <div class="faq-answer">An offer past its lock window is flipped to expired by a job that runs every 5 minutes. The member can appraise again to get a fresh quote at current prices.</div>
+                        <div class="faq-question"><span>What happens if someone contracts at the wrong price?</span><i class="fas fa-chevron-down"></i></div>
+                        <div class="faq-answer">The contract is still tracked, but flagged with the asked price, the quoted value and the percentage difference, and announced through the Contract Flagged category. Nothing is paid automatically, so a director reviews it and either honours it or declines the contract in game. Set the tolerance per corporation on the Settings page.</div>
                     </div>
 
                     <div class="faq-item">

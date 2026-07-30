@@ -160,8 +160,8 @@
                 </div>
                 <small class="text-muted">
                     Pick the buyback events this webhook should receive. Most operators run
-                    <code>offer_published</code> + <code>offer_matched</code> on the director channel and
-                    <code>contract_unmatched</code> + <code>offer_rejected</code> on a review channel.
+                    <code>contract_matched</code> + <code>contract_completed</code> on the director channel and
+                    <code>contract_flagged</code> + <code>contract_unmatched</code> on a review channel.
                 </small>
             </div>
             <div class="checkbox">
