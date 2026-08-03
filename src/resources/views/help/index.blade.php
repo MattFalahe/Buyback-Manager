@@ -380,7 +380,7 @@
 
                     <div class="info-box">
                         <i class="fas fa-key"></i>
-                        <strong>Keys are single use.</strong> Each appraisal mints a new one, and once a contract claims it the key cannot be claimed again. Signing in is optional and only adds history under My Appraisals.
+                        <strong>Keys are single use.</strong> Each appraisal mints a new one, and once a contract claims it the key cannot be claimed again. Signing in is never required: if the person who contracts is a known SeAT user, the appraisal is filed under their My Appraisals automatically once the contract is detected.
                     </div>
                 </div>
             </div>
@@ -528,7 +528,7 @@
                     <p>Open <strong>Settings</strong>, find the corporation in the Configured Corps table, and click the <i class="fas fa-globe"></i> globe button in its Actions column. Tick <strong>Enable the public page</strong> and save. The editor shows the exact public URL; while the page is disabled that URL returns 404, so nothing is exposed until you choose to publish.</p>
                     <div class="info-box">
                         <i class="fas fa-sign-in-alt"></i>
-                        The whole selling flow works with no login: a visitor appraises on the public page, gets a key and a shareable appraisal URL, and contracts in game. The call to action is only a shortcut into the richer in-plugin appraisal for people who do have an account, and it links them straight there if they are already signed in.
+                        The whole selling flow works with no login, and the page never asks for one: a visitor appraises on the public page, gets a key and a shareable appraisal URL, and contracts in game. Membership is <strong>detected, not declared</strong> &mdash; when the contract is picked up, its issuing character is resolved back to a SeAT account, so a member who appraised without signing in still gets the appraisal filed under My Appraisals. Someone with no SeAT account simply shows as a guest.
                     </div>
 
                     <div class="success-box">

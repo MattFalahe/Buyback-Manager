@@ -24,7 +24,7 @@ A contract with no key in its Description is ignored, which keeps unrelated and 
 
 ### 🔑 Appraise-then-contract, no login needed
 - Every appraisal returns a single-use key and a public, shareable appraisal page.
-- Signing in is optional: it only adds history under **My Appraisals**. No account, no ESI scopes, and no permission is needed to sell.
+- No account, no ESI scopes, and no permission is needed to sell, and the public page never asks anyone to sign in. Membership is detected rather than declared: when a contract is picked up, its issuing character is resolved back to a SeAT account, so a member who appraised as a guest still gets it filed under **My Appraisals**. Sellers with no SeAT account show as a guest.
 - Two-tier retention keeps months of totals for statistics while pruning the bulky line-item rows early. Housekeeping runs inside the sync cycle, so there is no extra cron.
 
 ### 🔍 Checked, not guessed

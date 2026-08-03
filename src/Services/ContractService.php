@@ -210,10 +210,24 @@ class ContractService
             // already claimed by an earlier contract — leave that claim
             // pointing at the original.
             if (! $match['reused']) {
-                $appraisal->update([
+                $claim = [
                     'matched_contract_id' => $buybackContract->id,
                     'matched_at' => now(),
-                ]);
+                ];
+
+                // Membership is DETECTED, not declared. An appraisal made
+                // without signing in has no user_id, but the contract tells us
+                // exactly who issued it — so resolve that character back to a
+                // SeAT account and attribute the appraisal now. Sellers who
+                // never log in stay null and show as a guest.
+                if ($appraisal->user_id === null) {
+                    $userId = $this->resolveUserIdForCharacter((int) $contract->issuer_id);
+                    if ($userId !== null) {
+                        $claim['user_id'] = $userId;
+                    }
+                }
+
+                $appraisal->update($claim);
             }
 
             $savedContract = $buybackContract;
@@ -378,6 +392,28 @@ class ContractService
         }
 
         return null;
+    }
+
+    /**
+     * Resolve an EVE character to the SeAT account that owns it, or null when
+     * the character is not registered in SeAT (a genuine guest seller).
+     *
+     * Any character on an account resolves to the same user, so someone who
+     * appraised on one character and contracted from an alt still lands on
+     * the right person.
+     */
+    protected function resolveUserIdForCharacter(int $characterId): ?int
+    {
+        if ($characterId <= 0) {
+            return null;
+        }
+
+        $userId = DB::table('refresh_tokens')
+            ->where('character_id', $characterId)
+            ->whereNull('deleted_at')
+            ->value('user_id');
+
+        return $userId !== null ? (int) $userId : null;
     }
 
     /**

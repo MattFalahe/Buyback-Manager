@@ -53,13 +53,9 @@ class BuybackPublicController extends Controller
             'logoUrl'       => $logoUrl,
             'instructions'  => $setting->publicContractInstructions(),
             'rates'         => $setting->public_show_rates ? $this->buildRates($setting) : null,
-            'loginUrl'      => route('buyback.appraisal.index', [], false),
-            // Already signed in? Send them straight to the appraisal instead of
-            // through a login flow. Buyback Manager never initiates its own SSO
-            // request and never asks for ESI scopes, so an existing session
-            // must not be pushed through a re-auth that could alter the scopes
-            // the user previously granted SeAT.
-            'isLoggedIn'    => auth()->check(),
+            // No login anything: selling needs no account. Whoever issues the
+            // contract is identified from its issuer at detection time, so the
+            // page never asks anyone to sign in.
             'layout'        => $setting->public_layout === 'split' ? 'split' : 'stacked',
             'logoStyle'     => in_array($setting->public_logo_style, ['dark', 'none', 'light'], true) ? $setting->public_logo_style : 'dark',
             'appraisalEnabled' => (bool) $setting->public_appraisal_enabled,
@@ -151,7 +147,7 @@ class BuybackPublicController extends Controller
      * Public, no-login appraisal preview. Runs the corp's normal appraisal
      * (which itself requires an enabled programme) and returns totals only
      * as JSON — no offer is created. Gated by public_appraisal_enabled and
-     * rate-limited at the route. Members log in to lock the real offer.
+     * rate-limited at the route.
      */
     public function estimate(
         string $ticker,

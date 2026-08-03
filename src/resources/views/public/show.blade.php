@@ -26,9 +26,9 @@
         <h1 class="bb-public-title">{{ $setting->public_headline ?: ($corpName . ' Buyback') }}</h1>
         <div class="bb-public-ticker">{{ $ticker }}</div>
         <p class="bb-public-blurb">{{ $setting->public_blurb ?: 'We buy your items at competitive rates, with fast and locked-in payouts.' }}</p>
-        <a class="bb-public-cta" href="{{ $loginUrl }}">
-            {{ $isLoggedIn ? 'Appraise & sell now' : 'Log in to sell your items' }}
-        </a>
+        @if($appraisalEnabled)
+            <a class="bb-public-cta" href="#bb-estimate">Get an appraisal</a>
+        @endif
     </div>
 
     <div class="bb-public-wrap {{ $layout === 'split' ? 'bb-public-wrap-split' : '' }}">
@@ -80,13 +80,13 @@
                 </li>
                 @endforeach
             </ol>
-            <div class="bb-note">These steps follow this corporation's buyback setup. Log in to get your offer id and start a sale.</div>
+            <div class="bb-note">These steps follow this corporation's buyback setup. No account is needed to sell.</div>
         </div>
 
         </div>
 
         @if($appraisalEnabled)
-        <div class="bb-public-section bb-estimate-section">
+        <div class="bb-public-section bb-estimate-section" id="bb-estimate">
             <h2>Quick estimate</h2>
             <p class="bb-estimate-note">Paste your items to see what we'd pay. No login needed &mdash; you'll get a key to put in your contract.</p>
             <textarea id="bb-estimate-input" class="bb-estimate-input" rows="5" placeholder="Paste items, one per line (e.g. Tritanium  1000)"></textarea>
