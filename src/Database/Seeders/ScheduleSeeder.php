@@ -23,6 +23,11 @@ class ScheduleSeeder extends AbstractScheduleSeeder
                 $job
             );
         }
+
+        $deprecated = $this->getDeprecatedSchedules();
+        if (! empty($deprecated)) {
+            DB::table('schedules')->whereIn('command', $deprecated)->delete();
+        }
     }
 
     public function getSchedules(): array
@@ -37,5 +42,16 @@ class ScheduleSeeder extends AbstractScheduleSeeder
                 'ping_after' => null,
             ],
         ];
+    }
+
+    /**
+     * Required by AbstractScheduleSeeder. Empty because the plugin has not
+     * retired any scheduled command since its first release; add a command
+     * name here if one is ever removed, so its row is cleaned from the
+     * schedules table instead of being run forever.
+     */
+    public function getDeprecatedSchedules(): array
+    {
+        return [];
     }
 }
