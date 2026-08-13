@@ -4,6 +4,7 @@
 @section('page_header', 'Buyback Settings')
 
 @push('head')
+    @include("buyback-manager::settings._settings_styles")
     <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/buyback-manager.css') }}?v=4">
     <style>
         /* Inner settings sidebar — matches the canonical pattern from

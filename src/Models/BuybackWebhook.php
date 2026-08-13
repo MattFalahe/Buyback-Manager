@@ -56,31 +56,37 @@ class BuybackWebhook extends Model
                 'label' => 'Contract matched',
                 'help' => 'A contract matched its appraisal key cleanly, with nothing to review.',
                 'events' => ['buyback.contract.matched'],
+                'color' => '#6366f1',
             ],
             self::CATEGORY_CONTRACT_COMPLETED => [
                 'label' => 'Buyback completed',
                 'help' => 'The contract was accepted in game and the buyback is done.',
                 'events' => ['buyback.contract.completed'],
+                'color' => '#22c55e',
             ],
             self::CATEGORY_CONTRACT_FLAGGED => [
                 'label' => 'Needs review',
                 'help' => 'Matched, but something is off: price drift, a stale quote, the wrong location, a reused key or mismatched items.',
                 'events' => ['buyback.contract.flagged'],
+                'color' => '#ef4444',
             ],
             self::CATEGORY_CONTRACT_UNMATCHED => [
                 'label' => 'Key did not resolve',
                 'help' => 'Someone quoted an appraisal key that does not exist, has expired, or belongs to another corporation.',
                 'events' => ['buyback.contract.unmatched'],
+                'color' => '#eab308',
             ],
             self::CATEGORY_CONTRACT_CANCELLED => [
                 'label' => 'Contract cancelled',
                 'help' => 'The contract was cancelled, rejected or allowed to lapse.',
                 'events' => ['buyback.contract.cancelled'],
+                'color' => '#eab308',
             ],
             self::CATEGORY_CONTRACT_NUDGE => [
                 'label' => 'Waiting too long',
                 'help' => 'A matched contract is still sitting unaccepted past the auto-nudge window.',
                 'events' => ['buyback.contract.nudge'],
+                'color' => '#eab308',
             ],
         ];
     }
@@ -121,6 +127,16 @@ class BuybackWebhook extends Model
     }
 
     /**
+     * Badge colour for a category. Deliberately the same palette the Discord
+     * embeds use, so a category recognised by its colour in the settings UI
+     * arrives in Discord wearing the same one.
+     */
+    public static function categoryColor(string $category): string
+    {
+        return self::categoryMeta()[$category]['color'] ?? '#6366f1';
+    }
+
+    /**
      * Readable label for a fully qualified event name (buyback.contract.*),
      * resolved through whichever category routes it. Falls back to the last
      * segment of the event name so nothing ever renders as a bare key.
@@ -136,6 +152,21 @@ class BuybackWebhook extends Model
         $tail = substr($eventName, strrpos($eventName, '.') + 1);
 
         return ucfirst(str_replace('_', ' ', $tail));
+    }
+
+    /**
+     * Badge colour for a fully qualified event name, resolved through the
+     * category that routes it.
+     */
+    public static function eventColor(string $eventName): string
+    {
+        foreach (self::categoryMeta() as $meta) {
+            if (in_array($eventName, $meta['events'], true)) {
+                return $meta['color'];
+            }
+        }
+
+        return '#6366f1';
     }
 
     protected $table = 'buyback_webhooks';

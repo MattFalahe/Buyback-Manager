@@ -15,6 +15,18 @@
         <h3 class="card-title"><i class="fab fa-discord"></i> Configured webhooks</h3>
     </div>
     <div class="card-body">
+        {{-- Colour legend. The same colours are used on the Discord embeds, so
+             a category is recognisable in both places. --}}
+        <div style="margin-bottom:12px; font-size:12px; color:#8b95a5;">
+            <span style="margin-right:6px;">Categories:</span>
+            @foreach(\BuybackManager\Models\BuybackWebhook::categoryMeta() as $catKey => $catInfo)
+                <span class="bb-cat-badge"
+                      title="{{ $catInfo['help'] }}"
+                      style="background:{{ $catInfo['color'] }}22; color:{{ $catInfo['color'] }}; border-color:{{ $catInfo['color'] }}66;">
+                    {{ $catInfo['label'] }}
+                </span>
+            @endforeach
+        </div>
         @if($webhooks->isEmpty())
             <p class="text-muted" style="font-style:italic;">
                 No webhooks configured yet. Use the form below to add one.
@@ -44,7 +56,11 @@
                             </td>
                             <td>
                                 @foreach($hook->categories ?? [] as $c)
-                                    <span class="label label-default" style="margin-right:2px;">{{ \BuybackManager\Models\BuybackWebhook::categoryLabel($c) }}</span>
+                                    @php $bbCol = \BuybackManager\Models\BuybackWebhook::categoryColor($c); @endphp
+                                    <span class="bb-cat-badge"
+                                          style="background:{{ $bbCol }}22; color:{{ $bbCol }}; border-color:{{ $bbCol }}66;">
+                                        {{ \BuybackManager\Models\BuybackWebhook::categoryLabel($c) }}
+                                    </span>
                                 @endforeach
                             </td>
                             <td>
@@ -158,7 +174,10 @@
                                     <div class="checkbox" style="margin-top:0;">
                                         <label>
                                             <input type="checkbox" name="categories[]" value="{{ $cat }}">
-                                            <strong>{{ $bbCatMeta[$cat]['label'] ?? $cat }}</strong>
+                                            <span class="bb-cat-badge"
+                                                  style="background:{{ $bbCatMeta[$cat]['color'] }}22; color:{{ $bbCatMeta[$cat]['color'] }}; border-color:{{ $bbCatMeta[$cat]['color'] }}66;">
+                                                {{ $bbCatMeta[$cat]['label'] ?? $cat }}
+                                            </span>
                                         </label>
                                         <small class="d-block text-muted" style="margin-left:1.25rem;">
                                             {{ $bbCatMeta[$cat]['help'] ?? '' }}
@@ -223,7 +242,13 @@
                         <tr>
                             <td>{{ $row->sent_at }}</td>
                             <td>#{{ $row->webhook_id }}</td>
-                            <td title="{{ $row->event_name }}">{{ \BuybackManager\Models\BuybackWebhook::eventLabel($row->event_name) }}</td>
+                            <td title="{{ $row->event_name }}">
+                                @php $bbCol = \BuybackManager\Models\BuybackWebhook::eventColor($row->event_name); @endphp
+                                <span class="bb-cat-badge"
+                                      style="background:{{ $bbCol }}22; color:{{ $bbCol }}; border-color:{{ $bbCol }}66;">
+                                    {{ \BuybackManager\Models\BuybackWebhook::eventLabel($row->event_name) }}
+                                </span>
+                            </td>
                             <td><span class="label label-{{ $statusClass }}">{{ $row->status }}</span></td>
                             <td><small class="text-muted">{{ \Illuminate\Support\Str::limit($row->error ?? '', 80) }}</small></td>
                         </tr>

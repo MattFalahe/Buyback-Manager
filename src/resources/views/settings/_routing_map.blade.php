@@ -44,7 +44,11 @@
                 @foreach($routingMap as $category => $row)
                     <tr class="{{ $row['webhooks']->isEmpty() ? '' : '' }}">
                         <td>
-                            <strong>{{ $row['label'] ?? $category }}</strong>
+                            @php $bbCol = \BuybackManager\Models\BuybackWebhook::categoryColor($category); @endphp
+                            <span class="bb-cat-badge"
+                                  style="background:{{ $bbCol }}22; color:{{ $bbCol }}; border-color:{{ $bbCol }}66;">
+                                {{ $row['label'] ?? $category }}
+                            </span>
                             <br><small class="text-muted">{{ $row['description'] }}</small>
                         </td>
                         <td>
