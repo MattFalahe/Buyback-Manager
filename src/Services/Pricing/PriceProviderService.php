@@ -55,6 +55,14 @@ class PriceProviderService
     private const JANICE_APPRAISAL_URL = 'https://janice.e-351.com/api/rest/v2/appraisal';
 
     private const HTTP_TIMEOUT = 15;
+
+    /**
+     * Transient upstream blips (a dropped connection, a brief 5xx) should not
+     * zero a whole batch of prices, so each request gets one retry after a
+     * short pause before it counts as failed.
+     */
+    private const HTTP_RETRIES = 2;
+    private const HTTP_RETRY_DELAY_MS = 300;
     private const BATCH_SIZE = 100;
 
     /**
@@ -84,6 +92,21 @@ class PriceProviderService
      * Last fallback dispatch summary (null when no fallback fired).
      */
     protected ?array $lastFallbackSummary = null;
+
+    /**
+     * True when the most recent price fetch could not reach its provider and
+     * fell through to cached or zero prices. Callers use this to refuse to
+     * quote rather than publish a valuation built on a failed fetch.
+     */
+    protected bool $lastFetchDegraded = false;
+
+    /**
+     * Whether the most recent fetch ran degraded (provider unreachable).
+     */
+    public function wasLastFetchDegraded(): bool
+    {
+        return $this->lastFetchDegraded;
+    }
 
     // ============================================================
     // PUBLIC API
@@ -154,6 +177,7 @@ class PriceProviderService
         }
 
         $provider = $setting->price_provider ?? self::PROVIDER_FUZZWORK;
+        $this->lastFetchDegraded = false;
 
         // Manager Core has its own cache layer (manager_core_market_prices)
         // refreshed by a 4h cron. Layering BB's cache on top of MC would
@@ -197,16 +221,25 @@ class PriceProviderService
             $merged = array_replace($cached, $fetched);
             return $this->fillMissingPairWithZero($merged, $typeIds);
         } catch (\Throwable $e) {
-            Log::warning('[Buyback Manager] Upstream fetch failed; serving cache where possible (rest = stale or zero)', [
+            // The provider could not be reached. Fall back to cached prices
+            // at ANY age: a price from a few hours ago beats quoting zero.
+            // The degraded flag travels with it so the appraisal layer can
+            // refuse to issue a quote built on a failed fetch.
+            $this->lastFetchDegraded = true;
+
+            $lastResort = $this->readFromCacheAnyAge($stale, $regionId);
+            $recovered = array_replace($cached, $lastResort);
+
+            Log::warning('[Buyback Manager] Upstream fetch failed; serving cached prices where possible', [
                 'provider' => $provider,
                 'error' => $e->getMessage(),
+                'requested' => count($typeIds),
+                'fresh_cache' => count($cached),
+                'stale_cache_used' => count($lastResort),
+                'unpriced' => count($typeIds) - count($recovered),
             ]);
-            // Return what we had cached + zeros for the stale set. Stale
-            // entries' EXISTING (older-than-TTL) cache values could also
-            // be used as a last resort, but the operator-visible "stale"
-            // log line means they should fix upstream rather than work
-            // around it.
-            return $this->fillMissingPairWithZero($cached, $typeIds);
+
+            return $this->fillMissingPairWithZero($recovered, $typeIds);
         }
     }
 
@@ -249,6 +282,30 @@ class PriceProviderService
         $rows = BuybackPriceCache::where('region_id', $regionId)
             ->whereIn('type_id', $typeIds)
             ->where('cached_at', '>=', $cutoff)
+            ->get();
+
+        $out = [];
+        foreach ($rows as $row) {
+            $out[(int) $row->type_id] = [
+                'buy' => (float) $row->buy_price,
+                'sell' => (float) $row->sell_price,
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * Last-resort cache read that ignores the TTL.
+     *
+     * Only used when the provider could not be reached at all. A price from
+     * some hours ago is a far better answer than zero, and the caller marks
+     * the fetch as degraded so the valuation can be refused or flagged
+     * rather than silently trusted.
+     */
+    protected function readFromCacheAnyAge(array $typeIds, int $regionId): array
+    {
+        $rows = BuybackPriceCache::where('region_id', $regionId)
+            ->whereIn('type_id', $typeIds)
             ->get();
 
         $out = [];
@@ -962,9 +1019,24 @@ class PriceProviderService
     protected function fuzzworkFetchBoth(array $typeIds, int $regionId): array
     {
         $prices = [];
+        $batches = 0;
+        $failed = 0;
+        $succeeded = 0;
+        $lastError = '';
+
         foreach (array_chunk($typeIds, self::BATCH_SIZE) as $chunk) {
+            // Fail fast. Once two batches have failed with nothing getting
+            // through, the provider is down, and grinding through the rest
+            // (each with its own retries and timeout) would stall the request
+            // for minutes before reaching the same conclusion.
+            if ($failed >= 2 && $succeeded === 0) {
+                throw new PriceFetchException('Fuzzwork unreachable, abandoning remaining batches: ' . $lastError);
+            }
+
+            $batches++;
             try {
                 $response = Http::timeout(self::HTTP_TIMEOUT)
+                    ->retry(self::HTTP_RETRIES, self::HTTP_RETRY_DELAY_MS, throw: false)
                     ->acceptJson()
                     ->get(self::FUZZWORK_URL, [
                         'region' => $regionId,
@@ -972,12 +1044,20 @@ class PriceProviderService
                     ]);
 
                 if (! $response->successful()) {
+                    $failed++;
+                    $lastError = 'HTTP ' . $response->status();
+                    Log::warning('[Buyback Manager] Fuzzwork (both) batch failed', [
+                        'status' => $response->status(),
+                        'region' => $regionId,
+                        'types' => count($chunk),
+                    ]);
                     foreach ($chunk as $tid) {
                         $prices[$tid] = ['buy' => 0.0, 'sell' => 0.0];
                     }
                     continue;
                 }
 
+                $succeeded++;
                 $data = $response->json() ?: [];
                 foreach ($chunk as $tid) {
                     $row = is_array($data[$tid] ?? null) ? $data[$tid] : null;
@@ -986,13 +1066,25 @@ class PriceProviderService
                         'sell' => (float) ($row['sell']['min'] ?? 0),
                     ];
                 }
-            } catch (Exception $e) {
+            } catch (PriceFetchException $e) {
+                throw $e;
+            } catch (\Throwable $e) {
+                $failed++;
+                $lastError = $e->getMessage();
                 Log::error('[Buyback Manager] Fuzzwork (both) exception: ' . $e->getMessage());
                 foreach ($chunk as $tid) {
                     $prices[$tid] = ['buy' => 0.0, 'sell' => 0.0];
                 }
             }
         }
+
+        // Nothing got through: the provider is unreachable, not "these items
+        // are worthless". Throw so the caller can fall back to cache or
+        // refuse to quote instead of publishing a page of zeroes.
+        if ($batches > 0 && $failed === $batches) {
+            throw new PriceFetchException('Fuzzwork unreachable for all ' . $batches . ' batch(es): ' . $lastError);
+        }
+
         return $prices;
     }
 
@@ -1022,22 +1114,49 @@ class PriceProviderService
     protected function janiceFetchBothRaw(array $typeIds, string $marketParam, string $apiKey): array
     {
         $prices = [];
+        $attempted = 0;
+        $failed = 0;
+        $succeeded = 0;
+        $lastError = '';
+
         foreach ($typeIds as $typeId) {
+            // Janice is queried one type at a time, so a dead endpoint would
+            // otherwise burn a timeout per item. Give up after three straight
+            // failures with nothing succeeding.
+            if ($failed >= 3 && $succeeded === 0) {
+                throw new PriceFetchException('Janice unreachable, abandoning remaining lookups: ' . $lastError);
+            }
+
+            $attempted++;
             try {
                 $url = sprintf('%s/%d?market=%s', self::JANICE_PRICER_URL, $typeId, $marketParam);
                 $response = Http::timeout(self::HTTP_TIMEOUT)
+                    ->retry(self::HTTP_RETRIES, self::HTTP_RETRY_DELAY_MS, throw: false)
                     ->withHeaders([
                         'X-ApiKey' => $apiKey,
                         'accept' => 'application/json',
                     ])
                     ->get($url);
 
+                // A rejected key is a configuration fault, not a missing
+                // price. Fail immediately and say so, rather than quietly
+                // pricing the whole list at zero.
+                if (in_array($response->status(), [401, 403], true)) {
+                    throw new PriceFetchException(
+                        'Janice rejected the API key (HTTP ' . $response->status() . '). Check the key in the corporation settings.'
+                    );
+                }
+
                 if (! $response->successful()) {
+                    $failed++;
+                    $lastError = 'HTTP ' . $response->status();
+                    Log::warning('[Buyback Manager] Janice (both) failed for type ' . $typeId . ': ' . $lastError);
                     $prices[$typeId] = ['buy' => 0.0, 'sell' => 0.0];
                     usleep(self::JANICE_RATE_LIMIT_MICROSECONDS);
                     continue;
                 }
 
+                $succeeded++;
                 $data = $response->json();
                 $imm = $data['immediatePrices'] ?? [];
                 $prices[$typeId] = [
@@ -1045,11 +1164,21 @@ class PriceProviderService
                     'sell' => (float) ($imm['sellPrice'] ?? 0),
                 ];
                 usleep(self::JANICE_RATE_LIMIT_MICROSECONDS);
-            } catch (Exception $e) {
+            } catch (PriceFetchException $e) {
+                throw $e;
+            } catch (\Throwable $e) {
+                $failed++;
+                $lastError = $e->getMessage();
                 Log::error('[Buyback Manager] Janice (both) fetch exception for ' . $typeId . ': ' . $e->getMessage());
                 $prices[$typeId] = ['buy' => 0.0, 'sell' => 0.0];
             }
         }
+
+        // Every single lookup failed: treat it as the provider being down.
+        if ($attempted > 0 && $failed === $attempted) {
+            throw new PriceFetchException('Janice unreachable for all ' . $attempted . ' lookup(s): ' . $lastError);
+        }
+
         return $prices;
     }
 

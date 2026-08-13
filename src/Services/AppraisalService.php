@@ -88,6 +88,33 @@ class AppraisalService
 
             $result = $this->applyBuybackRules($source['items'], $setting);
 
+            // Never turn a failed price fetch into a quote. If the provider
+            // was unreachable, or every accepted item came back at zero, the
+            // valuation is meaningless — a seller would otherwise be handed a
+            // key quoting 0 ISK and could contract against it.
+            if ($this->priceProvider->wasLastFetchDegraded()) {
+                Log::warning('[Buyback Manager] Refusing appraisal built on a degraded price fetch', [
+                    'corporation_id' => $corporationId,
+                ]);
+
+                return [
+                    'success' => false,
+                    'message' => 'Prices are unavailable right now, so we cannot value this list. Please try again in a few minutes.',
+                ];
+            }
+
+            if (! empty($result['items']) && $result['total_market'] <= 0) {
+                Log::warning('[Buyback Manager] Refusing appraisal: every accepted item priced at zero', [
+                    'corporation_id' => $corporationId,
+                    'items' => count($result['items']),
+                ]);
+
+                return [
+                    'success' => false,
+                    'message' => 'No market price could be found for any of these items, so we cannot value this list. Please try again in a few minutes.',
+                ];
+            }
+
             return [
                 'success' => true,
                 'items' => $result['items'],
