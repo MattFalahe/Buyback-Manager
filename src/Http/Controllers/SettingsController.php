@@ -161,7 +161,10 @@ class SettingsController extends Controller
             'corporation_id' => 'required|exists:corporation_infos,corporation_id',
             'character_id' => 'nullable|exists:character_infos,character_id',
             'enabled' => 'boolean',
-            'base_percentage' => 'required|numeric|min:0|max:100',
+            // 'sometimes': the edit modal no longer carries this field, since
+            // the default rate is managed on the Pricing Rules page. When it
+            // is absent the stored value is left alone.
+            'base_percentage' => 'sometimes|required|numeric|min:0|max:100',
             'price_source' => 'required|in:jita,region',
             'region_id' => 'nullable|required_if:price_source,region|integer',
             // Provider config
@@ -432,14 +435,51 @@ class SettingsController extends Controller
         $typeNames = \Seat\Eveapi\Models\Sde\InvType::whereIn('typeID', $ruleTypeIds['item'])
             ->pluck('typeName', 'typeID');
 
+        // Split the rules into the two things they actually express, so the
+        // page reads as "what we pay differently for" and "what we do not
+        // buy" rather than one undifferentiated list.
+        $exceptions = $setting->pricingRules
+            ->where('excluded', false)
+            ->sortByDesc('priority')
+            ->values();
+
+        $exclusions = $setting->pricingRules
+            ->where('excluded', true)
+            ->sortByDesc('priority')
+            ->values();
+
         return view('buyback-manager::settings.rules', compact(
             'setting',
             'categories',
             'groups',
             'categoryNames',
             'groupNames',
-            'typeNames'
+            'typeNames',
+            'exceptions',
+            'exclusions'
         ));
+    }
+
+    /**
+     * Save the default-rate block on the Pricing Rules page: the flat rate
+     * every unlisted item is bought at, and whether the programme buys
+     * everything or only the items listed as price exceptions.
+     */
+    public function updateRuleDefaults(Request $request, int $settingId)
+    {
+        $setting = BuybackSetting::findOrFail($settingId);
+
+        $validated = $request->validate([
+            'base_percentage' => 'required|numeric|min:0|max:100',
+        ]);
+
+        $setting->update([
+            'base_percentage' => $validated['base_percentage'],
+            'buy_listed_only' => $request->has('buy_listed_only'),
+        ]);
+
+        return redirect()->route('buyback-manager.settings.rules', $setting->id)
+            ->with('success', 'Default rate saved.');
     }
 
     public function storeRule(Request $request, int $settingId)

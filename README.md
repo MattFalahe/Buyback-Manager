@@ -47,7 +47,9 @@ Pick who receives the contracts, matching EVE's own visibility rules:
 - Three-layer fallback (configured market, then a Jita fallback, then the local cache) so one upstream outage never zeroes a contract.
 
 ### 🧮 Pricing rules
-- Override the base percentage per **item**, **group**, or **category**, with item > group > category > base precedence.
+- One page holds the **default rate**, the **price exceptions** and the **buyback exclusions**, and a new rule lands in whichever block it belongs to.
+- Override the default rate per **item**, **group**, or **category**, with item > group > category > default precedence.
+- Two programme modes: buy **everything** at the default rate, or buy **only the items you list** as exceptions, with everything else reported to the seller as not accepted.
 - Each rule picks the price side: `buy`, `sell`, or `split`. Rules can also exclude an item entirely, and excluded items are reported to the seller instead of silently dropped.
 - Groups and categories come from EVE's own item database, and groups are narrower than their names suggest: a category such as *Charge* covers all ammunition, while covering "all missiles" takes several group rules. Faction and Tech II variants frequently sit in their own group, so confirm which group an item really belongs to before relying on a group rule. If an appraisal prices an item at your base percentage, no rule matched it.
 

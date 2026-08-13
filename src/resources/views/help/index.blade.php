@@ -324,6 +324,25 @@
                         <strong>Precedence: item &gt; group &gt; category &gt; base.</strong> The most specific matching rule wins. A rule can also exclude an item entirely (no buyback for that type).
                     </div>
 
+                    <h4>How the page is laid out</h4>
+                    <p>Everything that decides what you pay lives on the <strong>Pricing Rules</strong> page, in three blocks:</p>
+                    <table class="plugin-info-table">
+                        <tr><td><strong>Default rate for all items</strong></td><td>The flat rate paid for anything without an exception, and the switch between buying everything and buying only listed items.</td></tr>
+                        <tr><td><strong>Price exceptions</strong></td><td>Items, groups or categories bought at a different rate.</td></tr>
+                        <tr><td><strong>Buyback exclusions</strong></td><td>Things you never buy. Sellers are told these are not accepted.</td></tr>
+                    </table>
+                    <p>Adding a rule sends it to whichever block matches: give it a percentage and it becomes a price exception, tick <em>Do not buy this</em> and it becomes an exclusion.</p>
+
+                    <h4>Buy everything, or only what you list</h4>
+                    <table class="plugin-info-table">
+                        <tr><td><strong>Buy everything</strong> (default)</td><td>Every item is bought at the default rate, with exceptions changing the rate for some and exclusions carving out the rest.</td></tr>
+                        <tr><td><strong>Buy only listed items</strong></td><td>An allow list: the default rate is ignored and only items with a price exception are bought. Everything else is reported to the seller as not accepted rather than quoted.</td></tr>
+                    </table>
+                    <div class="info-box">
+                        <i class="fas fa-list-check"></i>
+                        Allow-list mode is the clean way to run a narrow programme (for example "we only buy ore and minerals"). Setting the default rate to 0% instead would still quote every unlisted item, at zero, which reads as though you are buying it for nothing.
+                    </div>
+
                     <h4>Choosing between a group and a category</h4>
                     <p>Groups and categories both come straight from EVE's own item database, and <strong>groups are far narrower than their names suggest</strong>. A category is the broad bucket; the groups inside it are small, specific subdivisions:</p>
 

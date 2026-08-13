@@ -22,6 +22,7 @@ class BuybackSetting extends Model
         'character_id',
         'enabled',
         'base_percentage',
+        'buy_listed_only',
         'price_source',
         'region_id',
         'price_provider',
@@ -61,6 +62,7 @@ class BuybackSetting extends Model
         'character_id' => 'integer',
         'enabled' => 'boolean',
         'base_percentage' => 'decimal:2',
+        'buy_listed_only' => 'boolean',
         'region_id' => 'integer',
         'fallback_to_jita' => 'boolean',
         'price_cache_ttl_minutes' => 'integer',
@@ -320,6 +322,14 @@ class BuybackSetting extends Model
             ->first();
 
         if ($rule && $rule->excluded) {
+            return null;
+        }
+
+        // Allow-list mode: with no matching price exception the item is not
+        // part of the programme at all. Report it as not accepted rather than
+        // valuing it at the default rate, which would otherwise quote every
+        // unlisted item at whatever the default happens to be.
+        if ($rule === null && $this->buy_listed_only) {
             return null;
         }
 

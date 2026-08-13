@@ -764,17 +764,10 @@
                     <input type="hidden" name="id" id="edit_id">
                     <input type="hidden" name="corporation_id" id="edit_corporation_id">
 
-                    <div class="row">
-                        <div class="col-md-12">
-                            <div class="form-group">
-                                <label for="edit_base_percentage">Base percentage</label>
-                                <div class="input-group" style="max-width:200px;">
-                                    <input type="number" name="base_percentage" id="edit_base_percentage"
-                                           class="form-control" step="0.01" min="0" max="100" required>
-                                    <span class="input-group-addon">%</span>
-                                </div>
-                            </div>
-                        </div>
+                    <div class="alert alert-info" style="margin-bottom:0;">
+                        <i class="fa fa-percent"></i>
+                        The <strong>default rate</strong> and what the programme buys are managed on the
+                        <strong>Pricing Rules</strong> page, alongside the exceptions and exclusions they work with.
                     </div>
 
                     <hr>
@@ -1048,7 +1041,6 @@
             $('#edit_id').val(btn.data('id'));
             $('#edit_corporation_id').val(btn.data('corporation-id'));
             $('#edit_character_id').val(btn.data('character-id'));
-            $('#edit_base_percentage').val(btn.data('base-percentage'));
             $('#edit_price_source').val(btn.data('price-source'));
             $('#edit_region_id').val(btn.data('region-id'));
             $('#edit_enabled').prop('checked', btn.data('enabled') == 1);

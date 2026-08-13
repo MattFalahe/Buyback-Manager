@@ -25,70 +25,102 @@
             </div>
         </div>
 
-        <!-- Current Rules -->
+        <!-- 1. Default rate -->
         <div class="card card-dark">
             <div class="card-header">
-                <h3 class="card-title">Current Pricing Rules</h3>
+                <h3 class="card-title"><i class="fa fa-percent"></i> Default rate for all items</h3>
                 <div class="card-tools">
-                    <span class="badge badge-info">Base: {{ $setting->base_percentage }}%</span>
+                    @if($setting->buy_listed_only)
+                        <span class="badge badge-warning">Listed items only</span>
+                    @else
+                        <span class="badge badge-info">Buying everything at {{ $setting->base_percentage }}%</span>
+                    @endif
+                </div>
+            </div>
+            <form action="{{ route('buyback-manager.settings.rules.defaults', $setting->id) }}" method="POST">
+                @csrf
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="base_percentage">Default rate</label>
+                                <div class="input-group" style="max-width:200px;">
+                                    <input type="number" name="base_percentage" id="base_percentage"
+                                           class="form-control" step="0.01" min="0" max="100" required
+                                           value="{{ old('base_percentage', $setting->base_percentage) }}">
+                                    <span class="input-group-addon">%</span>
+                                </div>
+                                <small class="text-muted">Paid for anything without a price exception below.</small>
+                            </div>
+                        </div>
+                        <div class="col-md-8">
+                            <div class="checkbox" style="margin-top:25px;">
+                                <label>
+                                    <input type="checkbox" name="buy_listed_only" id="buy_listed_only" value="1"
+                                           {{ old('buy_listed_only', $setting->buy_listed_only) ? 'checked' : '' }}>
+                                    <strong>Buy only the items listed as price exceptions</strong>
+                                </label>
+                            </div>
+                            <small class="text-muted">
+                                Turns the programme into an allow list. The default rate is ignored, only items with a
+                                price exception below are bought, and everything else is reported back to the seller
+                                as not accepted instead of being quoted.
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <button type="submit" class="btn btn-bb-primary">
+                        <i class="fa fa-save"></i> Save default rate
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- 2. Price exceptions -->
+        <div class="card card-dark">
+            <div class="card-header">
+                <h3 class="card-title"><i class="fa fa-sliders-h"></i> Price exceptions</h3>
+                <div class="card-tools">
+                    <span class="badge badge-info">{{ $exceptions->count() }}</span>
                 </div>
             </div>
             <div class="card-body">
-                @forelse($setting->pricingRules()->orderBy('priority', 'desc')->get() as $rule)
-                    <div class="pricing-rule {{ $rule->excluded ? 'excluded' : '' }}">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <span class="pricing-rule-type">{{ strtoupper($rule->type) }}</span>
-                                <strong>
-                                    @if($rule->type === 'category')
-                                        {{ $categoryNames[$rule->type_id] ?? 'Unknown' }}
-                                    @elseif($rule->type === 'group')
-                                        {{ $groupNames[$rule->type_id] ?? 'Unknown' }}
-                                    @else
-                                        {{ $typeNames[$rule->type_id] ?? 'Unknown' }}
-                                    @endif
-                                </strong>
-                                @if($rule->excluded)
-                                    <span class="badge badge-danger">EXCLUDED</span>
-                                @else
-                                    <span class="pricing-rule-percentage">{{ $rule->percentage }}%</span>
-                                    @php
-                                        $sideLabel = match($rule->price_side) {
-                                            'buy' => 'of buy price',
-                                            'sell' => 'of sell price',
-                                            'split' => 'of split (buy+sell ÷ 2)',
-                                            default => 'of default side',
-                                        };
-                                        $sideBadge = match($rule->price_side) {
-                                            'buy' => 'info',
-                                            'sell' => 'primary',
-                                            'split' => 'warning',
-                                            default => 'default',
-                                        };
-                                    @endphp
-                                    <span class="badge badge-{{ $sideBadge }}">{{ $sideLabel }}</span>
-                                @endif
-                                @if($rule->featured)
-                                    <span class="badge badge-warning"><i class="fa fa-star"></i> Most wanted</span>
-                                @endif
-                                <span class="text-muted" style="font-size: 11px;">(Priority: {{ $rule->priority }})</span>
-                            </div>
-                            <div>
-                                <form action="{{ route('buyback-manager.settings.rules.destroy', [$setting->id, $rule->id]) }}" 
-                                      method="POST" 
-                                      style="display: inline;"
-                                      onsubmit="return confirm('Delete this pricing rule?');">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-xs btn-danger">
-                                        <i class="fa fa-trash"></i> Delete
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
+                <p class="text-muted">Items, groups or categories bought at a rate other than the default.</p>
+                @forelse($exceptions as $rule)
+                    @include('buyback-manager::settings._rule_row', ['rule' => $rule])
                 @empty
-                    <p class="text-muted text-center">No custom pricing rules configured. Base percentage will be used for all items.</p>
+                    @if($setting->buy_listed_only)
+                        <div class="alert alert-warning" style="margin-bottom:0;">
+                            <i class="fa fa-exclamation-triangle"></i>
+                            <strong>Nothing is being bought.</strong> The programme is set to buy only listed items,
+                            but no price exceptions are configured, so every appraisal will come back empty.
+                        </div>
+                    @else
+                        <p class="text-muted text-center" style="margin-bottom:0;">
+                            No exceptions. Everything is bought at the default rate.
+                        </p>
+                    @endif
+                @endforelse
+            </div>
+        </div>
+
+        <!-- 3. Buyback exclusions -->
+        <div class="card card-dark">
+            <div class="card-header">
+                <h3 class="card-title"><i class="fa fa-ban"></i> Buyback exclusions</h3>
+                <div class="card-tools">
+                    <span class="badge badge-danger">{{ $exclusions->count() }}</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Never bought, whatever the default rate is. Sellers are told these are not accepted.</p>
+                @forelse($exclusions as $rule)
+                    @include('buyback-manager::settings._rule_row', ['rule' => $rule])
+                @empty
+                    <p class="text-muted text-center" style="margin-bottom:0;">
+                        No exclusions configured.
+                    </p>
                 @endforelse
             </div>
         </div>
@@ -96,11 +128,16 @@
         <!-- Add New Rule -->
         <div class="card card-dark">
             <div class="card-header">
-                <h3 class="card-title">Add New Pricing Rule</h3>
+                <h3 class="card-title"><i class="fa fa-plus-circle"></i> Add a rule</h3>
             </div>
             <form action="{{ route('buyback-manager.settings.rules.store', $setting->id) }}" method="POST">
                 @csrf
                 <div class="card-body">
+                    <p class="text-muted">
+                        Set a percentage to add a <strong>price exception</strong>, or tick
+                        <strong>Do not buy this</strong> to add a <strong>buyback exclusion</strong>. The rule lands in
+                        the matching section above.
+                    </p>
                     <div class="row">
                         <div class="col-md-4">
                             <div class="form-group">
@@ -160,7 +197,7 @@
                             <div class="checkbox" style="margin-top: 25px;">
                                 <label>
                                     <input type="checkbox" name="excluded" id="excluded" value="1">
-                                    Exclude from buyback
+                                    Do not buy this
                                 </label>
                             </div>
                             <div class="checkbox">
@@ -211,7 +248,7 @@
                     <li><strong>Item-specific rules</strong></li>
                     <li><strong>Group rules</strong></li>
                     <li><strong>Category rules</strong></li>
-                    <li><strong>Base percentage</strong> (corp default, uses the setting-wide price side)</li>
+                    <li><strong>Default rate</strong> (used when nothing above matches)</li>
                 </ol>
                 <div class="alert alert-info" style="margin-top:1rem;">
                     <strong>Example mix:</strong> Ore + minerals at <code>95% of sell</code>,
@@ -219,7 +256,20 @@
                     Each rule independently picks its side; the percentage is then applied to that
                     side's live market value (the plugin always fetches both sides regardless).
                 </div>
-                <p class="text-muted">If an item is marked as excluded, it will not be accepted in buyback contracts regardless of other rules.</p>
+
+                <h4>The two ways to run a programme</h4>
+                <table class="plugin-info-table">
+                    <tr>
+                        <td><strong>Buy everything</strong><br><span class="text-muted">default</span></td>
+                        <td>Every item is bought at the default rate. Price exceptions change the rate for some of them; exclusions carve out what you refuse.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Buy only listed items</strong></td>
+                        <td>An allow list. The default rate is ignored and only items with a price exception are bought. Everything else is reported to the seller as not accepted, so nothing is ever quoted at a rate you did not choose.</td>
+                    </tr>
+                </table>
+
+                <p class="text-muted">Exclusions always win: an excluded item is never accepted, whichever mode you run and whatever other rules match it.</p>
             </div>
         </div>
     </div>
@@ -286,5 +336,18 @@
                 $('#price_side').val('');
             }
         });
+
+        // The default rate is meaningless in allow-list mode, so grey it out
+        // rather than leaving a live-looking field that does nothing.
+        // readonly, not disabled: a disabled input is not submitted, and the
+        // field is still required by the save.
+        function bbSyncDefaultRateState() {
+            var listedOnly = $('#buy_listed_only').is(':checked');
+            $('#base_percentage')
+                .prop('readonly', listedOnly)
+                .css('opacity', listedOnly ? 0.5 : 1);
+        }
+        $('#buy_listed_only').on('change', bbSyncDefaultRateState);
+        bbSyncDefaultRateState();
     </script>
 @endpush

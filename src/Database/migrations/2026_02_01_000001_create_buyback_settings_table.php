@@ -28,6 +28,11 @@ return new class extends Migration
             // --- Rates ---
             $table->decimal('base_percentage', 5, 2)->default(90.00);
 
+            // Allow-list mode. When true the default rate is ignored and only
+            // items covered by a price exception are bought; everything else
+            // is reported to the seller as not accepted.
+            $table->boolean('buy_listed_only')->default(false);
+
             // --- Pricing provider ---
             $table->string('price_source', 16)->default('jita');   // jita | region
             $table->unsignedInteger('region_id')->nullable();

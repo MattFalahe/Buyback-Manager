@@ -34,8 +34,10 @@ The first public release of Buyback Manager. It turns a corporation buyback prog
 - Local price cache with a per-corp TTL for Fuzzwork and Janice. Manager Core bypasses the local cache and uses its own.
 
 **Pricing rules**
-- Per-item, per-group, and per-category rules with item > group > category > base precedence.
+- A single Pricing Rules page holding the default rate, the price exceptions and the buyback exclusions, with new rules filed into the block they belong to.
+- Per-item, per-group, and per-category rules with item > group > category > default precedence.
 - Per-rule price side (buy, sell, split) and the ability to exclude an item from buyback entirely.
+- Two programme modes: buy everything at the default rate, or buy only the items listed as price exceptions, with everything else reported to the seller as not accepted.
 
 **Location restrictions**
 - Optionally restrict buyback to specific regions, constellations, systems, stations, or citadels, mixed freely (a region covers everything inside it). An empty list accepts any location.

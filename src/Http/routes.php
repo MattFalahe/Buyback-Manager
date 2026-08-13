@@ -90,6 +90,7 @@ Route::group([
 
         // Pricing rules
         Route::get('/{setting_id}/rules', [SettingsController::class, 'rules'])->name('rules');
+        Route::post('/{setting_id}/rules/defaults', [SettingsController::class, 'updateRuleDefaults'])->name('rules.defaults');
         Route::post('/{setting_id}/rules', [SettingsController::class, 'storeRule'])->name('rules.store');
         Route::delete('/{setting_id}/rules/{rule_id}', [SettingsController::class, 'destroyRule'])->name('rules.destroy');
 
