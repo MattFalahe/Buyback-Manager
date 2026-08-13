@@ -1334,11 +1334,34 @@ class PriceProviderService
             Log::warning('[Buyback Manager] Jita fallback (both sides) failed: ' . $e->getMessage());
         }
 
+        $recovered = 0;
         foreach ($jitaPrices as $tid => $sides) {
             if (($sides['buy'] ?? 0) > 0 || ($sides['sell'] ?? 0) > 0) {
                 $prices[$tid] = $sides;
+                $recovered++;
             }
         }
+
+        // Record every fallback, not just the ones that error. A quiet
+        // fallback still means the configured market returned nothing, which
+        // is exactly what an operator needs to see in the SeAT log before it
+        // becomes a pricing complaint.
+        $summary = [
+            'provider' => $provider,
+            'market' => $currentMarket,
+            'corporation_id' => $setting->corporation_id,
+            'missing_at_configured_market' => count($zeroTypeIds),
+            'recovered_at_jita' => $recovered,
+        ];
+
+        if ($recovered === 0) {
+            Log::warning('[Buyback Manager] Jita fallback (both sides) recovered nothing', $summary);
+        } elseif ($recovered < count($zeroTypeIds)) {
+            Log::warning('[Buyback Manager] Jita fallback (both sides) recovered only some prices', $summary);
+        } else {
+            Log::info('[Buyback Manager] Jita fallback (both sides) recovered all missing prices', $summary);
+        }
+
         return $prices;
     }
 
