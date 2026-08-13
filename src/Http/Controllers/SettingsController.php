@@ -80,14 +80,9 @@ class SettingsController extends Controller
     protected function buildRoutingMap($webhooks): array
     {
         // category => [human description, the buyback.* events that map here]
-        $catMeta = [
-            'contract_matched' => ['Contract matched its appraisal key cleanly', ['buyback.contract.matched']],
-            'contract_flagged' => ['Contract matched but needs review (price drift, stale quote, wrong location, reused key, item mismatch)', ['buyback.contract.flagged']],
-            'contract_unmatched' => ['Contract quoted an appraisal key that did not resolve (review)', ['buyback.contract.unmatched']],
-            'contract_completed' => ['Completed buybacks', ['buyback.contract.completed']],
-            'contract_cancelled' => ['Cancelled contracts', ['buyback.contract.cancelled']],
-            'contract_nudge' => ['Matched contract still awaiting acceptance past the auto-nudge window', ['buyback.contract.nudge']],
-        ];
+        // Labels and descriptions come from the model so the routing map, the
+        // webhook form and the dispatch log all name a category the same way.
+        $catMeta = \BuybackManager\Models\BuybackWebhook::categoryMeta();
 
         $map = [];
         foreach (\BuybackManager\Models\BuybackWebhook::ALL_CATEGORIES as $cat) {
@@ -96,8 +91,9 @@ class SettingsController extends Controller
             })->values();
 
             $map[$cat] = [
-                'description' => $catMeta[$cat][0] ?? $cat,
-                'events' => $catMeta[$cat][1] ?? [],
+                'label' => $catMeta[$cat]['label'] ?? $cat,
+                'description' => $catMeta[$cat]['help'] ?? $cat,
+                'events' => $catMeta[$cat]['events'] ?? [],
                 'webhooks' => $subs,
             ];
         }

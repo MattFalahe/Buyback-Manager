@@ -44,7 +44,7 @@
                 @foreach($routingMap as $category => $row)
                     <tr class="{{ $row['webhooks']->isEmpty() ? '' : '' }}">
                         <td>
-                            <code>{{ $category }}</code>
+                            <strong>{{ $row['label'] ?? $category }}</strong>
                             <br><small class="text-muted">{{ $row['description'] }}</small>
                         </td>
                         <td>

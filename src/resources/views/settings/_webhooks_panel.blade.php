@@ -44,7 +44,7 @@
                             </td>
                             <td>
                                 @foreach($hook->categories ?? [] as $c)
-                                    <span class="label label-default" style="margin-right:2px;">{{ $c }}</span>
+                                    <span class="label label-default" style="margin-right:2px;">{{ \BuybackManager\Models\BuybackWebhook::categoryLabel($c) }}</span>
                                 @endforeach
                             </td>
                             <td>
@@ -145,23 +145,33 @@
                 </small>
             </div>
             <div class="form-group">
-                <label>Categories <span class="text-danger">*</span></label>
-                <div class="row">
-                    @foreach($allCategories as $cat)
-                        <div class="col-md-4">
-                            <div class="checkbox">
-                                <label>
-                                    <input type="checkbox" name="categories[]" value="{{ $cat }}">
-                                    <code>{{ $cat }}</code>
-                                </label>
-                            </div>
+                <label>What should this webhook announce? <span class="text-danger">*</span></label>
+                @php $bbCatMeta = \BuybackManager\Models\BuybackWebhook::categoryMeta(); @endphp
+                @foreach(\BuybackManager\Models\BuybackWebhook::categoryGroups() as $box)
+                    <div style="border:1px solid var(--bb-border, #2b3038); border-radius:8px; padding:12px 14px; margin-bottom:12px; background:var(--bb-dark-card, rgba(255,255,255,0.02));">
+                        <div style="font-weight:600; color:var(--bb-text-light, #c5cdd8); margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid var(--bb-border, #2b3038);">
+                            <i class="fas {{ $box['icon'] }}" style="margin-right:6px; opacity:0.8;"></i> {{ $box['title'] }}
                         </div>
-                    @endforeach
-                </div>
+                        <div class="row">
+                            @foreach($box['keys'] as $cat)
+                                <div class="col-md-6">
+                                    <div class="checkbox" style="margin-top:0;">
+                                        <label>
+                                            <input type="checkbox" name="categories[]" value="{{ $cat }}">
+                                            <strong>{{ $bbCatMeta[$cat]['label'] ?? $cat }}</strong>
+                                        </label>
+                                        <small class="d-block text-muted" style="margin-left:1.25rem;">
+                                            {{ $bbCatMeta[$cat]['help'] ?? '' }}
+                                        </small>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endforeach
                 <small class="text-muted">
-                    Pick the buyback events this webhook should receive. Most operators run
-                    <code>contract_matched</code> + <code>contract_completed</code> on the director channel and
-                    <code>contract_flagged</code> + <code>contract_unmatched</code> on a review channel.
+                    Most operators put <strong>Normal buyback flow</strong> on a director channel and
+                    <strong>Needs a director</strong> on a separate review channel.
                 </small>
             </div>
             <div class="checkbox">
@@ -213,7 +223,7 @@
                         <tr>
                             <td>{{ $row->sent_at }}</td>
                             <td>#{{ $row->webhook_id }}</td>
-                            <td><code>{{ $row->event_name }}</code></td>
+                            <td title="{{ $row->event_name }}">{{ \BuybackManager\Models\BuybackWebhook::eventLabel($row->event_name) }}</td>
                             <td><span class="label label-{{ $statusClass }}">{{ $row->status }}</span></td>
                             <td><small class="text-muted">{{ \Illuminate\Support\Str::limit($row->error ?? '', 80) }}</small></td>
                         </tr>
