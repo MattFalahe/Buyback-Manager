@@ -153,7 +153,7 @@ class BuybackPublicController extends Controller
         string $ticker,
         Request $request,
         BuybackPublicService $service,
-        AppraisalService $appraisal,
+        AppraisalService $appraisalService,
         AppraisalRecordService $records
     ) {
         $setting = $service->resolveByTicker($ticker);
@@ -166,7 +166,7 @@ class BuybackPublicController extends Controller
         ]);
 
         try {
-            $result = $appraisal->createAppraisal($request->input('items'), (int) $setting->corporation_id);
+            $result = $appraisalService->createAppraisal($request->input('items'), (int) $setting->corporation_id);
         } catch (\Throwable $e) {
             // Never let a provider/parser fault surface as an unhandled 500
             // (the browser would get an HTML error page instead of JSON).

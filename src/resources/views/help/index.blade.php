@@ -24,6 +24,7 @@
                         <li class="nav-item"><a href="#" class="nav-link" data-section="pricing"><i class="fas fa-coins"></i> Pricing &amp; Cache</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-section="rules"><i class="fas fa-sliders-h"></i> Pricing Rules</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-section="locations"><i class="fas fa-map-marker-alt"></i> Locations</a></li>
+                        <li class="nav-item"><a href="#" class="nav-link" data-section="analytics"><i class="fas fa-chart-pie"></i> Analytics</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-section="workflow"><i class="fas fa-route"></i> Selling Workflow</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-section="detection"><i class="fas fa-file-contract"></i> Contracts &amp; Detection</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-section="notifications"><i class="fab fa-discord"></i> Discord Notifications</a></li>
@@ -534,6 +535,34 @@
                     </div>
 
                     <p>The accepted locations are listed on the public page and on every appraisal page, so a seller knows where to contract before hauling anywhere.</p>
+                </div>
+            </div>
+
+            {{-- ANALYTICS --}}
+            <div id="analytics" class="help-section">
+                <div class="help-card">
+                    <h3><i class="fas fa-chart-pie"></i> Analytics</h3>
+                    <p>The <strong>Analytics</strong> page answers two questions the contract list cannot: what the programme actually buys, and how much of what it quotes turns into a sale. Filter by corporation and period; every figure respects the same corporation visibility as the Contracts list.</p>
+
+                    <h4>What each panel tells you</h4>
+                    <table class="plugin-info-table">
+                        <tr><td><strong>Headline</strong></td><td>ISK paid, average buyback, distinct sellers and items bought for the period.</td></tr>
+                        <tr><td><strong>Quote to payout</strong></td><td>Appraisals issued, keys actually used in a contract, and buybacks completed. The gap between the first two is the share of people who were quoted and walked away.</td></tr>
+                        <tr><td><strong>Most bought</strong></td><td>Items, groups and categories ranked by the ISK you paid for them &mdash; the practical guide to which pricing rules matter.</td></tr>
+                        <tr><td><strong>Top sellers</strong></td><td>Who supplies the programme, by ISK paid.</td></tr>
+                        <tr><td><strong>Why contracts were flagged</strong></td><td>Which review reason fires most, so you fix the cause rather than the symptom.</td></tr>
+                        <tr><td><strong>Quoted but never sold</strong></td><td>Items people were priced for and did not contract, ranked by the ISK that walked away.</td></tr>
+                    </table>
+
+                    <div class="info-box">
+                        <i class="fas fa-lightbulb"></i>
+                        <strong>Reading the conversion rate.</strong> A falling rate usually means your rates have drifted behind the market: people still ask for a price, but fewer of them accept it. Cross-check the items at the top of <em>Quoted but never sold</em> &mdash; those are where you are losing the sale.
+                    </div>
+
+                    <div class="warning-box">
+                        <i class="fas fa-hourglass-half"></i>
+                        <strong>One panel has a shorter memory.</strong> Everything about what was <em>bought</em> covers full history, because contract line items are kept for as long as the contract is. <em>Quoted but never sold</em> reads appraisal line items instead, and those are pruned early by design, so it only covers the item-retention window.
+                    </div>
                 </div>
             </div>
 
