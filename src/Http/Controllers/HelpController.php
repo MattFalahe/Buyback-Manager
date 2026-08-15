@@ -8,7 +8,7 @@ use Seat\Web\Http\Controllers\Controller;
 /**
  * Help & Documentation page for Buyback Manager.
  *
- * A single in-app reference covering the appraisal -> offer -> contract
+ * A single in-app reference covering the appraisal -> key -> contract
  * lifecycle, the three contract-target modes, pricing providers and
  * rules, Discord notifications, and the optional Manager Core upgrade.
  *

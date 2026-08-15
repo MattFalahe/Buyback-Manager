@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Log;
  * Dispatches buyback events to configured Discord webhooks.
  *
  * Event-to-category mapping is the only thing that connects domain
- * events (buyback.offer.published, buyback.contract.matched, etc.) to
+ * events (buyback.contract.matched, buyback.contract.flagged, etc.) to
  * webhook subscription categories. This keeps the BuybackWebhook
  * categories array meaningful for operators (contract_matched,
  * contract_unmatched, etc.) without leaking event-naming details into

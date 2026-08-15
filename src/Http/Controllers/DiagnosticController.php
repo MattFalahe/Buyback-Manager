@@ -125,6 +125,7 @@ class DiagnosticController extends Controller
             'mc_integration' => $this->checkManagerCoreIntegration($forceRefresh),
             'price_cache' => $this->checkPriceCacheState(),
             'recent_activity' => $this->checkRecentActivity(),
+            'appraisal_activity' => $this->checkAppraisalActivity(),
             'event_log' => $this->checkEventLog($forceRefresh),
         ];
 
@@ -536,6 +537,50 @@ class DiagnosticController extends Controller
         ];
     }
 
+    /**
+     * Appraisal funnel health. Appraisals are the front of the whole flow
+     * now, so "are keys being generated, and do any of them turn into
+     * contracts?" is the single most useful liveness signal.
+     */
+    private function checkAppraisalActivity(): array
+    {
+        if (! Schema::hasTable('buyback_appraisals')) {
+            return [
+                'status' => 'warn',
+                'message' => 'buyback_appraisals table missing — migrations may not have run',
+            ];
+        }
+
+        $total = DB::table('buyback_appraisals')->count();
+        $last24h = DB::table('buyback_appraisals')
+            ->where('created_at', '>=', Carbon::now()->subDay())
+            ->count();
+        $matched = DB::table('buyback_appraisals')->whereNotNull('matched_contract_id')->count();
+        $latest = DB::table('buyback_appraisals')->max('created_at');
+
+        $conversion = $total > 0 ? round(($matched / $total) * 100, 1) : 0;
+
+        if ($total === 0) {
+            $status = 'info';
+            $message = 'No appraisals generated yet';
+        } else {
+            $status = 'ok';
+            $message = "{$total} appraisals, {$matched} matched to a contract ({$conversion}%)";
+        }
+
+        return [
+            'status' => $status,
+            'message' => $message,
+            'details' => [
+                'Total appraisals' => $total,
+                'Created in last 24h' => $last24h,
+                'Matched to a contract' => $matched,
+                'Conversion rate' => $conversion . '%',
+                'Most recent' => $latest ?: '—',
+            ],
+        ];
+    }
+
     private function checkEventLog(bool $forceRefresh): array
     {
         if (! ManagerCoreIntegration::isAvailable() || ! Schema::hasTable('manager_core_event_log')) {
@@ -760,6 +805,36 @@ class DiagnosticController extends Controller
             'count' => $orphanedRules,
             'status' => $orphanedRules > 0 ? 'warn' : 'ok',
         ];
+
+        // Orphan appraisal items (parent appraisal pruned or deleted).
+        if (Schema::hasTable('buyback_appraisal_items') && Schema::hasTable('buyback_appraisals')) {
+            $orphanedAppraisalItems = DB::table('buyback_appraisal_items as ai')
+                ->leftJoin('buyback_appraisals as a', 'ai.appraisal_id', '=', 'a.id')
+                ->whereNull('a.id')
+                ->count();
+            $issues[] = [
+                'table' => 'buyback_appraisal_items',
+                'check' => 'Orphans (no matching buyback_appraisal)',
+                'count' => $orphanedAppraisalItems,
+                'status' => $orphanedAppraisalItems > 0 ? 'warn' : 'ok',
+            ];
+
+            // Retention health. The prune runs inside the sync cycle, so a
+            // pile of rows well past the window means the sync is not
+            // running rather than that the retention is misconfigured.
+            $itemDays = (int) (BuybackSetting::max('appraisal_item_retention_days') ?: 14);
+            $overdueItems = DB::table('buyback_appraisal_items as ai')
+                ->join('buyback_appraisals as a', 'ai.appraisal_id', '=', 'a.id')
+                ->where('a.created_at', '<', Carbon::now()->subDays($itemDays + 1))
+                ->count();
+            $issues[] = [
+                'table' => 'buyback_appraisal_items',
+                'check' => "Rows past the {$itemDays}-day retention window",
+                'count' => $overdueItems,
+                'status' => $overdueItems > 0 ? 'warn' : 'ok',
+                'note' => $overdueItems > 0 ? 'Prune runs inside buyback-manager:sync-contracts — check the schedule is firing' : null,
+            ];
+        }
 
         // Orphan location rules
         if (Schema::hasTable('buyback_location_rules')) {

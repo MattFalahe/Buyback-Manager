@@ -113,8 +113,8 @@
             <ul>
                 <li>A contract's location is resolved to its station/structure, system, constellation and region.</li>
                 <li>It is accepted if it matches <strong>any</strong> entry above &mdash; so a single region entry covers every station and citadel inside it.</li>
-                <li>Contracts created anywhere else are <strong>rejected</strong>: the offer is marked rejected with a reason and the member is notified.</li>
-                <li>The allowed locations are shown to members on the offer and public pages so they know where to contract.</li>
+                <li>Contracts created anywhere else are still tracked, but <strong>flagged for review</strong> with a wrong-location reason so a director can decline them in game rather than paying out.</li>
+                <li>The allowed locations are shown on the public page and on every appraisal, so sellers know where to contract before they haul.</li>
             </ul>
         </div>
     </div>

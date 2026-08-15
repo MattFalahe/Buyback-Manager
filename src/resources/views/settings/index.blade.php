@@ -319,7 +319,7 @@
                                                 <option value="{{ $corporation->corporation_id }}">{{ $corporation->name }}</option>
                                             @endforeach
                                         </select>
-                                        <small class="text-muted">The corporation this buyback program serves. Its members appraise + publish offers.</small>
+                                        <small class="text-muted">The corporation this buyback programme serves.</small>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
@@ -445,7 +445,7 @@
                                         <label for="target_corporation_name">…or type a corporation name</label>
                                         <input type="text" name="target_corporation_name" id="target_corporation_name" class="form-control"
                                                maxlength="255" placeholder="e.g. Goonswarm Federation Holdings">
-                                        <small class="text-muted">External corps BB can't see are <strong>instructions-only</strong> (offer stays pending for manual confirmation).</small>
+                                        <small class="text-muted">External corps BB can't see are <strong>instructions-only</strong>: a director confirms those contracts by hand.</small>
                                     </div>
                                 </div>
                             </div>
@@ -720,19 +720,19 @@
                     </div>
                     <div class="card-body">
                         <ol style="line-height:1.7;">
-                            <li><strong>Configure a corporation</strong> in the Configured Corps tab: set the base buyback percentage, the contract target, and the pricing provider.</li>
-                            <li><strong>Add Pricing Rules</strong> for items, groups, or categories that should pay a different rate (or be excluded entirely).</li>
-                            <li><strong>Members appraise</strong> on the Appraisal page, then publish their quote as an offer. The offer URL is shareable on Discord / corp chat.</li>
-                            <li><strong>Member creates the EVE contract</strong> to the configured target, per the step-by-step instructions on the offer detail page.</li>
-                            <li><strong>BB matches the contract</strong> to the offer within 15 minutes (sync cycle). The frozen offer value is what gets paid. Market movement between publish and contract doesn't change the payout.</li>
-                            <li><strong>Discord webhooks fire</strong> on each lifecycle event (new offer, matched, unmatched, completed, rejected) per the categories you've configured.</li>
+                            <li><strong>Configure a corporation</strong> in the Configured Corps tab: set the contract target and the pricing provider.</li>
+                            <li><strong>Set the rates</strong> on the Pricing Rules page: the default rate, any price exceptions, and anything you refuse to buy.</li>
+                            <li><strong>The seller appraises</strong> &mdash; on the Appraisal page, or on the public page with no login at all. They get a quote and a single-use <strong>appraisal key</strong> on a shareable page.</li>
+                            <li><strong>The seller creates the EVE contract</strong> to the configured target, sets the price to the quoted value, and pastes the key into the contract Description.</li>
+                            <li><strong>BB matches the contract</strong> to the appraisal within 15 minutes (sync cycle), compares what was asked against what was quoted, and flags anything that does not line up.</li>
+                            <li><strong>Discord webhooks fire</strong> for the categories you configured &mdash; matched, needs review, completed, cancelled, and so on.</li>
                         </ol>
                         <div class="alert alert-info" style="margin-top:1rem;">
                             <strong><i class="fa fa-shield-alt"></i> Contract target options:</strong>
                             <ul style="margin-bottom:0;">
                                 <li><strong>My Corporation</strong>: members contract the corp; anyone with corp contract rights can accept. Auto-confirmed.</li>
-                                <li><strong>Specific Corporation</strong>: contract goes to another corp (e.g. a holding/director corp, visible to that corp's directors). Auto-confirmed if SeAT holds that corp's director token; an external corp typed by name is instructions-only (offer stays pending for manual confirmation).</li>
-                                <li><strong>Specific Player</strong>: one designated character receives and accepts/rejects (private, only they see it). BB reads that character's own contract feed, so they must be registered in SeAT with the contract-read scope. After rejecting in-game, they can record a reason on the offer page.</li>
+                                <li><strong>Specific Corporation</strong>: contract goes to another corp (e.g. a holding/director corp, visible to that corp's directors). Detected automatically if SeAT holds that corp's director token; an external corp typed by name is instructions-only, so a director confirms it by hand.</li>
+                                <li><strong>Specific Player</strong>: one designated character receives and accepts (private, only they see it). BB reads that character's own contract feed, so they must be registered in SeAT with the contract-read scope.</li>
                             </ul>
                         </div>
                         <div class="alert alert-warning">

@@ -206,7 +206,7 @@ class SettingsController extends Controller
         // target choice doesn't linger (hidden form fields still submit).
         if ($targetType === BuybackSetting::TARGET_CORP) {
             // When a known corp is picked, resolve its name for display so
-            // the offer instructions read nicely even if the free-text box
+            // the contract instructions read nicely even if the free-text box
             // was left blank.
             if (! empty($validated['target_corporation_id'])) {
                 $resolved = CorporationInfo::where('corporation_id', $validated['target_corporation_id'])->value('name');

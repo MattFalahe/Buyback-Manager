@@ -146,7 +146,7 @@ class BuybackPublicController extends Controller
     /**
      * Public, no-login appraisal preview. Runs the corp's normal appraisal
      * (which itself requires an enabled programme) and returns totals only
-     * as JSON — no offer is created. Gated by public_appraisal_enabled and
+     * as JSON. Gated by public_appraisal_enabled and
      * rate-limited at the route.
      */
     public function estimate(

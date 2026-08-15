@@ -693,7 +693,7 @@
                     <p>
                         <strong>What this tab does:</strong> Lists every configured Discord webhook
                         across all corporations with its scope, subscribed categories, and a
-                        Test button that fires a synthetic <code>buyback.offer.published</code>
+                        Test button that fires a synthetic <code>buyback.contract.matched</code>
                         event through <code>WebhookDispatcher</code> exactly as a real event would.
                         Shows each webhook's last dispatch status alongside.
                     </p>
@@ -765,7 +765,7 @@
                                                 @if($row['enabled'])
                                                     <form method="POST" action="{{ route('buyback-manager.settings.webhooks.test', $row['id']) }}" style="display:inline;">
                                                         @csrf
-                                                        <button type="submit" class="btn btn-xs btn-info" title="Send a synthetic buyback.offer.published event">
+                                                        <button type="submit" class="btn btn-xs btn-info" title="Send a synthetic buyback.contract.matched event">
                                                             <i class="fa fa-flask"></i> Test
                                                         </button>
                                                     </form>
