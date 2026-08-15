@@ -112,10 +112,26 @@ class ContractService
                 ->get();
 
             foreach ($contracts as $contract) {
-                $this->processContract($contract, $setting);
+                // Guard each contract separately. Without this, one malformed
+                // row aborts the rest of the corporation's queue — and because
+                // the same row is re-read next cycle, it would block every
+                // contract behind it indefinitely rather than just itself.
+                try {
+                    $this->processContract($contract, $setting);
+                } catch (\Throwable $e) {
+                    Log::error('[Buyback Manager] Failed to process contract ' . $contract->contract_id
+                        . ' for corp ' . $setting->corporation_id . ': ' . $e->getMessage(), [
+                            'contract_id' => $contract->contract_id,
+                            'corporation_id' => $setting->corporation_id,
+                            'exception' => get_class($e),
+                        ]);
+                }
             }
         } catch (\Throwable $e) {
-            Log::error('[Buyback Manager] Contract sync error for corp ' . $setting->corporation_id . ': ' . $e->getMessage());
+            Log::error('[Buyback Manager] Contract sync error for corp ' . $setting->corporation_id . ': ' . $e->getMessage(), [
+                'corporation_id' => $setting->corporation_id,
+                'exception' => get_class($e),
+            ]);
         }
     }
 
@@ -493,11 +509,18 @@ class ContractService
             }
 
             // Stamp first so a failure in the publish path can't loop-nudge.
-            $contract->update(['nudged_at' => now()]);
-            $this->eventPublisher->publish(
-                'buyback.contract.nudge',
-                $this->buildEnvelope($contract->fresh(), $setting, null)
-            );
+            try {
+                $contract->update(['nudged_at' => now()]);
+                $this->eventPublisher->publish(
+                    'buyback.contract.nudge',
+                    $this->buildEnvelope($contract->fresh(), $setting, $contract->appraisal)
+                );
+            } catch (\Throwable $e) {
+                Log::error('[Buyback Manager] Nudge failed for contract ' . $contract->contract_id . ': ' . $e->getMessage(), [
+                    'contract_id' => $contract->contract_id,
+                    'exception' => get_class($e),
+                ]);
+            }
         }
     }
 

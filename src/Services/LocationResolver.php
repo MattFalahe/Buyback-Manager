@@ -5,6 +5,7 @@ namespace BuybackManager\Services;
 use BuybackManager\Models\BuybackLocationRule;
 use BuybackManager\Models\BuybackSetting;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Resolves an EVE location id (NPC station, citadel structure, or system)
@@ -86,8 +87,30 @@ class LocationResolver
             return true;
         }
 
-        $resolved = $this->resolve($locationId);
+        try {
+            $resolved = $this->resolve($locationId);
+        } catch (\Throwable $e) {
+            // Almost always a missing SDE (mapDenormalize / universe_structures
+            // absent or not imported). Say so plainly: the symptom otherwise is
+            // every contract silently failing its location check with no clue
+            // why. Fail closed, since an unverifiable location cannot be proven
+            // to be inside the allowed list.
+            Log::error('[Buyback Manager] Location lookup failed for location ' . $locationId
+                . ' — is the SDE imported? ' . $e->getMessage(), [
+                    'location_id' => $locationId,
+                    'corporation_id' => $setting->corporation_id,
+                    'exception' => get_class($e),
+                ]);
+
+            return false;
+        }
+
         if ($resolved === null) {
+            Log::info('[Buyback Manager] Location ' . $locationId . ' could not be resolved (unknown station or citadel); treating as outside the allowed locations', [
+                'location_id' => $locationId,
+                'corporation_id' => $setting->corporation_id,
+            ]);
+
             return false;
         }
 
