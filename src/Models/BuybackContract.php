@@ -35,6 +35,14 @@ class BuybackContract extends Model
         self::FLAG_WRONG_LOCATION => 'Created outside the accepted buyback locations',
     ];
 
+    /**
+     * ESI contract statuses that mean the buyback was actually completed and
+     * paid. ESI never reports a plain "completed" — it distinguishes who
+     * finished the contract — so anything filtering on payouts must use this
+     * list rather than guessing a single value.
+     */
+    public const COMPLETED_STATES = ['finished', 'finished_issuer', 'finished_contractor'];
+
     protected $table = 'buyback_contracts';
 
     protected $fillable = [
@@ -122,7 +130,7 @@ class BuybackContract extends Model
 
     public function scopeCompleted($query)
     {
-        return $query->where('status', 'completed');
+        return $query->whereIn('status', self::COMPLETED_STATES);
     }
 
     public function scopeFlagged($query)

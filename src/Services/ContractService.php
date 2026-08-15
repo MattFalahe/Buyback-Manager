@@ -380,7 +380,7 @@ class ContractService
      */
     protected function classifyEventType(?string $previousStatus, string $newStatus): ?string
     {
-        $completedStates = ['finished', 'finished_issuer', 'finished_contractor'];
+        $completedStates = BuybackContract::COMPLETED_STATES;
         $deadStates = ['cancelled', 'rejected', 'failed', 'deleted', 'reversed'];
 
         if (in_array($newStatus, $completedStates, true) && ! in_array($previousStatus ?? '', $completedStates, true)) {

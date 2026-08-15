@@ -9,6 +9,7 @@ use BuybackManager\Http\Controllers\WebhookController;
 use BuybackManager\Http\Controllers\HelpController;
 use BuybackManager\Http\Controllers\BuybackPublicController;
 use BuybackManager\Http\Controllers\LocationController;
+use BuybackManager\Http\Controllers\AnalyticsController;
 
 Route::group([
     'prefix' => 'buyback-manager',
@@ -46,6 +47,15 @@ Route::group([
         // Register before the /{id} show route, or "export" is captured as a contract id.
         Route::get('/export', [BuybackController::class, 'export'])->name('export');
         Route::get('/{id}', [BuybackController::class, 'show'])->name('show');
+    });
+
+    // Analytics
+    Route::group([
+        'middleware' => 'can:buyback-manager.view',
+        'prefix' => 'analytics',
+        'as' => 'buyback-manager.analytics.',
+    ], function () {
+        Route::get('/', [AnalyticsController::class, 'index'])->name('index');
     });
 
     // Statistics

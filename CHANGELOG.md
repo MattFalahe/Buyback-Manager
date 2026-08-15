@@ -61,7 +61,12 @@ The first public release of Buyback Manager. It turns a corporation buyback prog
 - Brandable per corp: uploaded background and logo (dark box, no box, or white square), accent colour, dim overlay, headline, blurb, footer, and a stacked or side-by-side layout. Images stream from the app origin, so they need no `storage:link` and satisfy a strict content-security policy.
 - Configurable rate display: a "most wanted" flag for featured items, an option to list every non-excluded rule, and an option to show the sourced market and each rule's price side.
 
+**Analytics**
+- A dedicated Analytics page covering ISK paid, most-bought items, groups and categories, top sellers, a quote-to-payout conversion funnel, and a breakdown of why contracts were flagged.
+- A "quoted but never sold" ranking that surfaces items priced but not contracted, limited to the appraisal item-retention window and labelled as such.
+
 **Diagnostics**
+- Appraisal funnel health, orphaned appraisal-item detection, and a retention check that flags when the prune has stopped running.
 - An admin-only Diagnostic page (not in the sidebar) with Health Checks, Master Test, System Validation, Settings Health, Data Integrity, Contract Trace, and Notification Testing tabs.
 - A Contract Trace tab that walks a single contract through the pricing and matching pipeline.
 - A Sync Now action to run a detection pass on demand.

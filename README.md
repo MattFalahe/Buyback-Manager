@@ -67,6 +67,11 @@ Pick who receives the contracts, matching EVE's own visibility rules:
 - Brandable per corp: uploaded background and logo (dark, no box, or white square), accent colour, dim overlay, headline, blurb, footer, and a stacked or side-by-side layout. Images are served from your own server, so they need no `storage:link` and satisfy a strict content-security policy.
 - Configurable rates: flag "most wanted" items, optionally list every rule, and optionally show the sourced market and each rule's price side.
 
+### 📊 Analytics
+- A dedicated Analytics page: most-bought items, groups and categories by ISK paid, top sellers, and a quote-to-payout funnel showing how many appraisals turned into sales.
+- A breakdown of why contracts were flagged for review, so you can fix the cause rather than the symptom.
+- "Quoted but never sold" ranks the items people were priced for and walked away from, which usually means the rate is not competitive.
+
 ### 🩺 Diagnostics
 - An admin-only Diagnostic page with Health Checks, Master Test, System Validation, Settings Health, Data Integrity, Contract Trace, and Notification Testing.
 - The Contract Trace tab walks a single contract through the whole pipeline.

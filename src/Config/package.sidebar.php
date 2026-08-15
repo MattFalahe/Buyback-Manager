@@ -30,6 +30,12 @@ return [
                 'permission' => 'buyback-manager.view',
             ],
             [
+                'name' => 'Analytics',
+                'icon' => 'fas fa-chart-pie',
+                'route' => 'buyback-manager.analytics.index',
+                'permission' => 'buyback-manager.view',
+            ],
+            [
                 'name' => 'Settings',
                 'icon' => 'fas fa-cogs',
                 'route' => 'buyback-manager.settings.index',

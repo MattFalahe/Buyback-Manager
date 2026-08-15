@@ -2,6 +2,7 @@
 
 namespace BuybackManager\Http\Controllers;
 
+use BuybackManager\Http\Controllers\Traits\ScopesCorporationAccess;
 use BuybackManager\Models\BuybackContract;
 use BuybackManager\Models\BuybackSetting;
 use Illuminate\Http\Request;
@@ -11,6 +12,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class BuybackController extends Controller
 {
+    use ScopesCorporationAccess;
+
     public function index(Request $request)
     {
         $allowedCorpIds = $this->allowedCorporationIds($request);
@@ -115,7 +118,7 @@ class BuybackController extends Controller
 
         $baseFilter = function ($q) use ($corporationId, $allowedCorpIds, $dateFrom, $dateTo) {
             $q->whereNotNull('appraisal_id')
-                ->where('status', 'completed')
+                ->whereIn('status', BuybackContract::COMPLETED_STATES)
                 ->whereBetween('completed_date', [$dateFrom, $dateTo]);
 
             if ($corporationId) {
@@ -170,32 +173,6 @@ class BuybackController extends Controller
         ));
     }
 
-    /**
-     * Returns the corporation IDs this user is allowed to see buyback data for,
-     * or null if the user is a settings admin and should see everything.
-     */
-    protected function allowedCorporationIds(Request $request): ?array
-    {
-        $user = $request->user();
-
-        if ($user && $user->can('buyback-manager.settings')) {
-            return null;
-        }
-
-        if (! $user) {
-            return [];
-        }
-
-        return DB::table('refresh_tokens')
-            ->join('character_affiliations', 'refresh_tokens.character_id', '=', 'character_affiliations.character_id')
-            ->where('refresh_tokens.user_id', $user->id)
-            ->whereNull('refresh_tokens.deleted_at')
-            ->pluck('character_affiliations.corporation_id')
-            ->map(fn($id) => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
-    }
 
     /**
      * Apply the standard buyback-contract visibility scope to a query:
@@ -238,12 +215,4 @@ class BuybackController extends Controller
         return $value;
     }
 
-    protected function corporationsPicker(?array $allowedCorpIds)
-    {
-        $query = BuybackSetting::with('corporation')->where('enabled', true);
-        if ($allowedCorpIds !== null) {
-            $query->whereIn('corporation_id', $allowedCorpIds);
-        }
-        return $query->get()->pluck('corporation.name', 'corporation_id');
-    }
 }
