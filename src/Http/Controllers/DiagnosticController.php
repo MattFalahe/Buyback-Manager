@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Seat\Eveapi\Models\Contracts\ContractDetail;
 use Seat\Eveapi\Models\Corporation\CorporationInfo;
 use Seat\Eveapi\Models\Sde\InvType;
@@ -51,6 +52,7 @@ class DiagnosticController extends Controller
         'buyback_contracts',
         'buyback_contract_items',
         'buyback_price_cache',
+        'buyback_price_status',
         'buyback_subscribed_types',
         'buyback_webhooks',
         'buyback_notification_log',
@@ -86,7 +88,7 @@ class DiagnosticController extends Controller
         'pricing.subscribeTypes',
         'pricing.unsubscribeTypes',
         'pricing.registerPreference',
-        'appraisal.create',
+        'pricing.getPreferenceForPlugin',
         'events.publish',
     ];
 
@@ -123,6 +125,7 @@ class DiagnosticController extends Controller
             'schedule' => $this->checkSchedule(),
             'settings_summary' => $this->checkSettingsSummary(),
             'mc_integration' => $this->checkManagerCoreIntegration($forceRefresh),
+            'price_providers' => $this->checkPriceProviders(),
             'price_cache' => $this->checkPriceCacheState(),
             'recent_activity' => $this->checkRecentActivity(),
             'appraisal_activity' => $this->checkAppraisalActivity(),
@@ -360,7 +363,7 @@ class DiagnosticController extends Controller
         if ($enabled === 0) {
             return [
                 'status' => 'warn',
-                'message' => 'No enabled buyback settings — plugin will do nothing until at least one corp is configured',
+                'message' => 'No enabled buyback settings: plugin will do nothing until at least one corp is configured',
                 'details' => ['Total settings' => $total, 'Enabled' => $enabled],
             ];
         }
@@ -383,8 +386,7 @@ class DiagnosticController extends Controller
                 'message' => 'Manager Core is not installed (standalone mode)',
                 'details' => [
                     'PluginBridge class' => 'not loaded',
-                    'AppraisalService class' => 'not loaded',
-                    'Standalone fallback' => 'Fuzzwork',
+                    'Price providers' => 'Fuzzwork, Janice',
                 ],
             ];
         }
@@ -422,7 +424,7 @@ class DiagnosticController extends Controller
                 $status = empty($missing) ? 'ok' : 'warn';
                 $msg = empty($missing)
                     ? 'Manager Core available with all ' . count($caps['present']) . ' required capabilities'
-                    : 'Manager Core missing ' . count($missing) . ' capability/capabilities — update Manager Core?';
+                    : 'Manager Core missing ' . count($missing) . ' capability/capabilities. Update Manager Core?';
 
                 return [
                     'status' => $status,
@@ -430,7 +432,7 @@ class DiagnosticController extends Controller
                     'details' => [
                         'Required by BB' => count(self::REQUIRED_MC_CAPABILITIES),
                         'Present on bridge' => count($caps['present']),
-                        'Missing' => empty($missing) ? '—' : implode(', ', $missing),
+                        'Missing' => empty($missing) ? '-' : implode(', ', $missing),
                         'Subscribed types (BB ledger)' => $subscribedCount,
                     ],
                 ];
@@ -474,35 +476,96 @@ class DiagnosticController extends Controller
         return ['present' => $present, 'missing' => $missing];
     }
 
+    /**
+     * How each enabled corporation's provider last did. A provider that is
+     * down is a warning even with a fallback standing in, since quotes are
+     * then priced somewhere other than where the corporation chose.
+     */
+    private function checkPriceProviders(): array
+    {
+        if (! Schema::hasTable('buyback_price_status')) {
+            return [
+                'status' => 'warn',
+                'message' => 'buyback_price_status table missing: migrations may not have run',
+            ];
+        }
+
+        $settings = BuybackSetting::with('corporation')->where('enabled', true)->get();
+        if ($settings->isEmpty()) {
+            return ['status' => 'info', 'message' => 'No enabled buyback settings, so nothing has been priced'];
+        }
+
+        $details = [];
+        $failing = 0;
+        $unknown = 0;
+
+        foreach ($settings as $setting) {
+            $name = ($setting->corporation->name ?? ('Corporation ' . $setting->corporation_id))
+                . ' (' . $this->priceProvider->providerLabel($this->priceProvider->providerOf($setting)) . ')';
+            $status = $this->priceProvider->providerStatus($setting);
+
+            if ($status === null) {
+                $unknown++;
+                $details[$name] = 'no quote priced since the provider was set';
+                continue;
+            }
+
+            if (! $status->failing) {
+                $details[$name] = 'answering, last ' . optional($status->last_success)->diffForHumans();
+                continue;
+            }
+
+            $failing++;
+            $fallback = $status->fallback
+                ? $this->priceProvider->providerLabel($status->fallback) . ($status->fallback_ok ? ' standing in' : ' not answering either')
+                : 'no fallback';
+            $details[$name] = 'not answering since ' . optional($status->since)->diffForHumans()
+                . ': ' . Str::limit((string) $status->error, 160) . ' (' . $fallback . ')';
+        }
+
+        if ($failing > 0) {
+            return [
+                'status' => 'warn',
+                'message' => $failing . ' of ' . $settings->count() . ' price providers not answering; quotes use the fallback provider or the last cached prices',
+                'details' => $details,
+            ];
+        }
+
+        return [
+            'status' => $unknown === $settings->count() ? 'info' : 'ok',
+            'message' => $unknown === $settings->count()
+                ? 'No quote priced yet'
+                : 'Every price provider answered its last quote',
+            'details' => $details,
+        ];
+    }
+
     private function checkPriceCacheState(): array
     {
         if (! Schema::hasTable('buyback_price_cache')) {
             return [
                 'status' => 'warn',
-                'message' => 'buyback_price_cache table missing — migrations may not have run',
+                'message' => 'buyback_price_cache table missing: migrations may not have run',
             ];
         }
 
         $count = BuybackPriceCache::count();
-        $oldest = BuybackPriceCache::min('cached_at');
-        $newest = BuybackPriceCache::max('cached_at');
-        $stale = $oldest
-            ? BuybackPriceCache::where('cached_at', '<', Carbon::now()->subHours(24))->count()
-            : 0;
+        $newest = BuybackPriceCache::max('checked_at');
+        $recent = BuybackPriceCache::where('checked_at', '>=', Carbon::now()->subHours(24))->count();
+        $markets = BuybackPriceCache::distinct()->count('market');
 
-        $status = $count === 0 ? 'info' : ($stale > $count * 0.5 ? 'warn' : 'ok');
-        $message = $count === 0
-            ? 'No prices cached yet (will populate on first appraisal or contract sync)'
-            : "{$count} prices cached, {$stale} older than 24h";
-
+        // Rows only get old because nobody quoted those items lately, so an
+        // old row is no fault: it is the price a quote falls back on.
         return [
-            'status' => $status,
-            'message' => $message,
+            'status' => $count === 0 ? 'info' : 'ok',
+            'message' => $count === 0
+                ? 'No prices cached yet (fills on the first quote)'
+                : "{$count} prices cached across {$markets} " . Str::plural('market', $markets) . ", {$recent} asked for in the last 24h",
             'details' => [
                 'Total rows' => $count,
-                'Oldest cached_at' => $oldest ?: '—',
-                'Newest cached_at' => $newest ?: '—',
-                'Stale (>24h)' => $stale,
+                'Markets' => $markets,
+                'Asked for in the last 24h' => $recent,
+                'Newest answer' => $newest ?: '-',
             ],
         ];
     }
@@ -519,7 +582,7 @@ class DiagnosticController extends Controller
         if ($totalContracts > 0) {
             if ($latestUpdate && Carbon::parse($latestUpdate)->gt(Carbon::now()->subHours(2))) {
                 $status = 'ok';
-                $message = "Contract sync active — last update {$latestUpdate}";
+                $message = "Contract sync active, last update {$latestUpdate}";
             } else {
                 $status = 'warn';
                 $message = "Last contract update {$latestUpdate} (expected every 15 min)";
@@ -532,7 +595,7 @@ class DiagnosticController extends Controller
             'details' => [
                 'Total contracts tracked' => $totalContracts,
                 'Updated in last 24h' => $last24h,
-                'Most recent update' => $latestUpdate ?: '—',
+                'Most recent update' => $latestUpdate ?: '-',
             ],
         ];
     }
@@ -547,7 +610,7 @@ class DiagnosticController extends Controller
         if (! Schema::hasTable('buyback_appraisals')) {
             return [
                 'status' => 'warn',
-                'message' => 'buyback_appraisals table missing — migrations may not have run',
+                'message' => 'buyback_appraisals table missing: migrations may not have run',
             ];
         }
 
@@ -576,7 +639,7 @@ class DiagnosticController extends Controller
                 'Created in last 24h' => $last24h,
                 'Matched to a contract' => $matched,
                 'Conversion rate' => $conversion . '%',
-                'Most recent' => $latest ?: '—',
+                'Most recent' => $latest ?: '-',
             ],
         ];
     }
@@ -639,12 +702,21 @@ class DiagnosticController extends Controller
             'message' => $tritanium ? $tritanium->typeName . ' resolves in SDE' : 'typeID 34 not found in invTypes',
         ];
 
-        $items[] = [
-            'category' => 'Constants',
-            'name' => 'The Forge region (regionID=10000002)',
-            'status' => 'info',
-            'message' => 'Hardcoded as PriceProviderService::DEFAULT_REGION_ID',
-        ];
+        // Fuzzwork prices a hub by its region, so each hub's region id has to
+        // still be a region in the SDE.
+        $regionNames = DB::table('mapDenormalize')
+            ->whereIn('itemID', array_values(PriceProviderService::HUB_REGIONS))
+            ->pluck('itemName', 'itemID');
+        foreach (PriceProviderService::HUB_REGIONS as $hub => $regionId) {
+            $items[] = [
+                'category' => 'Constants',
+                'name' => ucfirst($hub) . " region (regionID={$regionId})",
+                'status' => isset($regionNames[$regionId]) ? 'ok' : 'error',
+                'message' => isset($regionNames[$regionId])
+                    ? $regionNames[$regionId] . ' resolves in SDE'
+                    : "regionID {$regionId} not found in mapDenormalize",
+            ];
+        }
 
         // PriceProviderService class
         $items[] = [
@@ -676,7 +748,7 @@ class DiagnosticController extends Controller
                             'category' => 'MC capabilities',
                             'name' => $cap,
                             'status' => $present ? 'ok' : 'warn',
-                            'message' => $present ? 'callable on the bridge' : 'NOT registered — update Manager Core',
+                            'message' => $present ? 'callable on the bridge' : 'NOT registered: update Manager Core',
                         ];
                     }
                 }
@@ -693,7 +765,7 @@ class DiagnosticController extends Controller
                 'category' => 'MC capabilities',
                 'name' => 'Manager Core',
                 'status' => 'info',
-                'message' => 'Not installed — capabilities not checked',
+                'message' => 'Not installed: capabilities not checked',
             ];
         }
 
@@ -747,6 +819,20 @@ class DiagnosticController extends Controller
                 }
             }
 
+            // A fallback that was chosen but cannot run. "None" is a choice,
+            // not a fault.
+            $provider = $this->priceProvider->providerOf($setting);
+            $fallback = $this->priceProvider->fallbackFor($setting, $provider, $this->priceProvider->marketFor($setting, $provider));
+            $fallbackChoice = (string) ($setting->fallback_provider ?? PriceProviderService::PROVIDER_FUZZWORK);
+            if ($fallback['provider'] === null && ! in_array($fallbackChoice, ['', PriceProviderService::FALLBACK_NONE, $provider], true)) {
+                $issues[] = $fallback['why'];
+            }
+
+            $priceStatus = $this->priceProvider->providerStatus($setting);
+            if ($priceStatus && $priceStatus->failing) {
+                $issues[] = 'Provider not answering since ' . optional($priceStatus->since)->toDateTimeString() . ': ' . Str::limit((string) $priceStatus->error, 200);
+            }
+
             // Rule count
             $ruleCount = BuybackPricingRule::where('setting_id', $setting->id)->count();
 
@@ -758,6 +844,9 @@ class DiagnosticController extends Controller
                 'provider' => $setting->price_provider ?? 'fuzzwork',
                 'base_percentage' => $setting->base_percentage,
                 'rule_count' => $ruleCount,
+                'fallback' => $fallback['provider'] !== null
+                    ? $this->priceProvider->providerLabel($fallback['provider']) . ($fallback['note'] ? ' (Jita)' : '')
+                    : 'none',
                 'fallback_to_jita' => (bool) $setting->fallback_to_jita,
                 'status' => empty($issues) ? 'ok' : 'warn',
                 'issues' => $issues,
@@ -832,7 +921,7 @@ class DiagnosticController extends Controller
                 'check' => "Rows past the {$itemDays}-day retention window",
                 'count' => $overdueItems,
                 'status' => $overdueItems > 0 ? 'warn' : 'ok',
-                'note' => $overdueItems > 0 ? 'Prune runs inside buyback-manager:sync-contracts — check the schedule is firing' : null,
+                'note' => $overdueItems > 0 ? 'Prune runs inside buyback-manager:sync-contracts. Check the schedule is firing' : null,
             ];
         }
 
@@ -862,14 +951,17 @@ class DiagnosticController extends Controller
             'status' => $orphanedSettings > 0 ? 'warn' : 'ok',
         ];
 
-        // Stale price cache
+        // Price cache rows that answered with no price on either side. They
+        // are kept so the item is not asked for again within the TTL, and
+        // stand in for nothing.
         if (Schema::hasTable('buyback_price_cache')) {
-            $stale = BuybackPriceCache::where('cached_at', '<', Carbon::now()->subDays(7))->count();
+            $empty = BuybackPriceCache::whereNull('buy_price')->whereNull('sell_price')->count();
             $issues[] = [
                 'table' => 'buyback_price_cache',
-                'check' => 'Rows older than 7 days',
-                'count' => $stale,
-                'status' => $stale > 1000 ? 'warn' : 'ok',
+                'check' => 'Items asked for that no provider has priced yet',
+                'count' => $empty,
+                'status' => 'ok',
+                'note' => $empty > 0 ? 'Quotes list these as not accepted (no market price)' : null,
             ];
         }
 

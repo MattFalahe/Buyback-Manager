@@ -1,12 +1,12 @@
 {{-- Shared look for every Buyback Manager settings page.
 
      Kept INLINE rather than in the published buyback-manager.css so a
-     `view:clear` is enough to pick it up — no asset republish needed. Every
+     `view:clear` is enough to pick it up, with no asset republish needed. Every
      rule is scoped to .buyback-manager-wrapper so nothing leaks into the rest
      of SeAT. --}}
 <style>
     /* Toggle switches. Pure CSS on the native checkbox, so name / value /
-       checked are untouched and every existing form keeps working — the input
+       checked are untouched and every existing form keeps working; the input
        just stops looking like a checkbox. Covers all three markup styles used
        across these pages (.checkbox > label > input, .custom-control-input and
        bare inputs). The knob is a background-image rather than ::before

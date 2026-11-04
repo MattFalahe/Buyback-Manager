@@ -71,13 +71,13 @@
                         <a href="https://github.com/MattFalahe/Buyback-Manager" class="quick-link" target="_blank" rel="noopener" style="padding: 10px;">
                             <i class="fas fa-code-branch" style="font-size: 1rem; margin-bottom: 4px;"></i> GitHub Repo
                         </a>
-                        <a href="https://github.com/MattFalahe/Buyback-Manager/blob/Dev-2.0/CHANGELOG.md" class="quick-link" target="_blank" rel="noopener" style="padding: 10px;">
+                        <a href="https://github.com/MattFalahe/Buyback-Manager/blob/main/CHANGELOG.md" class="quick-link" target="_blank" rel="noopener" style="padding: 10px;">
                             <i class="fas fa-list" style="font-size: 1rem; margin-bottom: 4px;"></i> Changelog
                         </a>
                         <a href="https://github.com/MattFalahe/Buyback-Manager/issues" class="quick-link" target="_blank" rel="noopener" style="padding: 10px;">
                             <i class="fas fa-bug" style="font-size: 1rem; margin-bottom: 4px;"></i> Report Issues
                         </a>
-                        <a href="https://github.com/MattFalahe/Buyback-Manager/blob/Dev-2.0/README.md" class="quick-link" target="_blank" rel="noopener" style="padding: 10px;">
+                        <a href="https://github.com/MattFalahe/Buyback-Manager/blob/main/README.md" class="quick-link" target="_blank" rel="noopener" style="padding: 10px;">
                             <i class="fas fa-book" style="font-size: 1rem; margin-bottom: 4px;"></i> Readme
                         </a>
                     </div>
@@ -164,7 +164,7 @@
 
                     <div class="info-box">
                         <i class="fas fa-cube"></i>
-                        <strong>Works standalone:</strong> it runs on its own using free Fuzzwork pricing or your Janice API key. Manager Core is an optional upgrade that adds regional market pricing, a shared price cache, and a cross plugin event feed. Nothing here requires it.
+                        <strong>Works standalone:</strong> it runs on its own using free Fuzzwork pricing or your Janice API key. Manager Core is optional: once it is installed you can pick it as the price provider, for its markets and citadels, and other plugins can follow buyback events through it. Nothing here requires it.
                     </div>
                 </div>
 
@@ -185,7 +185,7 @@
                         <div class="feature-item">
                             <i class="fas fa-coins"></i>
                             <h5>Flexible pricing</h5>
-                            <p>Fuzzwork, Janice, or Manager Core, with both-sides prices and a Jita-plus-cache fallback chain.</p>
+                            <p>Fuzzwork, Janice, or Manager Core when it is installed, with a fallback provider and the last cached price behind it.</p>
                         </div>
                         <div class="feature-item">
                             <i class="fas fa-sliders-h"></i>
@@ -200,7 +200,7 @@
                         <div class="feature-item">
                             <i class="fab fa-discord"></i>
                             <h5>Discord notifications</h5>
-                            <p>Per corp or global webhooks, six categories, role mentions, and a routing map. De duplicated and rate limited.</p>
+                            <p>Per corp or global webhooks, seven categories, role mentions, and a routing map. De duplicated and rate limited.</p>
                         </div>
                         <div class="feature-item">
                             <i class="fas fa-globe"></i>
@@ -210,7 +210,7 @@
                         <div class="feature-item">
                             <i class="fas fa-plug"></i>
                             <h5>Manager Core ready</h5>
-                            <p>Optional regional pricing, central pricing preferences, and an EventBus feed for other plugins.</p>
+                            <p>An optional price provider for its markets and citadels, a central market override, and an event feed for other plugins.</p>
                         </div>
                         <div class="feature-item">
                             <i class="fas fa-stethoscope"></i>
@@ -231,7 +231,7 @@
                     <ol class="step-by-step">
                         <li><strong>Open Settings.</strong> Go to <a href="{{ route('buyback-manager.settings.index') }}">Buyback Manager &gt; Settings</a> and add the corporation that will run the programme.</li>
                         <li><strong>Choose a contract target:</strong> your own corporation, a specific corporation by name, or a specific player. This drives both the instructions members see and how detection works (see <a href="#" class="js-goto" data-goto="detection">Contracts &amp; Detection</a>).</li>
-                        <li><strong>Pick a pricing provider</strong> (Fuzzwork, Janice, or Manager Core) and set your base percentage (the default is 90%).</li>
+                        <li><strong>Pick a pricing provider</strong> (Fuzzwork, Janice, or Manager Core when it is installed), its market and a fallback provider, and set your base percentage (the default is 90%). <em>Test Connection</em> checks the provider before you save.</li>
                         <li><strong>Add pricing rules (optional)</strong> to override the base percentage for specific items, groups, or categories.</li>
                         <li><strong>Add a Discord webhook (optional)</strong> on the Settings page Discord Webhooks tab, and pick a role to mention.</li>
                         <li><strong>Enable the setting and test:</strong> run an <a href="{{ route('buyback.appraisal.index') }}">Appraisal</a> to confirm prices look right and that you get a key back.</li>
@@ -239,7 +239,7 @@
 
                     <div class="success-box">
                         <i class="fas fa-check-circle"></i>
-                        <strong>That is the whole setup.</strong> Once a corporation setting is enabled, anyone can appraise against it and get a key &mdash; from the plugin or the public page. Contract detection runs automatically on a schedule.
+                        <strong>That is the whole setup.</strong> Once a corporation setting is enabled, anyone can appraise against it and get a key, from the plugin or the public page. Contract detection runs automatically on a schedule.
                     </div>
                 </div>
             </div>
@@ -248,42 +248,51 @@
             <div id="pricing" class="help-section">
                 <div class="help-card">
                     <h3><i class="fas fa-coins"></i> Pricing &amp; cache</h3>
-                    <p>Every appraisal fetches both a buy price and a sell price per item, because a pricing rule can apply your percentage to either side of the spread (or the midpoint).</p>
+                    <p>Every appraisal asks for both a buy price and a sell price per item, because a pricing rule can pay on either side of the spread or the midpoint. Each corporation picks its price provider, the market it prices at, and a fallback provider on the Settings page.</p>
 
                     <div class="feature-grid">
                         <div class="feature-item">
                             <i class="fas fa-gift"></i>
                             <h5>Fuzzwork</h5>
-                            <p>Free, no API key. Region based aggregates for The Forge (Jita). The simplest standalone option.</p>
+                            <p>Free, no API key. Prices at Jita, Amarr, Dodixie, Hek or Rens, or at any region by its id.</p>
                         </div>
                         <div class="feature-item">
                             <i class="fas fa-bolt"></i>
                             <h5>Janice</h5>
-                            <p>Needs an API key. Multiple regional markets, plus a raw appraisal endpoint for large lists.</p>
+                            <p>Needs a Janice API key, and prices at Jita or Amarr. Once saved the key is never shown again.</p>
                         </div>
                         <div class="feature-item">
                             <i class="fas fa-plug"></i>
                             <h5>Manager Core</h5>
-                            <p>Optional upgrade. Any configured market, using Manager Core's own shared price cache.</p>
+                            <p>Offered only when Manager Core is installed. Prices at any market added there, citadels included.</p>
                         </div>
                     </div>
 
-                    <h4>The fallback chain</h4>
-                    <p>To stop a single upstream outage zeroing out a contract, pricing falls back in three layers:</p>
+                    <h4>Where each price comes from</h4>
+                    <p>One source having a bad day never stops a quote. Each item takes its price from the first of these that has one:</p>
                     <ol>
-                        <li>Your configured market and provider.</li>
-                        <li>A Jita fallback (when "fallback to Jita" is enabled on the setting).</li>
-                        <li>The most recent locally cached price, if the upstream is unreachable.</li>
+                        <li><strong>The provider</strong> at the corporation's market. A Fuzzwork or Janice answer is reused for the setting's cache TTL (0 asks every time). Manager Core keeps prices of its own, so it is read on every quote.</li>
+                        <li><strong>The fallback provider</strong>, when the provider fails outright, and for any item it could not answer for. It prices at the same market, or at Jita when it cannot price there.</li>
+                        <li><strong>The last cached price</strong>, however old, when neither of them can.</li>
                     </ol>
+                    <p>With <em>Use Jita's price for a side with no orders at the market</em> ticked and a market other than Jita, a side nobody is trading at the market takes Jita's price for that side.</p>
 
                     <div class="info-box">
-                        <i class="fas fa-database"></i>
-                        <strong>How the cache works:</strong> Fuzzwork and Janice prices are cached locally and reused until they go stale, controlled by the cache TTL on each setting (in minutes). Manager Core bypasses the local cache because it maintains its own.
+                        <i class="fas fa-receipt"></i>
+                        <strong>The quote says so.</strong> When prices did not all come from the provider, the appraisal carries a short note saying how many came from the fallback, the cache or Jita. The public page shows that note only when its pricing detail is switched on.
                     </div>
 
                     <div class="warning-box">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <strong>Fuzzwork has no regional markets:</strong> it prices The Forge only. For another market hub, use Janice or Manager Core.
+                        <i class="fas fa-ban"></i>
+                        <strong>No price means not accepted.</strong> An item nothing could price, on the side its rule pays on, is listed as not accepted with <em>no market price</em>. It is never valued at zero or at a guess, so the seller knows to leave it out of the contract.
+                    </div>
+
+                    <h4>When the provider stops answering</h4>
+                    <p>A request that fails, or an answer with no prices at all for items it has priced before, counts as the provider not answering. Items nobody trades do not. The Settings list then shows <em>Not answering since</em> on that corporation, with what the quotes use meanwhile, and a webhook subscribed to <strong>Pricing problems</strong> hears about it once when it stops and once when it answers again, never on every quote.</p>
+
+                    <div class="success-box">
+                        <i class="fas fa-flask"></i>
+                        <strong>Test before you save.</strong> <em>Test Connection</em> on the Settings form prices Tritanium at the market you picked, with the key you typed or the one already saved, and changes nothing. The Diagnostic page's Health Checks tab shows how each corporation's provider last answered.
                     </div>
                 </div>
             </div>
@@ -319,6 +328,7 @@
                         <li><code>sell</code> the lowest sell order price (most generous to the member).</li>
                         <li><code>split</code> the midpoint between buy and sell.</li>
                     </ul>
+                    <p>A rule with no side of its own, and the default rate, pay on the sell side, or on the <em>Price method</em> picked for Janice when Janice is the provider.</p>
 
                     <div class="purple-box">
                         <i class="fas fa-sort-amount-down"></i>
@@ -354,7 +364,7 @@
 
                     <div class="warning-box">
                         <i class="fas fa-exclamation-triangle"></i>
-                        <strong>Faction and Tech II variants often sit in their own group.</strong> EVE frequently splits advanced ammunition into a separate group from the Tech I version, so a rule on the basic group will not catch the faction or Tech II equivalents. Always confirm the group an item actually belongs to before relying on a group rule &mdash; a plausible sounding group name is not proof it contains the items you mean.
+                        <strong>Faction and Tech II variants often sit in their own group.</strong> EVE frequently splits advanced ammunition into a separate group from the Tech I version, so a rule on the basic group will not catch the faction or Tech II equivalents. Always confirm the group an item actually belongs to before relying on a group rule: a plausible sounding group name is not proof it contains the items you mean.
                     </div>
 
                     <div class="info-box">
@@ -382,6 +392,14 @@
                         <li><strong>Detection.</strong> Buyback Manager syncs contracts every 15 minutes (or immediately via the Diagnostic page's Sync Now button), reads the key from the Description, and resolves it to the appraisal.</li>
                         <li><strong>Check and notify.</strong> The contract is compared against the appraisal. A clean match is announced as normal; anything off is flagged for a director to review before paying.</li>
                     </ol>
+
+                    <h4>What a seller can paste</h4>
+                    <table class="plugin-info-table">
+                        <tr><td>From the game</td><td>An inventory, assets or contract window copied with Ctrl+C.</td></tr>
+                        <tr><td>One item per line</td><td><code>1,000 x Tritanium</code>, <code>1000 Tritanium</code>, <code>Tritanium 1000</code> or <code>Tritanium x1000</code>.</td></tr>
+                        <tr><td>An EFT fit</td><td>The ship, its modules, drones and cargo. Charges loaded in a module are not counted.</td></tr>
+                    </table>
+                    <p>The same item on several lines is added up. Lines that name no item are listed back to the seller rather than guessed at, and a paste is capped at 1,000 item types or 5,000 lines.</p>
 
                     <h4>What gets checked</h4>
                     <p>The quote is a <strong>reference, not a guarantee</strong>. Nothing locks a price, so a discrepancy raises a review flag rather than binding you to an old number:</p>
@@ -447,14 +465,15 @@
                     <h3><i class="fab fa-discord"></i> Discord notifications</h3>
                     <p>Buyback Manager owns its own Discord delivery. You add webhooks on the Settings page (Discord Webhooks tab), choose which categories each one announces, and optionally mention a role. A webhook can be scoped to one corporation or made global.</p>
 
-                    <h4>The six notification categories</h4>
+                    <h4>The seven notification categories</h4>
                     <table class="plugin-info-table">
-                        <tr><td>Contract Matched</td><td>A contract matched its appraisal key cleanly, with nothing to review.</td></tr>
-                        <tr><td>Contract Flagged</td><td>A contract matched but needs review: price drift, stale quote, item mismatch, reused key, or wrong location.</td></tr>
-                        <tr><td>Contract Unmatched</td><td>A contract quoted an appraisal key that did not resolve (review signal).</td></tr>
-                        <tr><td>Contract Completed</td><td>A buyback contract is finished.</td></tr>
-                        <tr><td>Contract Cancelled</td><td>A buyback contract is cancelled.</td></tr>
-                        <tr><td>Contract Nudge</td><td>A matched contract has sat unaccepted past the corp's auto-nudge window.</td></tr>
+                        <tr><td>Contract matched</td><td>A contract matched its appraisal key cleanly, with nothing to review.</td></tr>
+                        <tr><td>Needs review</td><td>A contract matched but needs review: price drift, stale quote, item mismatch, reused key, or wrong location.</td></tr>
+                        <tr><td>Key did not resolve</td><td>A contract quoted an appraisal key that does not exist, has expired, or belongs to another corporation.</td></tr>
+                        <tr><td>Buyback completed</td><td>The contract was accepted in game and the buyback is done.</td></tr>
+                        <tr><td>Contract cancelled</td><td>The contract was cancelled, rejected or allowed to lapse.</td></tr>
+                        <tr><td>Waiting too long</td><td>A matched contract has sat unaccepted past the corp's auto-nudge window.</td></tr>
+                        <tr><td>Pricing problems</td><td>The price provider stopped answering, and again when it answers. Quotes meanwhile use the fallback provider or the last cached prices.</td></tr>
                     </table>
 
                     <div class="info-box">
@@ -464,7 +483,7 @@
 
                     <div class="success-box">
                         <i class="fas fa-shield-alt"></i>
-                        <strong>No double pings, no spam:</strong> each event sends at most once per webhook (duplicates are de duplicated), and each webhook is rate limited. A contract's first sighting fires exactly one of matched, flagged or unmatched &mdash; never two.
+                        <strong>No double pings, no spam:</strong> each event sends at most once per webhook (duplicates are de duplicated), and each webhook is rate limited. A contract's first sighting fires exactly one of matched, needs review or key did not resolve, never two.
                     </div>
                 </div>
             </div>
@@ -473,31 +492,32 @@
             <div id="integration" class="help-section">
                 <div class="help-card">
                     <h3><i class="fas fa-plug"></i> Manager Core integration</h3>
-                    <p>Manager Core is an optional companion plugin. When it is installed, Buyback Manager detects it automatically and unlocks a few extras. When it is absent, everything still works on Fuzzwork or Janice.</p>
+                    <p>Manager Core is an optional companion plugin. When it is installed, Buyback Manager detects it automatically and offers it as a price provider. When it is absent, everything still works on Fuzzwork or Janice.</p>
 
                     @if($mcAvailable)
                         <div class="success-box">
                             <i class="fas fa-check-circle"></i>
-                            <strong>Manager Core is installed.</strong> Regional pricing, the shared price cache, and the cross plugin event feed are available to this plugin.
+                            <strong>Manager Core is installed.</strong> It can be picked as the price provider or as the fallback provider, and buyback events are published to its event feed.
                         </div>
                     @else
                         <div class="info-box">
                             <i class="fas fa-cube"></i>
-                            <strong>Manager Core is not installed.</strong> You are running in standalone mode. Install it later to add the features below without changing anything else.
+                            <strong>Manager Core is not installed.</strong> You are running in standalone mode. Install it later and it shows up as a price provider, with nothing else to change.
                         </div>
                     @endif
 
-                    <h4>What Buyback Manager consumes from Manager Core</h4>
+                    <h4>Pricing through Manager Core</h4>
                     <ul>
-                        <li><strong>Regional market pricing</strong> through Manager Core's pricing service, with its own shared cache (bypasses the local price cache).</li>
-                        <li><strong>Pricing preferences</strong> registered in Manager Core, where an admin can override the market used centrally.</li>
+                        <li><strong>Any market added in Manager Core</strong>, citadels included. Manager Core keeps its own prices, so the cache TTL on the setting does not apply to it.</li>
+                        <li><strong>Items it has not priced yet</strong> are priced by the fallback provider for that quote, and Buyback Manager asks Manager Core to start keeping them priced.</li>
+                        <li><strong>A central override.</strong> Once a corporation prices through Manager Core, Buyback Manager registers in its Pricing Preferences. A market an admin sets there for Buyback Manager wins over the corporation's own choice, and the Settings page says so.</li>
                     </ul>
 
                     <h4>What Buyback Manager publishes to Manager Core</h4>
-                    <p>Every contract lifecycle transition is published to Manager Core's EventBus &mdash; an integration surface other plugins can subscribe to, separate from and in addition to the Discord categories above. Standalone installs simply get the Discord notifications.</p>
+                    <p>Every contract lifecycle transition is published to Manager Core's event feed, an integration surface other plugins can subscribe to, separate from and in addition to the Discord categories above. Standalone installs simply get the Discord notifications.</p>
                     <div class="purple-box">
                         <i class="fas fa-broadcast-tower"></i>
-                        <strong>Events published:</strong> <code>buyback.contract.matched</code>, <code>.flagged</code>, <code>.unmatched</code>, <code>.completed</code>, <code>.cancelled</code> and <code>.nudge</code>. Appraisals are not published &mdash; they are generated far too often (every public estimate) to be useful bus traffic.
+                        <strong>Events published:</strong> <code>buyback.contract.matched</code>, <code>.flagged</code>, <code>.unmatched</code>, <code>.completed</code>, <code>.cancelled</code> and <code>.nudge</code>. Appraisals are not published: they are generated far too often (every public estimate) to be useful bus traffic. Pricing problems go to Discord only.
                     </div>
                 </div>
             </div>
@@ -527,11 +547,11 @@
                     <p>By default a contract is accepted no matter where it was created. You can restrict buyback to specific places so members can't run your buyback from the other side of the map.</p>
 
                     <h4>Setting it up</h4>
-                    <p>In <strong>Settings</strong>, click the <i class="fas fa-map-marker-alt"></i> location button on a corporation, then add one or more allowed locations. Search by name and pick a <strong>region, constellation, system, station, or citadel</strong>. Mix granularities freely &mdash; a region entry covers every station and structure inside it, so "The Forge" accepts all of it while "Jita IV-4" accepts only that station.</p>
+                    <p>In <strong>Settings</strong>, click the <i class="fas fa-map-marker-alt"></i> location button on a corporation, then add one or more allowed locations. Search by name and pick a <strong>region, constellation, system, station, or citadel</strong>. Mix granularities freely: a region entry covers every station and structure inside it, so "The Forge" accepts all of it while "Jita IV-4" accepts only that station.</p>
 
                     <div class="info-box">
                         <i class="fas fa-ban"></i>
-                        With one or more locations set, a contract created anywhere else is still tracked but <strong>flagged</strong> with "Created outside the accepted buyback locations", announced through the Contract Flagged category so a director can review and decline it in game. An empty list means no restriction.
+                        With one or more locations set, a contract created anywhere else is still tracked but <strong>flagged</strong> with "Created outside the accepted buyback locations", announced through the Needs review category so a director can review and decline it in game. An empty list means no restriction.
                     </div>
 
                     <p>The accepted locations are listed on the public page and on every appraisal page, so a seller knows where to contract before hauling anywhere.</p>
@@ -548,7 +568,7 @@
                     <table class="plugin-info-table">
                         <tr><td><strong>Headline</strong></td><td>ISK paid, average buyback, distinct sellers and items bought for the period.</td></tr>
                         <tr><td><strong>Quote to payout</strong></td><td>Appraisals issued, keys actually used in a contract, and buybacks completed. The gap between the first two is the share of people who were quoted and walked away.</td></tr>
-                        <tr><td><strong>Most bought</strong></td><td>Items, groups and categories ranked by the ISK you paid for them &mdash; the practical guide to which pricing rules matter.</td></tr>
+                        <tr><td><strong>Most bought</strong></td><td>Items, groups and categories ranked by the ISK you paid for them, the practical guide to which pricing rules matter.</td></tr>
                         <tr><td><strong>Top sellers</strong></td><td>Who supplies the programme, by ISK paid.</td></tr>
                         <tr><td><strong>Why contracts were flagged</strong></td><td>Which review reason fires most, so you fix the cause rather than the symptom.</td></tr>
                         <tr><td><strong>Quoted but never sold</strong></td><td>Items people were priced for and did not contract, ranked by the ISK that walked away.</td></tr>
@@ -556,7 +576,7 @@
 
                     <div class="info-box">
                         <i class="fas fa-lightbulb"></i>
-                        <strong>Reading the conversion rate.</strong> A falling rate usually means your rates have drifted behind the market: people still ask for a price, but fewer of them accept it. Cross-check the items at the top of <em>Quoted but never sold</em> &mdash; those are where you are losing the sale.
+                        <strong>Reading the conversion rate.</strong> A falling rate usually means your rates have drifted behind the market: people still ask for a price, but fewer of them accept it. Cross-check the items at the top of <em>Quoted but never sold</em>: those are where you are losing the sale.
                     </div>
 
                     <div class="warning-box">
@@ -576,30 +596,30 @@
                     <p>Open <strong>Settings</strong>, find the corporation in the Configured Corps table, and click the <i class="fas fa-globe"></i> globe button in its Actions column. Tick <strong>Enable the public page</strong> and save. The editor shows the exact public URL; while the page is disabled that URL returns 404, so nothing is exposed until you choose to publish.</p>
                     <div class="info-box">
                         <i class="fas fa-sign-in-alt"></i>
-                        The whole selling flow works with no login, and the page never asks for one: a visitor appraises on the public page, gets a key and a shareable appraisal URL, and contracts in game. Membership is <strong>detected, not declared</strong> &mdash; when the contract is picked up, its issuing character is resolved back to a SeAT account, so a member who appraised without signing in still gets the appraisal filed under My Appraisals. Someone with no SeAT account simply shows as a guest.
+                        The whole selling flow works with no login, and the page never asks for one: a visitor appraises on the public page, gets a key and a shareable appraisal URL, and contracts in game. Membership is <strong>detected, not declared</strong>: when the contract is picked up, its issuing character is resolved back to a SeAT account, so a member who appraised without signing in still gets the appraisal filed under My Appraisals. Someone with no SeAT account simply shows as a guest.
                     </div>
 
                     <div class="success-box">
                         <i class="fas fa-user-shield"></i>
-                        <strong>No account and no ESI scopes required.</strong> Buyback Manager never starts its own EVE SSO request and never asks for scopes, so it cannot change or reduce what anyone has already granted SeAT. Appraising touches no character data at all, and contract detection reads the corporation's (or the designated operator's) own contract feed &mdash; never the seller's. Signing in is optional and only adds appraisal history.
+                        <strong>No account and no ESI scopes required.</strong> Buyback Manager never starts its own EVE SSO request and never asks for scopes, so it cannot change or reduce what anyone has already granted SeAT. Appraising touches no character data at all, and contract detection reads the corporation's (or the designated operator's) own contract feed, never the seller's. Signing in is optional and only adds appraisal history.
                     </div>
 
                     <h4>Branding &amp; layout</h4>
                     <ul>
-                        <li><strong>Headline, blurb and footer</strong> &mdash; your own copy for the hero and a small footer line.</li>
-                        <li><strong>Accent colour</strong> &mdash; recolours the buttons and highlights.</li>
-                        <li><strong>Background image</strong> &mdash; uploaded and shown behind the hero, with a <strong>dim overlay</strong> slider so the text stays readable over any image.</li>
-                        <li><strong>Logo</strong> &mdash; defaults to the EVE corporation logo; upload your own. Choose its background: a dark box (default), no box (logo straight on the image, best for a transparent logo), or a white square.</li>
-                        <li><strong>Page layout</strong> &mdash; stacked (rates above instructions) or side by side (rates left, instructions right); it stacks on mobile.</li>
+                        <li><strong>Headline, blurb and footer</strong>: your own copy for the hero and a small footer line.</li>
+                        <li><strong>Accent colour</strong>: recolours the buttons and highlights.</li>
+                        <li><strong>Background image</strong>: uploaded and shown behind the hero, with a <strong>dim overlay</strong> slider so the text stays readable over any image.</li>
+                        <li><strong>Logo</strong>: defaults to the EVE corporation logo; upload your own. Choose its background: a dark box (default), no box (logo straight on the image, best for a transparent logo), or a white square.</li>
+                        <li><strong>Page layout</strong>: stacked (rates above instructions) or side by side (rates left, instructions right); it stacks on mobile.</li>
                     </ul>
 
                     <h4>Rates &amp; estimate</h4>
                     <ul>
-                        <li><strong>Show the rates section</strong> &mdash; the base rate and price-lock cards.</li>
-                        <li><strong>Most wanted</strong> &mdash; flag any pricing rule as featured on the Pricing Rules page to spotlight it with a star.</li>
-                        <li><strong>List all pricing rules</strong> &mdash; show every rule, not just the featured ones (excluded items are never shown).</li>
-                        <li><strong>Market and price side</strong> &mdash; show the sourced market plus each rule's side (buy / sell / split).</li>
-                        <li><strong>No-login appraisal</strong> &mdash; the calculator that lets anyone paste items, see what you'd pay, and get a contract key. This is the primary seller flow, so it is on by default; turn it off for an internal-only programme. Rate limited, and it does expose your rates to anyone with the link.</li>
+                        <li><strong>Show the rates section</strong>: the base rate and price-lock cards.</li>
+                        <li><strong>Most wanted</strong>: flag any pricing rule as featured on the Pricing Rules page to spotlight it with a star.</li>
+                        <li><strong>List all pricing rules</strong>: show every rule, not just the featured ones (excluded items are never shown).</li>
+                        <li><strong>Market and price side</strong>: show the sourced market plus each rule's side (buy / sell / split).</li>
+                        <li><strong>No-login appraisal</strong>: the calculator that lets anyone paste items, see what you'd pay, and get a contract key. This is the primary seller flow, so it is on by default; turn it off for an internal-only programme. Rate limited, and it does expose your rates to anyone with the link.</li>
                     </ul>
 
                     <div class="purple-box">
@@ -617,24 +637,24 @@
             <div id="custom-styling" class="help-section">
                 <div class="help-card">
                     <h3><i class="fas fa-paint-brush"></i> Custom Styling</h3>
-                    <p>Every Buyback Manager page is wrapped in a stable set of CSS hook classes, so you can restyle any part of the plugin from SeAT's own custom stylesheet or your theme — without editing the plugin's files, which are overwritten on every update.</p>
+                    <p>Every Buyback Manager page is wrapped in a stable set of CSS hook classes, so you can restyle any part of the plugin from SeAT's own custom stylesheet or your theme, without editing the plugin's files, which are overwritten on every update.</p>
 
                     <h4>The global hook</h4>
                     <p>Every plugin page (Appraisal, My Appraisals, Contracts, Statistics, Settings, Help) renders inside a single wrapper:</p>
                     <ul>
-                        <li><code>.buyback-manager-wrapper</code> — present on every Buyback Manager page. Style it to affect the whole plugin at once, or use it as a prefix to scope an override so it only applies inside Buyback Manager.</li>
+                        <li><code>.buyback-manager-wrapper</code>: present on every Buyback Manager page. Style it to affect the whole plugin at once, or use it as a prefix to scope an override so it only applies inside Buyback Manager.</li>
                     </ul>
 
                     <h4>Component classes</h4>
-                    <p>Most of the plugin's chrome is built from a few shared classes — target these to restyle a widget everywhere it appears:</p>
+                    <p>Most of the plugin's chrome is built from a few shared classes. Target these to restyle a widget everywhere it appears:</p>
                     <ul>
-                        <li><code>.card-dark</code> — the dark card chrome (header + body) used on every page.</li>
-                        <li><code>.card-title</code> / <code>.card-tools</code> — the heading and the button/filter cluster in a card header.</li>
-                        <li><code>.btn-bb-primary</code> / <code>.btn-bb-secondary</code> — the primary and secondary buttons.</li>
-                        <li><code>.table-bb-styled</code> — the data tables (Contracts, Statistics, and so on).</li>
-                        <li><code>.contract-status</code> — the status pills on the Contracts list.</li>
-                        <li><code>.pricing-rule</code> — a rule row on the Pricing Rules page.</li>
-                        <li><code>.info-box</code> / <code>.success-box</code> / <code>.warning-box</code> / <code>.purple-box</code> — the coloured callouts (as seen on this page).</li>
+                        <li><code>.card-dark</code>: the dark card chrome (header + body) used on every page.</li>
+                        <li><code>.card-title</code> / <code>.card-tools</code>: the heading and the button/filter cluster in a card header.</li>
+                        <li><code>.btn-bb-primary</code> / <code>.btn-bb-secondary</code>: the primary and secondary buttons.</li>
+                        <li><code>.table-bb-styled</code>: the data tables (Contracts, Statistics, and so on).</li>
+                        <li><code>.contract-status</code>: the status pills on the Contracts list.</li>
+                        <li><code>.pricing-rule</code>: a rule row on the Pricing Rules page.</li>
+                        <li><code>.info-box</code> / <code>.success-box</code> / <code>.warning-box</code> / <code>.purple-box</code>: the coloured callouts (as seen on this page).</li>
                     </ul>
 
                     <h4>Example overrides</h4>
@@ -653,17 +673,17 @@
 
                     <div class="info-box">
                         <i class="fas fa-folder-open"></i>
-                        <strong>Where to add your CSS:</strong> SeAT auto-loads a stylesheet named <code>custom-layout.css</code> when it exists. On a bare-metal install, drop it into SeAT's <code>public/</code> directory (for example <code>/var/www/seat/public/custom-layout.css</code>). On SeAT Docker, place it in your mounted custom directory and map it to <code>/var/www/seat/public/</code>, then bring the stack back up. It is detected automatically — there is no setting to toggle. See the <a href="https://eveseat.github.io/docs/styling/" target="_blank" rel="noopener">SeAT styling docs</a>.
+                        <strong>Where to add your CSS:</strong> SeAT auto-loads a stylesheet named <code>custom-layout.css</code> when it exists. On a bare-metal install, drop it into SeAT's <code>public/</code> directory (for example <code>/var/www/seat/public/custom-layout.css</code>). On SeAT Docker, place it in your mounted custom directory and map it to <code>/var/www/seat/public/</code>, then bring the stack back up. It is detected automatically; there is no setting to toggle. See the <a href="https://eveseat.github.io/docs/styling/" target="_blank" rel="noopener">SeAT styling docs</a>.
                     </div>
 
                     <div class="purple-box">
                         <i class="fas fa-globe"></i>
-                        <strong>The public landing page is separate.</strong> It renders outside the SeAT layout, so it does not use these classes and SeAT's <code>custom-layout.css</code> does not reach it. Theme it instead from its own built-in controls — accent colour, background image, logo and dim overlay — under <strong>Settings &rarr; Public Page</strong>.
+                        <strong>The public landing page is separate.</strong> It renders outside the SeAT layout, so it does not use these classes and SeAT's <code>custom-layout.css</code> does not reach it. Theme it instead from its own built-in controls (accent colour, background image, logo and dim overlay) under <strong>Settings &rarr; Public Page</strong>.
                     </div>
 
                     <div class="info-box">
                         <i class="fas fa-lightbulb"></i>
-                        Keep your tweaks in SeAT's custom stylesheet, never in the plugin's own files — the plugin's CSS is replaced on every update, but your <code>custom-layout.css</code> survives.
+                        Keep your tweaks in SeAT's custom stylesheet, never in the plugin's own files: the plugin's CSS is replaced on every update, but your <code>custom-layout.css</code> survives.
                     </div>
                 </div>
             </div>
@@ -674,13 +694,13 @@
                     <h3><i class="fas fa-terminal"></i> Commands &amp; configuration</h3>
 
                     <h4>Scheduled commands</h4>
-                    <p>Buyback Manager registers one Artisan command and its schedule automatically &mdash; you normally never run it by hand. The Diagnostic page's Health Checks tab confirms it is present with the right cadence.</p>
+                    <p>Buyback Manager registers one Artisan command and its schedule automatically, and you normally never run it by hand. The Diagnostic page's Health Checks tab confirms it is present with the right cadence.</p>
                     <table class="plugin-info-table">
                         <tr><td><code>buyback-manager:sync-contracts</code></td><td>Every 15 minutes. Reads SeAT's synced contracts, resolves each appraisal key, compares the contract against its quote and raises review flags, fires the lifecycle events and Discord notifications, sends idle-contract nudges, and prunes old appraisals and notification logs.</td></tr>
                     </table>
                     <div class="info-box">
                         <i class="fas fa-play"></i>
-                        To force a detection pass on demand without waiting for the schedule, use the <strong>Sync Now</strong> button on the Diagnostic page.
+                        To force a detection pass on demand without waiting for the schedule, use the <strong>Sync Now</strong> button on the Diagnostic page. From the command line, <code>docker exec -it seat-docker-front-1 php artisan buyback-manager:sync-contracts --sync</code> runs the pass straight away instead of queueing it.
                     </div>
 
                     <h4>Configuration variables</h4>
@@ -694,7 +714,7 @@
                     </table>
 
                     <h4>Housekeeping</h4>
-                    <p>Appraisals are generated freely and with no login, so they are pruned automatically inside the sync cycle &mdash; there is no extra cron to add. Retention is two tier and set per corporation on the Settings page:</p>
+                    <p>Appraisals are generated freely and with no login, so they are pruned automatically inside the sync cycle, so there is no extra cron to add. Retention is two tier and set per corporation on the Settings page:</p>
                     <table class="plugin-info-table">
                         <tr><td>Keep item detail</td><td>Line-by-line appraisal rows, the bulk of the data (default 14 days). Safe to drop early, because a matched contract keeps its own copy of the item snapshot.</td></tr>
                         <tr><td>Keep appraisals</td><td>The appraisal totals, kept far longer for statistics (default 180 days).</td></tr>
@@ -709,7 +729,7 @@
                     <p>The admin only <strong>Diagnostic</strong> page is the first stop for anything unexpected. It is not in the sidebar; reach it at <code>/buyback-manager/diagnostic</code> (requires the settings permission). Each tab opens with a short explainer.</p>
 
                     <table class="plugin-info-table">
-                        <tr><td>Prices wrong or zero</td><td>Diagnostic &gt; Settings Health validates each provider config; Master Test live tests a provider.</td></tr>
+                        <tr><td>Prices missing, or items not accepted</td><td>The appraisal's note says where its prices came from. <em>Test Connection</em> on the Settings form asks the provider directly, Diagnostic &gt; Health Checks shows how each corporation's provider last answered, and Settings Health lists any provider or fallback that cannot run.</td></tr>
                         <tr><td>Contract not picked up</td><td>Confirm the appraisal key is in the Description, then Diagnostic &gt; Contract Trace walks the pipeline.</td></tr>
                         <tr><td>Contract list stale</td><td>Diagnostic &gt; Health Checks shows the last sync time and has a Sync Now button.</td></tr>
                         <tr><td>Discord not arriving</td><td>Diagnostic &gt; Notification Testing lists every webhook with its last result and a test button.</td></tr>
@@ -730,7 +750,7 @@
 
                     <div class="faq-item">
                         <div class="faq-question"><span>Do I need Manager Core?</span><i class="fas fa-chevron-down"></i></div>
-                        <div class="faq-answer">No. Buyback Manager works standalone on Fuzzwork (free) or Janice. Manager Core only adds regional pricing, a shared cache, and a cross plugin event feed. You can install it later with no other changes.</div>
+                        <div class="faq-answer">No. Buyback Manager works standalone on Fuzzwork (free) or Janice. Manager Core only adds itself as a price provider, with its markets and citadels, and a cross plugin event feed. You can install it later with no other changes.</div>
                     </div>
 
                     <div class="faq-item">
@@ -745,12 +765,17 @@
 
                     <div class="faq-item">
                         <div class="faq-question"><span>How fresh are the prices?</span><i class="fas fa-chevron-down"></i></div>
-                        <div class="faq-answer">Fuzzwork and Janice prices are cached for the TTL set on each corporation setting (in minutes). Lower it for fresher prices, raise it to reduce upstream calls. Manager Core manages its own freshness and bypasses the local cache.</div>
+                        <div class="faq-answer">A Fuzzwork or Janice answer is reused for the cache TTL set on each corporation setting (in minutes, and 0 asks every time). Lower it for fresher prices, raise it to call the provider less. Manager Core keeps its own prices and is read on every quote. While a provider is not answering, a quote can fall back on the last cached price however old it is, and its note says so.</div>
+                    </div>
+
+                    <div class="faq-item">
+                        <div class="faq-question"><span>Why is an item not accepted with "no market price"?</span><i class="fas fa-chevron-down"></i></div>
+                        <div class="faq-answer">Nothing had a price for it on the side its rule pays on: not the provider, not the fallback provider, and not the cache. Usually nobody trades it at that market. When you price at a hub other than Jita, ticking <em>Use Jita's price for a side with no orders at the market</em> covers most of these. Otherwise exclude the item, or quote it by hand.</div>
                     </div>
 
                     <div class="faq-item">
                         <div class="faq-question"><span>What happens if someone contracts at the wrong price?</span><i class="fas fa-chevron-down"></i></div>
-                        <div class="faq-answer">The contract is still tracked, but flagged with the asked price, the quoted value and the percentage difference, and announced through the Contract Flagged category. Nothing is paid automatically, so a director reviews it and either honours it or declines the contract in game. Set the tolerance per corporation on the Settings page.</div>
+                        <div class="faq-answer">The contract is still tracked, but flagged with the asked price, the quoted value and the percentage difference, and announced through the Needs review category. Nothing is paid automatically, so a director reviews it and either honours it or declines the contract in game. Set the tolerance per corporation on the Settings page.</div>
                     </div>
 
                     <div class="faq-item">

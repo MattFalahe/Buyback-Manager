@@ -58,6 +58,7 @@ class AppraisalRecordService
                     'average_percentage' => (float) ($result['average_percentage'] ?? 0),
                     'market' => $result['market'] ?? null,
                     'provider' => $result['provider'] ?? null,
+                    'pricing_note' => $result['pricing_note'] ?? null,
                     'excluded_json' => $result['excluded'] ?? [],
                 ]);
 

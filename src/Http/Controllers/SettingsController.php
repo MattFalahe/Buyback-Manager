@@ -3,6 +3,7 @@
 namespace BuybackManager\Http\Controllers;
 
 use BuybackManager\Integrations\ManagerCoreIntegration;
+use BuybackManager\Models\BuybackPriceStatus;
 use BuybackManager\Models\BuybackPricingRule;
 use BuybackManager\Models\BuybackSetting;
 use BuybackManager\Services\BuybackPublicService;
@@ -11,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Seat\Eveapi\Models\Corporation\CorporationInfo;
 use Seat\Eveapi\Models\Sde\InvCategory;
 use Seat\Eveapi\Models\Sde\InvGroup;
@@ -18,6 +20,9 @@ use Seat\Web\Http\Controllers\Controller;
 
 class SettingsController extends Controller
 {
+    /** Tritanium: traded at every hub, so any working provider prices it. */
+    private const TEST_TYPE_ID = 34;
+
     protected PriceProviderService $priceProvider;
 
     public function __construct(PriceProviderService $priceProvider)
@@ -31,6 +36,22 @@ class SettingsController extends Controller
         $corporations = CorporationInfo::all();
         $providers = $this->priceProvider->getAvailableProviders();
         $mcMarkets = $this->loadManagerCoreMarkets();
+
+        // Where each corporation prices, and how its provider last did.
+        $pricing = [];
+        foreach ($settings as $setting) {
+            $pricing[$setting->id] = [
+                'market' => $this->priceProvider->marketName($this->priceProvider->marketFor($setting)),
+                'status' => $this->priceProvider->providerStatus($setting),
+            ];
+        }
+
+        // An admin's market for Buyback in Manager Core's Pricing Preferences
+        // wins over every corporation's own Manager Core market.
+        $mcPreference = $this->priceProvider->managerCorePreference();
+        $mcOverrideMarket = ! empty($mcPreference['admin_overridden']) && ! empty($mcPreference['market'])
+            ? ($mcPreference['market_name'] ?? $mcPreference['market'])
+            : null;
 
         // Webhook management is now embedded in the settings page (the
         // Discord Webhooks tab) instead of a separate redirect page.
@@ -52,6 +73,8 @@ class SettingsController extends Controller
             'corporations',
             'providers',
             'mcMarkets',
+            'pricing',
+            'mcOverrideMarket',
             'webhooks',
             'allCategories',
             'recentLog',
@@ -161,15 +184,16 @@ class SettingsController extends Controller
             // the default rate is managed on the Pricing Rules page. When it
             // is absent the stored value is left alone.
             'base_percentage' => 'sometimes|required|numeric|min:0|max:100',
-            'price_source' => 'required|in:jita,region',
-            'region_id' => 'nullable|required_if:price_source,region|integer',
+            'price_source' => 'required|in:' . implode(',', array_keys(PriceProviderService::HUB_REGIONS)) . ',region',
+            'region_id' => 'nullable|required_if:price_source,region|integer|min:1',
             // Provider config
             'price_provider' => 'required|in:fuzzwork,janice,manager-core',
+            'fallback_provider' => 'required|in:fuzzwork,janice,manager-core,' . PriceProviderService::FALLBACK_NONE,
             'janice_api_key' => 'nullable|string|max:255',
+            'forget_janice_api_key' => 'nullable|boolean',
             'janice_market' => 'nullable|in:jita,amarr',
             'janice_price_method' => 'nullable|in:buy,sell,split',
             'manager_core_market' => 'nullable|string|max:64',
-            'manager_core_variant' => 'nullable|in:min,max,avg,median,percentile',
             'fallback_to_jita' => 'boolean',
             'price_cache_ttl_minutes' => 'nullable|integer|min:0|max:1440',
             // Contract target
@@ -230,15 +254,37 @@ class SettingsController extends Controller
         $validated['appraisal_retention_days'] = $validated['appraisal_retention_days'] ?? 180;
 
         // Capture the previous state so we can detect provider transitions
-        // and (un)subscribe MC accordingly.
-        $previousProvider = null;
-        $previousMcMarket = null;
-        if (! empty($validated['id'])) {
-            $existing = BuybackSetting::find($validated['id']);
-            if ($existing) {
-                $previousProvider = $existing->price_provider;
-                $previousMcMarket = $existing->manager_core_market;
+        // and (un)subscribe MC accordingly. The add form can also land on an
+        // existing corporation, since it saves by corporation.
+        $existing = ! empty($validated['id'])
+            ? BuybackSetting::find($validated['id'])
+            : BuybackSetting::where('corporation_id', $validated['corporation_id'])->first();
+        $previousProvider = $existing?->price_provider;
+        $previousMcMarket = $existing?->manager_core_market;
+
+        // The page never holds the saved key, so a blank field keeps it.
+        if ($request->boolean('forget_janice_api_key')) {
+            $validated['janice_api_key'] = null;
+        } elseif (! $request->filled('janice_api_key')) {
+            unset($validated['janice_api_key']);
+        }
+        unset($validated['forget_janice_api_key']);
+
+        $hasJaniceKey = array_key_exists('janice_api_key', $validated)
+            ? ! empty($validated['janice_api_key'])
+            : ! empty($existing?->janice_api_key);
+
+        foreach (['price_provider' => 'The price provider', 'fallback_provider' => 'The fallback provider'] as $field => $what) {
+            if ($validated[$field] === PriceProviderService::PROVIDER_JANICE && ! $hasJaniceKey) {
+                return redirect()->back()
+                    ->withInput()
+                    ->with('error', $what . ' is Janice, which needs an API key.');
             }
+        }
+
+        // A provider cannot stand in for itself.
+        if ($validated['fallback_provider'] === $validated['price_provider']) {
+            $validated['fallback_provider'] = PriceProviderService::FALLBACK_NONE;
         }
 
         if (! empty($validated['id'])) {
@@ -252,6 +298,12 @@ class SettingsController extends Controller
             );
         }
 
+        // A new provider starts with a clean record, so its first answer is
+        // not announced as the old provider recovering.
+        if ($previousProvider !== null && $previousProvider !== $setting->price_provider) {
+            BuybackPriceStatus::where('setting_id', $setting->id)->delete();
+        }
+
         $this->reconcileManagerCoreSubscription($setting, $previousProvider, $previousMcMarket);
 
         return redirect()->route('buyback-manager.settings.index')
@@ -263,17 +315,25 @@ class SettingsController extends Controller
      * NOT require saving). POST body shape mirrors the form fields plus
      * a `provider` selector. Returns JSON {success, message} for the
      * Test Connection button's inline status indicator.
+     *
+     * It asks the provider alone, changing nothing: no fallback, no cached
+     * prices and no alert, so a test never hides a provider that is down.
      */
     public function testProvider(Request $request)
     {
         $request->validate([
             'provider' => 'required|in:fuzzwork,janice,manager-core',
-            'janice_api_key' => 'nullable|string',
+            'id' => 'nullable|integer|exists:buyback_settings,id',
+            'price_source' => 'nullable|in:' . implode(',', array_keys(PriceProviderService::HUB_REGIONS)) . ',region',
+            'region_id' => 'nullable|integer|min:1',
+            'janice_api_key' => 'nullable|string|max:255',
             'janice_market' => 'nullable|in:jita,amarr',
-            'janice_price_method' => 'nullable|in:buy,sell,split',
-            'manager_core_market' => 'nullable|string',
-            'manager_core_variant' => 'nullable|string',
+            'manager_core_market' => 'nullable|string|max:64',
         ]);
+
+        // A blank key field means the saved key, which the page never holds.
+        $saved = $request->filled('id') ? BuybackSetting::find($request->input('id')) : null;
+        $apiKey = $request->input('janice_api_key') ?: $saved?->janice_api_key;
 
         // Build a transient BuybackSetting (NOT persisted) so the price
         // provider can read the form's pricing fields without us having
@@ -282,43 +342,73 @@ class SettingsController extends Controller
             'corporation_id' => 0,
             'enabled' => true,
             'base_percentage' => 100,
-            'price_source' => 'jita',
+            'price_source' => $request->input('price_source', 'jita'),
+            'region_id' => $request->input('region_id'),
             'price_provider' => $request->input('provider'),
-            'janice_api_key' => $request->input('janice_api_key'),
+            'janice_api_key' => $apiKey,
             'janice_market' => $request->input('janice_market', 'jita'),
-            'janice_price_method' => $request->input('janice_price_method', 'buy'),
             'manager_core_market' => $request->input('manager_core_market', 'jita'),
-            'manager_core_variant' => $request->input('manager_core_variant', 'min'),
             'fallback_to_jita' => false,
         ]);
 
+        $provider = $request->input('provider');
+        $label = $this->priceProvider->providerLabel($provider);
+
         try {
-            $ok = $this->priceProvider->testProvider($request->input('provider'), $transient);
-            if ($ok) {
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Connection OK (Tritanium priced)',
-                ]);
-            }
-            return response()->json([
-                'success' => false,
-                'message' => 'Provider returned no price for Tritanium',
-            ]);
+            $answer = $this->priceProvider->tryProvider($provider, $transient, [self::TEST_TYPE_ID]);
+            $market = $this->priceProvider->marketName($answer['market']);
         } catch (\Throwable $e) {
+            Log::warning('[Buyback Manager] Provider test failed: ' . $e->getMessage());
+
+            return response()->json(['success' => false, 'message' => 'The test could not run. The SeAT log has the reason.']);
+        }
+
+        if ($answer['error'] !== null) {
             return response()->json([
                 'success' => false,
-                'message' => 'Test error: ' . $e->getMessage(),
+                'message' => $label . ' did not answer: ' . Str::limit($answer['error'], 200),
             ]);
         }
+
+        $sides = $answer['prices'][self::TEST_TYPE_ID] ?? null;
+        if ($sides === null) {
+            return response()->json([
+                'success' => false,
+                'message' => $provider === PriceProviderService::PROVIDER_MANAGER_CORE
+                    ? "Manager Core answered, but holds no Tritanium price at {$market} yet. A quote asks it to fetch the items it needs."
+                    : "{$label} answered, but had no Tritanium price at {$market}.",
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => "Tritanium at {$market}: buy " . $this->isk($sides['buy']) . ', sell ' . $this->isk($sides['sell']),
+        ]);
     }
 
     public function destroy(int $id)
     {
         $setting = BuybackSetting::findOrFail($id);
+        $usedManagerCore = $setting->price_provider === PriceProviderService::PROVIDER_MANAGER_CORE;
+
+        BuybackPriceStatus::where('setting_id', $setting->id)->delete();
         $setting->delete();
+
+        // The same rule as switching provider: Manager Core keeps Buyback's
+        // items priced only while an enabled corporation still prices there.
+        if ($usedManagerCore && ! BuybackSetting::where('enabled', true)
+            ->where('price_provider', PriceProviderService::PROVIDER_MANAGER_CORE)
+            ->exists()) {
+            $this->priceProvider->unsubscribeFromManagerCore();
+        }
 
         return redirect()->route('buyback-manager.settings.index')
             ->with('success', 'Buyback setting deleted successfully');
+    }
+
+    protected function isk(?float $price): string
+    {
+        return $price === null ? 'no orders' : number_format($price, 2) . ' ISK';
     }
 
     /**
@@ -533,12 +623,10 @@ class SettingsController extends Controller
      * Sync Manager Core subscriptions when a setting transitions into or
      * out of the manager-core provider, or changes its MC market.
      *
-     * The lazy-on-encounter pattern handles new-type subscriptions
-     * during normal getPrices() calls — this method is purely for the
-     * provider-switch case where the operator might want a forwarded
-     * unsubscribe (turning off MC) or an eager re-subscribe (turning
-     * MC on for a known type universe — currently a no-op since BB has
-     * no curated type list, but kept here as a documented hook).
+     * Each quote subscribes the items it prices, so this method is only for
+     * the provider switch: an unsubscribe when the last corporation leaves
+     * Manager Core, and the preference row that lets an admin override the
+     * market there.
      */
     protected function reconcileManagerCoreSubscription(BuybackSetting $setting, ?string $previousProvider, ?string $previousMcMarket): void
     {
@@ -563,15 +651,15 @@ class SettingsController extends Controller
             }
 
             if ($movingToMc) {
-                // No-op subscribe for BB — type universe is unbounded, so we
-                // rely on lazy subscribe during the first contract sync.
-                Log::info('[Buyback Manager] Corp ' . $setting->corporation_id . ' switched to Manager Core provider. Types will subscribe on first contract sync.');
+                // The item list is open-ended, so nothing is subscribed up
+                // front; each quote subscribes what it prices.
+                Log::info('[Buyback Manager] Corp ' . $setting->corporation_id . ' switched to Manager Core provider. Items subscribe as quotes price them.');
             }
 
             // Register/refresh BB's pricing preference with MC whenever MC is
             // the provider. This makes Buyback Manager APPEAR in MC's Pricing
             // Preferences admin UI so an operator can override the MARKET
-            // there (BB's resolveMcMarket honours admin_overridden rows).
+            // there (managerCoreMarketFor honours admin_overridden rows).
             //
             // We register price_type='sell' as a placeholder — BB never
             // consumes the preference's price_type because it always fetches
@@ -587,7 +675,7 @@ class SettingsController extends Controller
                     'buyback-manager',
                     $setting->manager_core_market ?: 'jita',
                     'sell',
-                    'Market only. Buyback Manager fetches both buy+sell and picks the side per pricing rule, so the price_type here is ignored. Override the market to change where BB prices contracts.'
+                    'Market only. Buyback Manager prices both sides and picks the side per pricing rule, so the price type here is ignored. A market set here replaces every corporation\'s Manager Core market in Buyback Manager.'
                 );
             }
         } catch (\Throwable $e) {

@@ -26,11 +26,11 @@ class BuybackSetting extends Model
         'price_source',
         'region_id',
         'price_provider',
+        'fallback_provider',
         'janice_api_key',
         'janice_market',
         'janice_price_method',
         'manager_core_market',
-        'manager_core_variant',
         'fallback_to_jita',
         'price_cache_ttl_minutes',
         'target_type',
@@ -55,6 +55,14 @@ class BuybackSetting extends Model
         'public_logo_path',
         'public_logo_style',
         'public_footer_text',
+    ];
+
+    /**
+     * Kept out of anything that serialises a setting. The settings page says
+     * whether a key is saved and never echoes it back.
+     */
+    protected $hidden = [
+        'janice_api_key',
     ];
 
     protected $casts = [
@@ -297,28 +305,20 @@ class BuybackSetting extends Model
      *     'rule_type'  => 'item' | 'group' | 'category' | 'base',
      *   ]
      *
-     * Precedence: item > group > category > base. Falls back to
-     * base_percentage with null price_side if no rule matches.
+     * The highest-priority rule matching the item, its group or its
+     * category wins, and priority defaults to item > group > category.
+     * Falls back to base_percentage with null price_side if no rule matches.
+     *
+     * The rules are read once per setting and matched in memory, so a quote
+     * with hundreds of items costs one query, not one per item.
      */
-    public function getRuleForItem(int $typeId, int $categoryId = null, int $groupId = null): ?array
+    public function getRuleForItem(int $typeId, ?int $categoryId = null, ?int $groupId = null): ?array
     {
-        $rule = $this->pricingRules()
-            ->where(function ($query) use ($typeId, $categoryId, $groupId) {
-                $query->where(function ($q) use ($typeId) {
-                    $q->where('type', 'item')->where('type_id', $typeId);
-                })
-                ->orWhere(function ($q) use ($groupId) {
-                    if ($groupId) {
-                        $q->where('type', 'group')->where('type_id', $groupId);
-                    }
-                })
-                ->orWhere(function ($q) use ($categoryId) {
-                    if ($categoryId) {
-                        $q->where('type', 'category')->where('type_id', $categoryId);
-                    }
-                });
-            })
-            ->orderBy('priority', 'desc')
+        $rule = $this->pricingRules
+            ->filter(fn ($rule) => ($rule->type === 'item' && (int) $rule->type_id === $typeId)
+                || ($groupId && $rule->type === 'group' && (int) $rule->type_id === $groupId)
+                || ($categoryId && $rule->type === 'category' && (int) $rule->type_id === $categoryId))
+            ->sortByDesc('priority')
             ->first();
 
         if ($rule && $rule->excluded) {

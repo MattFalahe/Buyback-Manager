@@ -4,43 +4,37 @@ namespace BuybackManager\Services\Pricing;
 
 use BuybackManager\Integrations\ManagerCoreIntegration;
 use BuybackManager\Models\BuybackPriceCache;
+use BuybackManager\Models\BuybackPriceStatus;
 use BuybackManager\Models\BuybackSetting;
 use BuybackManager\Models\BuybackSubscribedType;
+use BuybackManager\Services\WebhookDispatcher;
 use Carbon\Carbon;
 use Exception;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 /**
- * Multi-provider pricing service for Buyback Manager.
+ * Prices for a quote, both sides of the spread for every item, through the
+ * same chain Mining Manager uses:
  *
- * Three providers share a uniform input shape (typeIds + BuybackSetting)
- * and output shape ([typeId => float price]):
+ *   1. The corporation's provider at its market. Fuzzwork and Janice answers
+ *      are reused for the setting's cache TTL. Manager Core is a cache of its
+ *      own and is read every time, so a price it has just fetched shows up on
+ *      the next quote.
+ *   2. When the provider fails outright, the fallback provider prices the same
+ *      market, or Jita when it cannot price there. Items the provider could
+ *      not answer for, because a request failed or Manager Core has not
+ *      fetched them yet, go to the fallback provider too.
+ *   3. Whatever is still missing keeps the last price this install saw.
  *
- *   - Fuzzwork: free public market aggregator (default). Region-based.
- *   - Janice: appraisal service, requires API key. Hub markets (jita/amarr).
- *     Also exposes a raw-text appraisal endpoint for the manual paste UI
- *     which handles fitted ships, EFT fits, BPCs, and contract pastes.
- *   - Manager Core: shared market price cache via PluginBridge. Supports
- *     regional + citadel markets when the operator has added them in MC.
- *
- * Three layers of resilience under each provider:
- *   1. Configured-market fetch (whatever provider + market the corp picked).
- *   2. Jita fallback: retry zero-price items at Jita when the primary
- *      market isn't Jita and fallback_to_jita is enabled.
- *   3. Local cache fallback (buyback_price_cache table) when the upstream
- *      provider throws — last resort so a contract sync doesn't crater
- *      on a network blip.
- *
- * Manager Core path also does lazy subscribe-on-encounter: the first time
- * BB asks MC about a typeId, we register it via pricing.subscribeTypes so
- * MC's scheduled cron keeps it warm thereafter. Tracked in the local
- * buyback_subscribed_types ledger to avoid duplicate bridge calls.
- *
- * Returns [typeId => float] keyed map. Zero indicates no price available
- * (caller decides whether to skip, log, or substitute).
+ * With "fall back to Jita" on and a market other than Jita, a side with no
+ * orders at the market takes Jita's price. A side nothing could price stays
+ * null and the quote reports the item as unpriced instead of valuing it at
+ * zero.
  */
 class PriceProviderService
 {
@@ -48,496 +42,838 @@ class PriceProviderService
     public const PROVIDER_JANICE = 'janice';
     public const PROVIDER_MANAGER_CORE = 'manager-core';
 
-    public const DEFAULT_REGION_ID = 10000002; // The Forge (Jita)
+    /** What each provider is called on a page or in an alert. */
+    public const PROVIDER_LABELS = [
+        self::PROVIDER_FUZZWORK => 'Fuzzwork',
+        self::PROVIDER_JANICE => 'Janice',
+        self::PROVIDER_MANAGER_CORE => 'Manager Core',
+    ];
 
-    private const FUZZWORK_URL = 'https://market.fuzzwork.co.uk/aggregates/';
-    private const JANICE_PRICER_URL = 'https://janice.e-351.com/api/rest/v2/pricer';
-    private const JANICE_APPRAISAL_URL = 'https://janice.e-351.com/api/rest/v2/appraisal';
-
-    private const HTTP_TIMEOUT = 15;
-
-    /**
-     * Transient upstream blips (a dropped connection, a brief 5xx) should not
-     * zero a whole batch of prices, so each request gets one retry after a
-     * short pause before it counts as failed.
-     */
-    private const HTTP_RETRIES = 2;
-    private const HTTP_RETRY_DELAY_MS = 300;
-    private const BATCH_SIZE = 100;
+    /** The fallback setting's value for no fallback provider. */
+    public const FALLBACK_NONE = 'none';
 
     /**
-     * Default TTL for the primary cache layer when a corp setting has
-     * no explicit price_cache_ttl_minutes value (e.g. legacy rows
-     * created before migration 000016). 60 minutes mirrors Mining
-     * Manager's default for the same cache. Applies to Fuzzwork and
-     * Janice providers only — MC always bypasses BB's cache.
+     * The trade hubs the providers have in common, with the region Fuzzwork
+     * prices each one in.
      */
+    public const HUB_REGIONS = [
+        'jita' => 10000002,
+        'amarr' => 10000043,
+        'dodixie' => 10000032,
+        'hek' => 10000042,
+        'rens' => 10000030,
+    ];
+
+    /** Janice's market id for each hub it prices. */
+    public const JANICE_MARKETS = [
+        'jita' => 2,
+        'amarr' => 1,
+    ];
+
     public const DEFAULT_CACHE_TTL_MINUTES = 60;
-    private const JANICE_RATE_LIMIT_MICROSECONDS = 50000; // 50ms between requests
 
     /**
-     * MC staleness threshold. MC's update-prices cron runs every 4 hours;
-     * anything older than 2x that interval (8h) almost certainly means
-     * the cron is broken or paused. Stale prices are still returned, but
-     * we log a warning so operators can spot it.
+     * Manager Core refreshes every 4 hours by default, so a price older than
+     * twice that means its refresh has stopped. It is still used, and logged.
      */
     public const MC_PRICE_STALENESS_HOURS = 8;
 
     /**
-     * Type IDs that used Jita fallback in the last getPrices() call.
+     * How many of the asked items must already have a cached price before an
+     * answer with no prices at all counts as the provider being down, rather
+     * than a list of items nobody trades.
      */
-    protected array $lastJitaFallbackTypeIds = [];
+    public const PROVIDER_DOWN_MIN_IDS = 5;
+
+    private const FUZZWORK_URL = 'https://market.fuzzwork.co.uk/aggregates/';
+    private const FUZZWORK_BATCH_SIZE = 200;
+    private const FUZZWORK_TIMEOUT_SECONDS = 10;
 
     /**
-     * Last fallback dispatch summary (null when no fallback fired).
+     * One request per batch of ids, with a pause between batches: Janice's
+     * owner blocks keys for excessive traffic. Shorter than Mining Manager's
+     * pause because a quote is waited on in the browser, and there is no
+     * staged retry for the same reason. A failed batch goes to the fallback.
      */
-    protected ?array $lastFallbackSummary = null;
+    private const JANICE_PRICER_URL = 'https://janice.e-351.com/api/rest/v2/pricer';
+    private const JANICE_BATCH_SIZE = 100;
+    private const JANICE_BATCH_PAUSE_US = 1000000;
+    private const JANICE_TIMEOUT_SECONDS = 20;
 
     /**
-     * True when the most recent price fetch could not reach its provider and
-     * fell through to cached or zero prices. Callers use this to refuse to
-     * quote rather than publish a valuation built on a failed fetch.
+     * Two failed requests with nothing answered means the provider is down.
+     * Asking the rest, each on its own timeout, would hold the quote up for
+     * minutes to reach the same answer.
      */
-    protected bool $lastFetchDegraded = false;
+    private const FAIL_FAST_AFTER = 2;
 
-    /**
-     * Whether the most recent fetch ran degraded (provider unreachable).
-     */
-    public function wasLastFetchDegraded(): bool
-    {
-        return $this->lastFetchDegraded;
-    }
+    private const MC_PLUGIN_KEY = 'buyback-manager';
+
+    /** How long Manager Core's preference for Buyback is trusted once read. */
+    private const MC_PREFERENCE_SECONDS = 60;
+
+    protected ?array $mcPreference = null;
+
+    protected ?int $mcPreferenceReadAt = null;
+
+    /** @var array<string, string> */
+    protected array $marketNames = [];
 
     // ============================================================
-    // PUBLIC API
+    // THE CHAIN
     // ============================================================
 
     /**
-     * Fetch prices for a list of type IDs against the corp's configured
-     * provider. Returns [typeId => price] keyed map; zero means no price
-     * available.
+     * Both sides' prices for these items, for one corporation's quote.
      *
-     * @param int[] $typeIds
-     * @return array<int, float>
+     * @param  int[]  $typeIds
+     * @return array{
+     *     prices: array<int, array{buy: ?float, sell: ?float}>,
+     *     provider: string,
+     *     market: string,
+     *     stood_in: bool,
+     *     fallback: ?array,
+     *     from_fallback: int[],
+     *     from_cache: int[],
+     *     from_jita: int[],
+     *     unanswered: int[],
+     *     note: ?string
+     * }
      */
-    public function getPrices(array $typeIds, BuybackSetting $setting): array
+    public function pricesFor(BuybackSetting $setting, array $typeIds): array
     {
-        $typeIds = array_values(array_unique(array_filter(array_map('intval', $typeIds))));
-        if (empty($typeIds)) {
-            return [];
-        }
+        $typeIds = $this->cleanIds($typeIds);
+        $provider = $this->providerOf($setting);
+        $market = $this->marketFor($setting, $provider);
 
-        // Delegate to the both-sides path so cache writes always carry
-        // distinct buy/sell/avg columns (the previous single-side cache
-        // wrote the same scalar to all three columns, losing fidelity
-        // for any future read on the opposite side). Then reduce to the
-        // setting's configured side.
-        $bothSides = $this->getPricesBothSides($typeIds, $setting);
-        $side = $this->resolveSidePreference($setting);
-
-        $out = [];
-        foreach ($typeIds as $tid) {
-            $sides = $bothSides[$tid] ?? ['buy' => 0, 'sell' => 0];
-            $buy = (float) ($sides['buy'] ?? 0);
-            $sell = (float) ($sides['sell'] ?? 0);
-            $out[$tid] = match ($side) {
-                'buy' => $buy,
-                'split' => ($buy > 0 && $sell > 0) ? ($buy + $sell) / 2.0 : max($buy, $sell),
-                default => $sell,
-            };
-        }
-        return $out;
-    }
-
-    public function getPrice(int $typeId, BuybackSetting $setting): ?float
-    {
-        $prices = $this->getPrices([$typeId], $setting);
-        return $prices[$typeId] ?? null;
-    }
-
-    /**
-     * Fetch BOTH sides of the market spread for the given type IDs.
-     * Returns a uniform shape so callers (e.g. AppraisalService) can
-     * pick the side per-rule based on each rule's price_side override:
-     *
-     *   [typeId => ['buy' => float, 'sell' => float]]
-     *
-     * Required for the per-rule price-side feature (rule columns:
-     * price_side = buy|sell|split). The 'split' option is computed at
-     * pick time as (buy + sell) / 2 — both sides are needed in cache.
-     *
-     * On provider exception, falls back to the local price cache the
-     * same way getPrices() does. Empty input returns an empty array.
-     */
-    public function getPricesBothSides(array $typeIds, BuybackSetting $setting): array
-    {
-        $typeIds = array_values(array_unique(array_filter(array_map('intval', $typeIds))));
-        if (empty($typeIds)) {
-            return [];
-        }
-
-        $provider = $setting->price_provider ?? self::PROVIDER_FUZZWORK;
-        $this->lastFetchDegraded = false;
-
-        // Manager Core has its own cache layer (manager_core_market_prices)
-        // refreshed by a 4h cron. Layering BB's cache on top of MC would
-        // only delay propagation of MC's refresh cycle without saving any
-        // HTTP calls (the read goes through the bridge to MC's table either
-        // way). Skip BB's cache for MC and rely on MC's cache directly.
-        if ($provider === self::PROVIDER_MANAGER_CORE) {
-            return $this->fetchAndCacheBothSides($typeIds, $setting, $provider);
-        }
-
-        // Fuzzwork / Janice: primary cache with per-corp TTL.
-        $regionId = $this->resolveRegionId($setting);
-        $ttlMinutes = (int) ($setting->price_cache_ttl_minutes ?? self::DEFAULT_CACHE_TTL_MINUTES);
-
-        $cached = $this->readFromCacheIfFresh($typeIds, $regionId, $ttlMinutes);
-        $stale = array_values(array_diff($typeIds, array_keys($cached)));
-
-        // All cache hits — return without touching the network.
-        if (empty($stale)) {
-            Log::info('[Buyback Manager] Price cache hit (' . count($cached) . '/' . count($typeIds) . ')', [
-                'provider' => $provider,
-                'corporation_id' => $setting->corporation_id,
-                'ttl_minutes' => $ttlMinutes,
-            ]);
-            return $this->fillMissingPairWithZero($cached, $typeIds);
-        }
-
-        Log::info('[Buyback Manager] Fetching prices', [
+        $result = [
+            'prices' => [],
             'provider' => $provider,
-            'corporation_id' => $setting->corporation_id,
-            'cached' => count($cached),
-            'fetching' => count($stale),
-            'ttl_minutes' => $ttlMinutes,
-        ]);
+            'market' => $market,
+            'stood_in' => false,
+            'fallback' => null,
+            'from_fallback' => [],
+            'from_cache' => [],
+            'from_jita' => [],
+            'unanswered' => [],
+            'note' => null,
+        ];
+
+        if (empty($typeIds)) {
+            return $result;
+        }
+
+        $fresh = $provider === self::PROVIDER_MANAGER_CORE
+            ? []
+            : $this->freshCachedPrices($provider, $market, $typeIds, $this->ttlMinutes($setting));
+        $toAsk = array_values(array_diff($typeIds, array_keys($fresh)));
+        $prices = array_filter($fresh);
+
+        if (! empty($toAsk)) {
+            try {
+                $answer = $this->fetchFrom($provider, $market, $toAsk, $setting);
+            } catch (\Throwable $e) {
+                Log::warning('[Buyback Manager] ' . $this->providerLabel($provider) . ' failed: ' . $e->getMessage(), [
+                    'corporation_id' => $setting->corporation_id,
+                ]);
+
+                return $this->whileProviderIsDown($setting, $provider, $market, $toAsk, $prices, $e->getMessage(), $result);
+            }
+
+            $priced = count($answer['prices']);
+
+            if ($priced === 0 && $answer['errors'] > 0) {
+                return $this->whileProviderIsDown($setting, $provider, $market, $toAsk, $prices, $answer['error'] ?? 'The provider did not answer', $result);
+            }
+
+            if ($priced === 0 && $this->countPricedInCache($provider, $market, $toAsk) >= self::PROVIDER_DOWN_MIN_IDS) {
+                return $this->whileProviderIsDown($setting, $provider, $market, $toAsk, $prices, 'The provider answered, but with no prices at all', $result);
+            }
+
+            if ($priced > 0) {
+                $this->recordOutcome($setting, $provider, $market, true);
+            }
+
+            $this->rememberPrices($provider, $market, $answer);
+            $prices += $answer['prices'];
+
+            if (! empty($answer['unanswered'])) {
+                $result['unanswered'] = $answer['unanswered'];
+                $fallback = $this->fallbackFor($setting, $provider, $market);
+                $result['fallback'] = $fallback;
+
+                $fromFallback = [];
+                if ($fallback['provider'] !== null) {
+                    [$fromFallback] = $this->askFallback($setting, $fallback, $answer['unanswered']);
+                }
+                $result['from_fallback'] = array_keys($fromFallback);
+                $prices += $fromFallback;
+
+                // A failed request leaves the cache as the last word. An item
+                // Manager Core has never priced has nothing cached anyway.
+                $kept = $this->lastCachedPrices($provider, $market, array_diff($answer['unanswered'], array_keys($fromFallback)));
+                $result['from_cache'] = array_keys($kept);
+                $prices += $kept;
+            }
+        }
+
+        if ($provider === self::PROVIDER_MANAGER_CORE) {
+            $this->subscribeToManagerCore($typeIds, $market, true);
+        }
+
+        [$prices, $result['from_jita']] = $this->fillFromJita($setting, $provider, $market, $prices);
+
+        $result['prices'] = $prices;
+        $result['note'] = $this->describe($result);
+
+        return $result;
+    }
+
+    /**
+     * The provider has failed outright. Ask the fallback provider for the
+     * same market, keep the cached price of anything it cannot price either,
+     * and record the failure so the alert fires once.
+     */
+    protected function whileProviderIsDown(BuybackSetting $setting, string $provider, string $market, array $toAsk, array $prices, string $reason, array $result): array
+    {
+        $result['stood_in'] = true;
+
+        $fallback = $this->fallbackFor($setting, $provider, $market);
+        $fromFallback = [];
+
+        if ($fallback['provider'] !== null) {
+            [$fromFallback, $down, $fallback['error']] = $this->askFallback($setting, $fallback, $toAsk);
+            $fallback['ok'] = ! $down;
+        }
+
+        $result['fallback'] = $fallback;
+        $result['from_fallback'] = array_keys($fromFallback);
+        $prices += $fromFallback;
+
+        $this->recordOutcome($setting, $provider, $market, false, $reason, $fallback);
+
+        $kept = $this->lastCachedPrices($provider, $market, array_diff($toAsk, array_keys($fromFallback)));
+        $result['from_cache'] = array_keys($kept);
+        $prices += $kept;
+
+        $result['prices'] = $prices;
+        $result['note'] = $this->describe($result);
+
+        return $result;
+    }
+
+    /**
+     * The fallback's prices for these items, whether it is down itself, and
+     * what it said if it is. Judged the way the provider is: no price for an
+     * item nobody trades is not a fault, no price for anything is.
+     *
+     * @return array{0: array<int, array{buy: ?float, sell: ?float}>, 1: bool, 2: ?string}
+     */
+    protected function askFallback(BuybackSetting $setting, array $fallback, array $typeIds): array
+    {
+        $typeIds = $this->cleanIds($typeIds);
+        if (empty($typeIds)) {
+            return [[], false, null];
+        }
 
         try {
-            $fetched = $this->fetchAndCacheBothSides($stale, $setting, $provider);
-            // Merge cached (fresh) + fetched (just refreshed). The fetched
-            // map already contains the requested $stale typeIds with their
-            // new values; merging is straightforward.
-            $merged = array_replace($cached, $fetched);
-            return $this->fillMissingPairWithZero($merged, $typeIds);
+            $answer = $this->fetchFrom($fallback['provider'], $fallback['market'], $typeIds, $setting);
+            $this->rememberPrices($fallback['provider'], $fallback['market'], $answer);
+
+            $prices = $answer['prices'];
+            $down = empty($prices)
+                && ($answer['errors'] > 0 || $this->countPricedInCache($fallback['provider'], $fallback['market'], $typeIds) >= self::PROVIDER_DOWN_MIN_IDS);
+            $error = $down ? ($answer['error'] ?? 'It answered, but with no prices at all') : null;
         } catch (\Throwable $e) {
-            // The provider could not be reached. Fall back to cached prices
-            // at ANY age: a price from a few hours ago beats quoting zero.
-            // The degraded flag travels with it so the appraisal layer can
-            // refuse to issue a quote built on a failed fetch.
-            $this->lastFetchDegraded = true;
-
-            $lastResort = $this->readFromCacheAnyAge($stale, $regionId);
-            $recovered = array_replace($cached, $lastResort);
-
-            Log::warning('[Buyback Manager] Upstream fetch failed; serving cached prices where possible', [
-                'provider' => $provider,
-                'error' => $e->getMessage(),
-                'requested' => count($typeIds),
-                'fresh_cache' => count($cached),
-                'stale_cache_used' => count($lastResort),
-                'unpriced' => count($typeIds) - count($recovered),
-            ]);
-
-            return $this->fillMissingPairWithZero($recovered, $typeIds);
+            $prices = [];
+            $down = true;
+            $error = $e->getMessage();
         }
+
+        return [$prices, $down, $error];
     }
 
     /**
-     * Fetch from upstream, apply Jita fallback, write-through to cache,
-     * and return [typeId => ['buy', 'sell']]. Shared between the cache-
-     * miss path (Fuzzwork/Janice) and the cache-bypass path (MC).
+     * The provider to ask when this one cannot answer, with the market to ask
+     * it for, or why there is none. A fallback that cannot price at the
+     * market prices at Jita, and the note says so.
+     *
+     * @return array{provider: ?string, market: string, note: ?string, why: ?string, ok: bool, error: ?string}
      */
-    protected function fetchAndCacheBothSides(array $typeIds, BuybackSetting $setting, string $provider): array
+    public function fallbackFor(BuybackSetting $setting, string $provider, string $market): array
     {
-        $prices = match ($provider) {
-            self::PROVIDER_JANICE => $this->janiceFetchBoth($typeIds, $setting),
-            self::PROVIDER_MANAGER_CORE => $this->mcFetchBoth($typeIds, $setting),
-            default => $this->fuzzworkFetchBoth($typeIds, $this->resolveRegionId($setting)),
+        $choice = (string) ($setting->fallback_provider ?? self::PROVIDER_FUZZWORK);
+        $none = fn (string $why) => ['provider' => null, 'market' => $market, 'note' => null, 'why' => $why, 'ok' => false, 'error' => null];
+
+        if ($choice === '' || $choice === self::FALLBACK_NONE) {
+            return $none('No fallback provider is set.');
+        }
+
+        if ($choice === $provider) {
+            return $none('The fallback provider is the price provider itself.');
+        }
+
+        $unavailable = $this->unavailableAsFallback($setting, $choice);
+        if ($unavailable !== null) {
+            return $none('The fallback provider cannot run: ' . $unavailable);
+        }
+
+        $note = null;
+        $at = $market;
+        if (! $this->canPriceAt($choice, $market)) {
+            $note = $this->providerLabel($choice) . ' cannot price at ' . $this->marketName($market) . ', so it prices at Jita.';
+            $at = 'jita';
+        }
+
+        return ['provider' => $choice, 'market' => $at, 'note' => $note, 'why' => null, 'ok' => false, 'error' => null];
+    }
+
+    /**
+     * Why a provider cannot stand in for another, or null if it can.
+     */
+    public function unavailableAsFallback(BuybackSetting $setting, string $candidate): ?string
+    {
+        if (! isset(self::PROVIDER_LABELS[$candidate])) {
+            return $candidate . ' is not a price provider.';
+        }
+
+        if ($candidate === self::PROVIDER_JANICE && empty($setting->janice_api_key)) {
+            return 'Janice has no API key.';
+        }
+
+        if ($candidate === self::PROVIDER_MANAGER_CORE && ! $this->managerCoreInstalled()) {
+            return 'Manager Core is not installed.';
+        }
+
+        return null;
+    }
+
+    /**
+     * Whether a provider can price at this market: a hub, or for Fuzzwork any
+     * region id. Manager Core's own markets are only known to Manager Core,
+     * so as a fallback it is asked for hubs only.
+     */
+    public function canPriceAt(string $provider, string $market): bool
+    {
+        return match ($provider) {
+            self::PROVIDER_JANICE => isset(self::JANICE_MARKETS[$market]),
+            self::PROVIDER_MANAGER_CORE => isset(self::HUB_REGIONS[$market]),
+            self::PROVIDER_FUZZWORK => isset(self::HUB_REGIONS[$market]) || ctype_digit($market),
+            default => false,
         };
-
-        $prices = $this->applyJitaFallbackBoth($provider, $prices, $typeIds, $setting);
-        $this->writeCacheBoth($prices, $this->resolveRegionId($setting));
-
-        return $prices;
     }
 
     /**
-     * Read cached prices that are within the freshness window. Missing
-     * or stale entries are absent from the result (caller treats them
-     * as cache misses and fetches them upstream).
+     * With "fall back to Jita" on and a market other than Jita, a side with
+     * no orders at the market takes Jita's price from the same provider.
      *
-     * TTL ≤ 0 disables the cache entirely (always-miss, always live).
-     *
-     * @return array<int, array{buy: float, sell: float}>
+     * @return array{0: array<int, array{buy: ?float, sell: ?float}>, 1: int[]}
      */
-    protected function readFromCacheIfFresh(array $typeIds, int $regionId, int $ttlMinutes): array
+    protected function fillFromJita(BuybackSetting $setting, string $provider, string $market, array $prices): array
     {
-        if ($ttlMinutes <= 0) {
-            return [];
+        if (! ($setting->fallback_to_jita ?? true) || $market === 'jita') {
+            return [$prices, []];
         }
 
-        $cutoff = Carbon::now()->subMinutes($ttlMinutes);
-
-        $rows = BuybackPriceCache::where('region_id', $regionId)
-            ->whereIn('type_id', $typeIds)
-            ->where('cached_at', '>=', $cutoff)
-            ->get();
-
-        $out = [];
-        foreach ($rows as $row) {
-            $out[(int) $row->type_id] = [
-                'buy' => (float) $row->buy_price,
-                'sell' => (float) $row->sell_price,
-            ];
+        $short = [];
+        foreach ($prices as $typeId => $sides) {
+            if ($sides['buy'] === null || $sides['sell'] === null) {
+                $short[] = (int) $typeId;
+            }
         }
-        return $out;
-    }
 
-    /**
-     * Last-resort cache read that ignores the TTL.
-     *
-     * Only used when the provider could not be reached at all. A price from
-     * some hours ago is a far better answer than zero, and the caller marks
-     * the fetch as degraded so the valuation can be refused or flagged
-     * rather than silently trusted.
-     */
-    protected function readFromCacheAnyAge(array $typeIds, int $regionId): array
-    {
-        $rows = BuybackPriceCache::where('region_id', $regionId)
-            ->whereIn('type_id', $typeIds)
-            ->get();
-
-        $out = [];
-        foreach ($rows as $row) {
-            $out[(int) $row->type_id] = [
-                'buy' => (float) $row->buy_price,
-                'sell' => (float) $row->sell_price,
-            ];
+        if (empty($short)) {
+            return [$prices, []];
         }
-        return $out;
-    }
 
-    /**
-     * Write a both-sides price map to the cache. Skips zero-value rows
-     * (a fetch that returned ['buy' => 0, 'sell' => 0] usually means the
-     * type isn't traded; caching that would prevent any future fetch
-     * from ever recovering when the item starts trading again).
-     */
-    protected function writeCacheBoth(array $prices, int $regionId): void
-    {
-        $now = Carbon::now();
-        foreach ($prices as $tid => $sides) {
-            $buy = (float) ($sides['buy'] ?? 0);
-            $sell = (float) ($sides['sell'] ?? 0);
-            $avg = ($buy + $sell) / 2;
-            if ($avg <= 0) {
+        $jita = $provider === self::PROVIDER_MANAGER_CORE
+            ? []
+            : $this->freshCachedPrices($provider, 'jita', $short, $this->ttlMinutes($setting));
+        $toAsk = array_values(array_diff($short, array_keys($jita)));
+        $jita = array_filter($jita);
+
+        if (! empty($toAsk)) {
+            try {
+                $answer = $this->fetchFrom($provider, 'jita', $toAsk, $setting);
+                $this->rememberPrices($provider, 'jita', $answer);
+                $jita += $answer['prices'];
+            } catch (\Throwable $e) {
+                Log::warning('[Buyback Manager] Jita prices for missing sides were not available: ' . $e->getMessage());
+            }
+        }
+
+        $filled = [];
+        foreach ($short as $typeId) {
+            if (! isset($jita[$typeId])) {
                 continue;
             }
-            try {
-                BuybackPriceCache::updateOrCreate(
-                    ['type_id' => (int) $tid, 'region_id' => $regionId],
-                    [
-                        'sell_price' => $sell,
-                        'buy_price' => $buy,
-                        'average_price' => $avg,
-                        'cached_at' => $now,
-                    ]
-                );
-            } catch (\Throwable $e) {
-                // Best-effort. Cache failures never block the price read.
+
+            $sides = $prices[$typeId];
+            $changed = false;
+            foreach (['buy', 'sell'] as $side) {
+                if ($sides[$side] === null && $jita[$typeId][$side] !== null) {
+                    $sides[$side] = $jita[$typeId][$side];
+                    $changed = true;
+                }
+            }
+
+            if ($changed) {
+                $prices[$typeId] = $sides;
+                $filled[] = $typeId;
             }
         }
+
+        return [$prices, $filled];
     }
 
     /**
-     * Fill missing typeIds in a both-sides map with zero pairs.
+     * One line for the appraisal saying where prices came from, when they
+     * did not all come from the provider. Null when they did.
      */
-    protected function fillMissingPairWithZero(array $prices, array $typeIds): array
+    protected function describe(array $result): ?string
     {
-        foreach ($typeIds as $tid) {
-            if (! isset($prices[$tid])) {
-                $prices[$tid] = ['buy' => 0.0, 'sell' => 0.0];
+        $provider = $this->providerLabel($result['provider']);
+        $fallback = $result['fallback'];
+        $fallbackName = $fallback && $fallback['provider'] !== null ? $this->providerLabel($fallback['provider']) : null;
+        $fallbackAt = $fallback && $fallback['provider'] !== null && $fallback['market'] !== $result['market']
+            ? ' at ' . $this->marketName($fallback['market'])
+            : '';
+        $fromFallback = count($result['from_fallback']);
+        $fromCache = count($result['from_cache']);
+
+        $parts = [];
+
+        if ($result['stood_in']) {
+            $parts[] = $fromFallback > 0
+                ? "{$provider} did not answer, so {$fallbackName} priced {$fromFallback} " . Str::plural('item', $fromFallback) . "{$fallbackAt}."
+                : "{$provider} did not answer.";
+        } elseif (! empty($result['unanswered'])) {
+            $gaps = count($result['unanswered']);
+            $why = $result['provider'] === self::PROVIDER_MANAGER_CORE
+                ? "Manager Core had no price yet for {$gaps} " . Str::plural('item', $gaps)
+                : "{$provider} could not answer for {$gaps} " . Str::plural('item', $gaps);
+            $parts[] = $fromFallback > 0
+                ? "{$why}, so {$fallbackName} priced {$fromFallback}{$fallbackAt}."
+                : "{$why}.";
+        }
+
+        if ($fromCache > 0) {
+            $parts[] = "{$fromCache} " . Str::plural('item', $fromCache) . ' kept the last cached price.';
+        }
+
+        $fromJita = count($result['from_jita']);
+        if ($fromJita > 0) {
+            $parts[] = "{$fromJita} " . Str::plural('item', $fromJita) . ' with no orders on one side at '
+                . $this->marketName($result['market']) . " took Jita's price for that side.";
+        }
+
+        return empty($parts) ? null : Str::limit(implode(' ', $parts), 250, '');
+    }
+
+    // ============================================================
+    // PROVIDERS
+    // ============================================================
+
+    /**
+     * One provider's answer at one market. Items in a request that failed,
+     * and items Manager Core holds no price for, come back unanswered so the
+     * fallback can price them.
+     *
+     * @return array{prices: array<int, array{buy: ?float, sell: ?float}>, answered: int[], unanswered: int[], errors: int, error: ?string}
+     * @throws Exception when the provider cannot be asked at all
+     */
+    protected function fetchFrom(string $provider, string $market, array $typeIds, BuybackSetting $setting): array
+    {
+        return match ($provider) {
+            self::PROVIDER_JANICE => $this->fetchFromJanice($market, $typeIds, (string) $setting->janice_api_key),
+            self::PROVIDER_MANAGER_CORE => $this->fetchFromManagerCore($market, $typeIds),
+            self::PROVIDER_FUZZWORK => $this->fetchFromFuzzwork($market, $typeIds),
+            default => throw new Exception($provider . ' is not a price provider.'),
+        };
+    }
+
+    protected function fetchFromFuzzwork(string $market, array $typeIds): array
+    {
+        $regionId = self::HUB_REGIONS[$market] ?? (ctype_digit($market) ? (int) $market : null);
+        if (! $regionId) {
+            throw new Exception('Fuzzwork cannot price at ' . $this->marketName($market) . '.');
+        }
+
+        $answer = $this->emptyAnswer();
+
+        foreach (array_chunk($typeIds, self::FUZZWORK_BATCH_SIZE) as $batch) {
+            if ($answer['errors'] >= self::FAIL_FAST_AFTER && empty($answer['answered'])) {
+                array_push($answer['unanswered'], ...$batch);
+                continue;
+            }
+
+            try {
+                $response = Http::timeout(self::FUZZWORK_TIMEOUT_SECONDS)
+                    ->acceptJson()
+                    ->get(self::FUZZWORK_URL, [
+                        'region' => $regionId,
+                        'types' => implode(',', $batch),
+                    ]);
+
+                if (! $response->successful()) {
+                    throw new Exception('Fuzzwork returned HTTP ' . $response->status());
+                }
+
+                $data = $response->json();
+                if (! is_array($data)) {
+                    throw new Exception('Fuzzwork returned something other than a list of prices');
+                }
+            } catch (\Throwable $e) {
+                $this->noteRequestError($answer, $batch, $e->getMessage());
+                continue;
+            }
+
+            array_push($answer['answered'], ...$batch);
+            $answer['prices'] += self::fuzzworkPrices($data, $batch);
+        }
+
+        return $answer;
+    }
+
+    /**
+     * Fuzzwork's aggregates as both sides: the highest buy order and the
+     * lowest sell order. It answers every id asked, with zeros for an item
+     * nobody trades.
+     *
+     * @return array<int, array{buy: ?float, sell: ?float}>
+     */
+    public static function fuzzworkPrices(array $data, array $typeIds): array
+    {
+        $prices = [];
+        foreach ($typeIds as $typeId) {
+            $row = $data[$typeId] ?? $data[(string) $typeId] ?? null;
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $sides = self::sides((float) ($row['buy']['max'] ?? 0), (float) ($row['sell']['min'] ?? 0));
+            if ($sides !== null) {
+                $prices[(int) $typeId] = $sides;
             }
         }
+
         return $prices;
     }
 
-    /**
-     * Raw-text appraisal via Janice's appraisal endpoint. Hands Janice the
-     * full paste; Janice parses + prices it in one round trip.
-     *
-     * Used by AppraisalService::createAppraisal when the corp's provider
-     * is set to Janice. Handles formats StandaloneParserService can't:
-     * fitted ships, EFT fits, BPCs, contract pastes with cargo, killmails.
-     *
-     * Returns:
-     *   ['success' => true, 'items' => [stdClass{type_id, type_name, ...}, ...]]
-     * or:
-     *   ['success' => false, 'message' => string]
-     */
-    public function appraiseRawViaJanice(string $rawText, BuybackSetting $setting): array
+    protected function fetchFromJanice(string $market, array $typeIds, string $apiKey): array
     {
-        $apiKey = $setting->janice_api_key ?? null;
-        if (empty($apiKey)) {
-            return ['success' => false, 'message' => 'Janice API key not configured for this corporation'];
+        if ($apiKey === '') {
+            throw new Exception('Janice has no API key.');
         }
 
-        $market = $this->resolveJaniceMarketParam($setting);
-        $url = self::JANICE_APPRAISAL_URL
-            . '?market=' . $market
-            . '&designation=appraisal'
-            . '&pricing=split'
-            . '&pricingVariant=split'
-            . '&persist=true'
-            . '&compactize=true'
-            . '&pricePercentage=1';
-
-        try {
-            $response = Http::timeout(self::HTTP_TIMEOUT)
-                ->withHeaders([
-                    'X-ApiKey' => $apiKey,
-                    'Content-Type' => 'text/plain',
-                    'accept' => 'application/json',
-                ])
-                ->withBody($rawText, 'text/plain')
-                ->post($url);
-
-            if (!$response->successful()) {
-                Log::warning('[Buyback Manager] Janice appraisal failed', [
-                    'status' => $response->status(),
-                    'body' => substr($response->body(), 0, 500),
-                ]);
-                return ['success' => false, 'message' => 'Janice appraisal failed (HTTP ' . $response->status() . ')'];
-            }
-
-            $data = $response->json();
-            if (!is_array($data) || empty($data['items'])) {
-                return ['success' => false, 'message' => 'Janice returned no items — check your paste format'];
-            }
-
-            $items = [];
-            foreach ($data['items'] as $row) {
-                $typeId = (int) ($row['itemType']['eid'] ?? $row['typeID'] ?? 0);
-                if (!$typeId) {
-                    continue;
-                }
-
-                $imm = $row['immediatePrices'] ?? [];
-
-                // Expose BOTH sides on each item so applyBuybackRules
-                // can pick per the rule's price_side. The previous
-                // "chosen single price" reduction is now deferred to
-                // the rules layer.
-                $sellPrice = (float) ($imm['sellPrice'] ?? 0);
-                $buyPrice = (float) ($imm['buyPrice'] ?? 0);
-
-                $qty = (int) ($row['amount'] ?? 1);
-                $items[] = (object) [
-                    'type_id' => $typeId,
-                    'type_name' => (string) ($row['itemType']['name'] ?? 'Unknown'),
-                    'quantity' => $qty,
-                    'sell_price' => $sellPrice,
-                    'buy_price' => $buyPrice,
-                    'group_id' => ((int) ($row['itemType']['groupId'] ?? 0)) ?: null,
-                    'category_id' => ((int) ($row['itemType']['categoryId'] ?? 0)) ?: null,
-                    'total_volume' => (float) ($row['itemType']['volume'] ?? 0) * $qty,
-                ];
-            }
-
-            if (empty($items)) {
-                return ['success' => false, 'message' => 'Janice could not resolve any items from input'];
-            }
-
-            return ['success' => true, 'items' => $items];
-        } catch (Exception $e) {
-            Log::error('[Buyback Manager] Janice appraisal exception: ' . $e->getMessage());
-            return ['success' => false, 'message' => 'Janice request error: ' . $e->getMessage()];
+        $marketId = self::JANICE_MARKETS[$market] ?? null;
+        if ($marketId === null) {
+            throw new Exception('Janice cannot price at ' . $this->marketName($market) . '.');
         }
+
+        $answer = $this->emptyAnswer();
+
+        foreach (array_chunk($typeIds, self::JANICE_BATCH_SIZE) as $index => $batch) {
+            if ($answer['errors'] >= self::FAIL_FAST_AFTER && empty($answer['answered'])) {
+                array_push($answer['unanswered'], ...$batch);
+                continue;
+            }
+
+            if ($index > 0) {
+                usleep(self::JANICE_BATCH_PAUSE_US);
+            }
+
+            try {
+                $response = Http::timeout(self::JANICE_TIMEOUT_SECONDS)
+                    ->withHeaders([
+                        'X-ApiKey' => $apiKey,
+                        'accept' => 'application/json',
+                    ])
+                    ->withBody(implode("\n", $batch), 'text/plain')
+                    ->post(self::JANICE_PRICER_URL . '?market=' . $marketId);
+            } catch (\Throwable $e) {
+                $this->noteRequestError($answer, $batch, $e->getMessage());
+                continue;
+            }
+
+            // A refused key stops the lot. Asking again in other batches is
+            // exactly the traffic that gets a key blocked.
+            if (in_array($response->status(), [401, 403, 429], true)) {
+                throw new Exception('Janice refused the request with HTTP ' . $response->status()
+                    . ($response->status() === 429 ? ' (too many requests)' : ' (check the API key)'));
+            }
+
+            $items = $response->successful() ? $response->json() : null;
+            if (! is_array($items)) {
+                $this->noteRequestError($answer, $batch, $response->successful()
+                    ? 'Janice returned something other than a list of prices'
+                    : 'Janice returned HTTP ' . $response->status());
+                continue;
+            }
+
+            // Janice leaves out ids it does not know, which is an answer too.
+            array_push($answer['answered'], ...$batch);
+            $answer['prices'] += self::janicePrices($items, $batch);
+        }
+
+        return $answer;
     }
 
     /**
-     * Subscribe a list of typeIds to Manager Core's pricing cache.
-     * Idempotent via the local buyback_subscribed_types ledger — only
-     * never-before-seen typeIds trigger an actual bridge call.
+     * Janice's pricer answer as both sides, from its immediate prices: the
+     * highest buy order and the lowest sell order.
      *
-     * @param int[] $typeIds
-     * @return int  Count of newly-subscribed types (0 when all known).
+     * @return array<int, array{buy: ?float, sell: ?float}>
      */
-    public function subscribeToManagerCore(array $typeIds, string $market = 'jita', bool $immediateRefresh = false): int
+    public static function janicePrices(array $items, array $typeIds): array
     {
-        if (!ManagerCoreIntegration::isAvailable()) {
-            return 0;
-        }
+        $asked = array_flip(array_map('intval', $typeIds));
+        $prices = [];
 
-        $newTypeIds = BuybackSubscribedType::missingFrom($typeIds, $market);
-        if (empty($newTypeIds)) {
-            return 0;
-        }
+        foreach ($items as $item) {
+            $typeId = is_array($item) ? (int) ($item['itemType']['eid'] ?? 0) : 0;
+            if (! isset($asked[$typeId])) {
+                continue;
+            }
 
-        try {
-            $bridge = ManagerCoreIntegration::bridge();
-            $bridge->call(
-                'ManagerCore',
-                'pricing.subscribeTypes',
-                'buyback-manager',
-                $newTypeIds,
-                $market,
-                1,
-                $immediateRefresh
+            $sides = self::sides(
+                (float) ($item['immediatePrices']['buyPrice'] ?? 0),
+                (float) ($item['immediatePrices']['sellPrice'] ?? 0)
             );
-            BuybackSubscribedType::markSubscribed($newTypeIds, $market);
-
-            Log::info('[Buyback Manager] Subscribed ' . count($newTypeIds) . " new types to MC market '{$market}'");
-            return count($newTypeIds);
-        } catch (Exception $e) {
-            Log::warning('[Buyback Manager] MC subscribe failed: ' . $e->getMessage());
-            return 0;
+            if ($sides !== null) {
+                $prices[$typeId] = $sides;
+            }
         }
+
+        return $prices;
     }
 
-    public function unsubscribeFromManagerCore(): int
+    protected function fetchFromManagerCore(string $market, array $typeIds): array
     {
-        if (!ManagerCoreIntegration::isAvailable()) {
-            return 0;
+        if (! $this->managerCoreInstalled()) {
+            throw new Exception('Manager Core is not installed.');
         }
 
-        try {
-            $bridge = ManagerCoreIntegration::bridge();
-            $count = $bridge->call('ManagerCore', 'pricing.unsubscribeTypes', 'buyback-manager', null);
-            BuybackSubscribedType::query()->delete();
-            Log::info('[Buyback Manager] Unsubscribed all types from Manager Core (count=' . (int) $count . ')');
-            return (int) $count;
-        } catch (Exception $e) {
-            Log::warning('[Buyback Manager] MC unsubscribe failed: ' . $e->getMessage());
-            return 0;
+        // The plugin key lets Manager Core honour a provider override an
+        // admin set for Buyback in its Pricing Preferences. Without one it
+        // answers from its own cache.
+        $raw = ManagerCoreIntegration::bridge()->call(
+            'ManagerCore',
+            'pricing.getPrices',
+            $typeIds,
+            $market,
+            'both',
+            self::MC_PLUGIN_KEY
+        );
+
+        if (! is_array($raw)) {
+            throw new Exception('Manager Core did not answer pricing.getPrices.');
         }
+
+        $read = self::managerCorePrices($raw, $typeIds, Carbon::now()->subHours(self::MC_PRICE_STALENESS_HOURS));
+
+        if ($read['stale'] > 0) {
+            Log::warning("[Buyback Manager] {$read['stale']} Manager Core prices at '{$market}' are older than " . self::MC_PRICE_STALENESS_HOURS . ' hours; check that its price refresh is running');
+        }
+
+        $answer = $this->emptyAnswer();
+        $answer['prices'] = $read['prices'];
+        $answer['answered'] = array_keys($read['prices']);
+        $answer['unanswered'] = $read['unanswered'];
+
+        return $answer;
     }
 
     /**
-     * Live-test a provider's configuration by fetching Tritanium (typeID 34).
+     * Manager Core's [typeId => ['buy' => stats, 'sell' => stats]] as both
+     * sides: the highest buy order and the lowest sell order, the same prices
+     * Fuzzwork and Janice give. An item with no price on either side is
+     * unanswered, not unpriced: Manager Core only holds items it has been
+     * asked to fetch, so no price there is no proof the item has no market.
      *
-     * Clones the input setting so the caller's BuybackSetting instance is
-     * never mutated. Previously this method temporarily flipped the
-     * caller's setting and relied on a finally-block to restore it, which
-     * is correct under normal control flow but fragile if a future
-     * refactor moves error handling around the try-finally boundary.
+     * @return array{prices: array<int, array{buy: ?float, sell: ?float}>, unanswered: int[], stale: int}
      */
-    public function testProvider(string $provider, BuybackSetting $setting): bool
+    public static function managerCorePrices(array $raw, array $typeIds, Carbon $staleBefore): array
     {
-        $testSetting = clone $setting;
-        $testSetting->price_provider = $provider;
+        $typeIds = array_map('intval', $typeIds);
+        $byType = self::normaliseBridgeShape($raw, $typeIds);
+        $out = ['prices' => [], 'unanswered' => [], 'stale' => 0];
+
+        foreach ($typeIds as $typeId) {
+            $entry = is_array($byType[$typeId] ?? null) ? $byType[$typeId] : [];
+            $buy = is_array($entry['buy'] ?? null) ? $entry['buy'] : null;
+            $sell = is_array($entry['sell'] ?? null) ? $entry['sell'] : null;
+
+            $sides = self::sides((float) ($buy['max'] ?? 0), (float) ($sell['min'] ?? 0));
+            if ($sides === null) {
+                $out['unanswered'][] = $typeId;
+                continue;
+            }
+
+            $out['prices'][$typeId] = $sides;
+            if (self::isStale($sell ?? $buy, $staleBefore)) {
+                $out['stale']++;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * One provider's prices for a test, changing nothing: no fallback, no
+     * cached prices, no status and no alert. The error says why the provider
+     * gave nothing, when it gave nothing.
+     *
+     * @return array{prices: array<int, array{buy: ?float, sell: ?float}>, market: string, unanswered: int[], error: ?string}
+     */
+    public function tryProvider(string $provider, BuybackSetting $setting, array $typeIds): array
+    {
+        $market = $this->marketFor($setting, $provider);
 
         try {
-            $price = $this->getPrice(34, $testSetting);
-            return $price !== null && $price > 0;
-        } catch (Exception $e) {
-            Log::warning('[Buyback Manager] Provider test failed', [
-                'provider' => $provider,
-                'error' => $e->getMessage(),
-            ]);
-            return false;
+            $answer = $this->fetchFrom($provider, $market, $this->cleanIds($typeIds), $setting);
+        } catch (\Throwable $e) {
+            return ['prices' => [], 'market' => $market, 'unanswered' => [], 'error' => $e->getMessage()];
         }
+
+        return [
+            'prices' => $answer['prices'],
+            'market' => $market,
+            'unanswered' => $answer['unanswered'],
+            'error' => empty($answer['prices']) && $answer['errors'] > 0
+                ? ($answer['error'] ?? 'The provider did not answer')
+                : null,
+        ];
+    }
+
+    // ============================================================
+    // SETTINGS
+    // ============================================================
+
+    public function providerOf(BuybackSetting $setting): string
+    {
+        $provider = (string) ($setting->price_provider ?: self::PROVIDER_FUZZWORK);
+
+        return isset(self::PROVIDER_LABELS[$provider]) ? $provider : self::PROVIDER_FUZZWORK;
+    }
+
+    /**
+     * Where a provider prices for this corporation: a hub, a region id for
+     * Fuzzwork's custom region, or a Manager Core market key.
+     */
+    public function marketFor(BuybackSetting $setting, ?string $provider = null): string
+    {
+        $provider ??= $this->providerOf($setting);
+
+        if ($provider === self::PROVIDER_JANICE) {
+            $market = (string) ($setting->janice_market ?: 'jita');
+
+            return isset(self::JANICE_MARKETS[$market]) ? $market : 'jita';
+        }
+
+        if ($provider === self::PROVIDER_MANAGER_CORE) {
+            return $this->managerCoreMarketFor($setting);
+        }
+
+        $source = (string) ($setting->price_source ?: 'jita');
+        if (isset(self::HUB_REGIONS[$source])) {
+            return $source;
+        }
+
+        if ($source === 'region' && (int) $setting->region_id > 0) {
+            $hub = array_search((int) $setting->region_id, self::HUB_REGIONS, true);
+
+            return $hub === false ? (string) (int) $setting->region_id : $hub;
+        }
+
+        return 'jita';
+    }
+
+    /**
+     * The Manager Core market for this corporation. A market an admin set
+     * for Buyback in Manager Core's Pricing Preferences wins over the
+     * corporation's own choice; a preference Buyback registered itself does
+     * not, since it only mirrors one corporation's setting.
+     */
+    public function managerCoreMarketFor(BuybackSetting $setting): string
+    {
+        $pref = $this->managerCorePreference();
+        if ($pref && ! empty($pref['admin_overridden']) && ! empty($pref['market'])) {
+            return (string) $pref['market'];
+        }
+
+        return (string) ($setting->manager_core_market ?: 'jita');
+    }
+
+    /**
+     * Manager Core's preference row for Buyback, or null when Manager Core is
+     * not installed, has none, or cannot say.
+     */
+    public function managerCorePreference(): ?array
+    {
+        if ($this->mcPreferenceReadAt !== null && time() - $this->mcPreferenceReadAt < self::MC_PREFERENCE_SECONDS) {
+            return $this->mcPreference;
+        }
+
+        $this->mcPreferenceReadAt = time();
+        $this->mcPreference = null;
+
+        if (! $this->managerCoreInstalled()) {
+            return null;
+        }
+
+        try {
+            $pref = ManagerCoreIntegration::bridge()->call('ManagerCore', 'pricing.getPreferenceForPlugin', self::MC_PLUGIN_KEY);
+            $this->mcPreference = is_array($pref) ? $pref : null;
+        } catch (\Throwable $e) {
+            Log::warning('[Buyback Manager] Could not read the Manager Core pricing preference: ' . $e->getMessage());
+        }
+
+        return $this->mcPreference;
+    }
+
+    protected function managerCoreInstalled(): bool
+    {
+        return ManagerCoreIntegration::isAvailable();
+    }
+
+    protected function ttlMinutes(BuybackSetting $setting): int
+    {
+        return max(0, (int) ($setting->price_cache_ttl_minutes ?? self::DEFAULT_CACHE_TTL_MINUTES));
+    }
+
+    public function providerLabel(string $provider): string
+    {
+        return self::PROVIDER_LABELS[$provider] ?? ucfirst($provider);
+    }
+
+    /**
+     * A market as people read it: "Jita", a region's name for a region id,
+     * or the name Manager Core gives one of its markets.
+     */
+    public function marketName(string $market): string
+    {
+        if (isset($this->marketNames[$market])) {
+            return $this->marketNames[$market];
+        }
+
+        $name = isset(self::HUB_REGIONS[$market]) ? ucfirst($market) : null;
+
+        try {
+            if ($name === null && ctype_digit($market)) {
+                $region = DB::table('mapDenormalize')->where('itemID', (int) $market)->value('itemName');
+                $name = $region ? (string) $region : 'region ' . $market;
+            }
+
+            if ($name === null && Schema::hasTable('manager_core_markets')) {
+                $mc = DB::table('manager_core_markets')->where('key', $market)->value('name');
+                $name = $mc ? (string) $mc : null;
+            }
+        } catch (\Throwable $e) {
+            // A label is not worth failing a quote over.
+        }
+
+        return $this->marketNames[$market] = $name ?? $market;
     }
 
     public function getAvailableProviders(): array
@@ -545,22 +881,22 @@ class PriceProviderService
         return [
             self::PROVIDER_FUZZWORK => [
                 'name' => 'Fuzzwork',
-                'description' => 'Community market aggregator (free, region-based, no API key)',
+                'description' => 'Free market aggregates, no API key. Prices at a trade hub or any region.',
                 'requires_config' => false,
                 'available' => true,
             ],
             self::PROVIDER_JANICE => [
                 'name' => 'Janice',
-                'description' => 'Janice appraisal service. Handles fitted ships and rich paste formats (requires API key)',
+                'description' => 'Needs a Janice API key. Prices at Jita or Amarr.',
                 'requires_config' => true,
                 'config_fields' => ['janice_api_key'],
                 'available' => true,
             ],
             self::PROVIDER_MANAGER_CORE => [
                 'name' => 'Manager Core',
-                'description' => 'Shared MC price cache. Required for citadel and regional markets',
+                'description' => "Reads Manager Core's own prices, including citadel markets added there.",
                 'requires_config' => false,
-                'available' => ManagerCoreIntegration::isAvailable(),
+                'available' => $this->managerCoreInstalled(),
             ],
         ];
     }
@@ -568,21 +904,15 @@ class PriceProviderService
     public function validateProviderConfig(string $provider, BuybackSetting $setting): bool
     {
         $providers = $this->getAvailableProviders();
-        if (!isset($providers[$provider])) {
+        if (! isset($providers[$provider])) {
             return false;
         }
 
-        // MC's real precondition is class existence, not a config field.
         if ($provider === self::PROVIDER_MANAGER_CORE) {
-            return ManagerCoreIntegration::isAvailable();
+            return $this->managerCoreInstalled();
         }
 
-        $cfg = $providers[$provider];
-        if (empty($cfg['requires_config'])) {
-            return true;
-        }
-
-        foreach ($cfg['config_fields'] ?? [] as $field) {
+        foreach ($providers[$provider]['config_fields'] ?? [] as $field) {
             if (empty($setting->{$field})) {
                 return false;
             }
@@ -591,865 +921,411 @@ class PriceProviderService
         return true;
     }
 
-    public function getLastFallbackSummary(): ?array
-    {
-        return $this->lastFallbackSummary;
-    }
-
-    public function getLastJitaFallbackTypeIds(): array
-    {
-        return $this->lastJitaFallbackTypeIds;
-    }
-
     // ============================================================
-    // FUZZWORK PROVIDER
+    // CACHE
     // ============================================================
-
-    protected function getPricesFromFuzzwork(array $typeIds, BuybackSetting $setting): array
-    {
-        $regionId = $this->resolveRegionId($setting);
-        $side = $this->resolveSidePreference($setting);
-        return $this->fuzzworkFetch($typeIds, $regionId, $side);
-    }
 
     /**
-     * Direct Fuzzwork fetch with explicit region. Used by both the primary
-     * Fuzzwork path and the Jita-fallback layer (region=DEFAULT_REGION_ID).
+     * Prices this provider gave at this market within the TTL. An item it
+     * answered with no price is in the result as null, so it is not asked
+     * again until the TTL runs out either.
+     *
+     * @return array<int, array{buy: ?float, sell: ?float}|null>
      */
-    protected function fuzzworkFetch(array $typeIds, int $regionId, string $side): array
+    protected function freshCachedPrices(string $provider, string $market, array $typeIds, int $ttlMinutes): array
     {
-        $prices = [];
-        foreach (array_chunk($typeIds, self::BATCH_SIZE) as $chunk) {
-            try {
-                $response = Http::timeout(self::HTTP_TIMEOUT)
-                    ->acceptJson()
-                    ->get(self::FUZZWORK_URL, [
-                        'region' => $regionId,
-                        'types' => implode(',', $chunk),
-                    ]);
-
-                if (!$response->successful()) {
-                    Log::warning('[Buyback Manager] Fuzzwork batch failed', [
-                        'status' => $response->status(),
-                        'region' => $regionId,
-                    ]);
-                    foreach ($chunk as $tid) {
-                        $prices[$tid] = 0;
-                    }
-                    continue;
-                }
-
-                $data = $response->json() ?: [];
-                foreach ($chunk as $tid) {
-                    $row = $data[$tid] ?? null;
-                    $prices[$tid] = $this->fuzzworkExtract(is_array($row) ? $row : null, $side);
-                }
-            } catch (Exception $e) {
-                Log::error('[Buyback Manager] Fuzzwork exception: ' . $e->getMessage());
-                foreach ($chunk as $tid) {
-                    $prices[$tid] = 0;
-                }
-            }
-        }
-        return $prices;
-    }
-
-    protected function fuzzworkExtract(?array $row, string $side): float
-    {
-        if (!$row) {
-            return 0;
-        }
-        switch ($side) {
-            case 'buy':
-                return (float) ($row['buy']['max'] ?? 0);
-            case 'sell':
-                return (float) ($row['sell']['min'] ?? 0);
-            case 'split':
-            default:
-                $buy = (float) ($row['buy']['max'] ?? 0);
-                $sell = (float) ($row['sell']['min'] ?? 0);
-                return ($buy + $sell) / 2;
-        }
-    }
-
-    // ============================================================
-    // JANICE PROVIDER (pricer endpoint, used for structured/contract sync)
-    // ============================================================
-
-    protected function getPricesFromJanice(array $typeIds, BuybackSetting $setting): array
-    {
-        $apiKey = $setting->janice_api_key ?? null;
-        if (empty($apiKey)) {
-            throw new Exception('Janice API key not configured for corporation ' . $setting->corporation_id);
-        }
-
-        return $this->janiceFetch(
-            $typeIds,
-            $this->resolveJaniceMarketParam($setting),
-            $apiKey,
-            $setting->janice_price_method ?? 'buy'
-        );
-    }
-
-    protected function janiceFetch(array $typeIds, string $marketParam, string $apiKey, string $method): array
-    {
-        $prices = [];
-        foreach ($typeIds as $typeId) {
-            try {
-                $url = sprintf('%s/%d?market=%s', self::JANICE_PRICER_URL, $typeId, $marketParam);
-                $response = Http::timeout(self::HTTP_TIMEOUT)
-                    ->withHeaders([
-                        'X-ApiKey' => $apiKey,
-                        'accept' => 'application/json',
-                    ])
-                    ->get($url);
-
-                if (!$response->successful()) {
-                    Log::warning('[Buyback Manager] Janice pricer failed', [
-                        'type_id' => $typeId,
-                        'status' => $response->status(),
-                    ]);
-                    $prices[$typeId] = 0;
-                    usleep(self::JANICE_RATE_LIMIT_MICROSECONDS);
-                    continue;
-                }
-
-                $data = $response->json();
-                $imm = $data['immediatePrices'] ?? null;
-                $eff = $data['effectivePrices'] ?? null;
-                $prices[$typeId] = match ($method) {
-                    'sell' => (float) ($imm['sellPrice'] ?? 0),
-                    'split' => (float) ($eff['splitPrice'] ?? 0),
-                    default => (float) ($imm['buyPrice'] ?? 0),
-                };
-
-                usleep(self::JANICE_RATE_LIMIT_MICROSECONDS);
-            } catch (Exception $e) {
-                Log::error('[Buyback Manager] Janice fetch exception', [
-                    'type_id' => $typeId,
-                    'error' => $e->getMessage(),
-                ]);
-                $prices[$typeId] = 0;
-            }
-        }
-        return $prices;
-    }
-
-    // ============================================================
-    // MANAGER CORE PROVIDER
-    // ============================================================
-
-    protected function getPricesFromManagerCore(array $typeIds, BuybackSetting $setting): array
-    {
-        if (!ManagerCoreIntegration::isAvailable()) {
-            throw new Exception('Manager Core is not installed');
-        }
-
-        $market = $setting->manager_core_market ?? 'jita';
-        $variant = $setting->manager_core_variant ?? 'min';
-        $side = $this->resolveSidePreference($setting);
-
-        // Lazy subscribe-on-encounter: first-time types get subscribed so
-        // MC's scheduled cron keeps them warm thereafter. immediateRefresh
-        // is false because (a) this is the hot path during contract sync
-        // where queue dispatches per-type would flood, (b) MC's scheduled
-        // pricing cron (every 4h) will populate the new types organically,
-        // (c) Jita fallback handles the cold-start gap. Matches Mining
-        // Manager's boot-time-subscribe pattern.
-        $this->subscribeToManagerCore($typeIds, $market, false);
-
-        try {
-            $bridge = ManagerCoreIntegration::bridge();
-            $rawResult = $bridge->call(
-                'ManagerCore',
-                'pricing.getPrices',
-                $typeIds,
-                $market,
-                $side === 'split' ? 'both' : $side
-            );
-        } catch (Exception $e) {
-            Log::warning('[Buyback Manager] MC pricing.getPrices threw: ' . $e->getMessage());
-            return array_fill_keys($typeIds, 0.0);
-        }
-
-        if (!is_array($rawResult)) {
-            return array_fill_keys($typeIds, 0.0);
-        }
-
-        $resultByType = $this->normaliseBridgeShape($rawResult, $typeIds);
-        $prices = [];
-        $stalenessThreshold = Carbon::now()->subHours(self::MC_PRICE_STALENESS_HOURS);
-        $staleCount = 0;
-
-        foreach ($typeIds as $tid) {
-            $entry = $resultByType[$tid] ?? null;
-            if ($entry === null) {
-                $prices[$tid] = 0;
-                continue;
-            }
-
-            $hasBuySell = is_array($entry) && (array_key_exists('buy', $entry) || array_key_exists('sell', $entry));
-
-            if ($side === 'split') {
-                $sellStats = $hasBuySell ? ($entry['sell'] ?? null) : null;
-                $buyStats = $hasBuySell ? ($entry['buy'] ?? null) : null;
-                $sellVal = $sellStats ? $this->extractVariant($sellStats, $variant) : 0;
-                $buyVal = $buyStats ? $this->extractVariant($buyStats, $variant) : 0;
-
-                if ($sellStats && $buyStats) {
-                    $prices[$tid] = ($sellVal + $buyVal) / 2;
-                } elseif ($sellStats) {
-                    $prices[$tid] = $sellVal;
-                } elseif ($buyStats) {
-                    $prices[$tid] = $buyVal;
-                } else {
-                    $prices[$tid] = 0;
-                }
-
-                $usedStats = $sellStats ?? $buyStats;
-                if ($usedStats && $this->isStatsStale($usedStats, $stalenessThreshold)) {
-                    $staleCount++;
-                }
-            } else {
-                $stats = $hasBuySell ? ($entry[$side] ?? null) : $entry;
-                $prices[$tid] = $stats ? $this->extractVariant($stats, $variant) : 0;
-                if ($stats && $this->isStatsStale($stats, $stalenessThreshold)) {
-                    $staleCount++;
-                }
-            }
-        }
-
-        if ($staleCount > 0) {
-            Log::warning("[Buyback Manager] {$staleCount}/" . count($typeIds) . ' MC prices older than '
-                . self::MC_PRICE_STALENESS_HOURS . 'h. Check manager-core:update-prices cron.');
-        }
-
-        return $prices;
-    }
-
-    protected function extractVariant(array $stats, string $variant): float
-    {
-        return match ($variant) {
-            'max' => (float) ($stats['max'] ?? 0),
-            'avg' => (float) ($stats['avg'] ?? 0),
-            'median' => (float) ($stats['median'] ?? 0),
-            'percentile' => (float) ($stats['percentile'] ?? 0),
-            default => (float) ($stats['min'] ?? 0),
-        };
-    }
-
-    protected function isStatsStale(array $stats, Carbon $threshold): bool
-    {
-        $updatedAt = $stats['updated_at'] ?? null;
-        if ($updatedAt === null) {
-            return false;
-        }
-        try {
-            $carbon = $updatedAt instanceof Carbon ? $updatedAt : Carbon::parse((string) $updatedAt);
-        } catch (Exception $e) {
-            return false;
-        }
-        return $carbon->lt($threshold);
-    }
-
-    /**
-     * Insulate against MC's getPrice single-element-collapse quirk: if the
-     * bridge returned the inner stats shape instead of [typeId => stats],
-     * re-wrap. See PricingService::getPrice docblock for the history.
-     */
-    protected function normaliseBridgeShape($result, array $typeIds): array
-    {
-        if (!is_array($result)) {
+        if ($ttlMinutes <= 0 || empty($typeIds)) {
             return [];
         }
 
-        $typeIdSet = array_flip($typeIds);
-        $keys = array_keys($result);
-        $allKeysAreTypeIds = !empty($keys) && array_reduce(
-            $keys,
-            fn($carry, $k) => $carry && isset($typeIdSet[$k]),
-            true
-        );
-
-        if ($allKeysAreTypeIds) {
-            return $result;
-        }
-
-        if (count($typeIds) === 1) {
-            return [$typeIds[0] => $result];
-        }
-
-        return [];
-    }
-
-    // ============================================================
-    // JITA FALLBACK
-    // ============================================================
-
-    protected function applyJitaFallback(string $provider, array $prices, array $typeIds, BuybackSetting $setting): array
-    {
-        if (!($setting->fallback_to_jita ?? true)) {
-            return $prices;
-        }
-
-        $currentMarket = match ($provider) {
-            self::PROVIDER_JANICE => $this->resolveJaniceMarketParam($setting) === '2' ? 'jita' : 'amarr',
-            self::PROVIDER_MANAGER_CORE => $setting->manager_core_market ?? 'jita',
-            default => $this->resolveRegionId($setting) === self::DEFAULT_REGION_ID ? 'jita' : 'other',
-        };
-
-        if ($currentMarket === 'jita') {
-            return $prices;
-        }
-
-        $zeroTypeIds = array_keys(array_filter($prices, fn($p) => $p <= 0));
-        $zeroCount = count($zeroTypeIds);
-        if ($zeroCount === 0) {
-            return $prices;
-        }
-
-        Log::info('[Buyback Manager] Jita fallback dispatched', [
-            'provider' => $provider,
-            'configured_market' => $currentMarket,
-            'zero_count' => $zeroCount,
-            'sample_zero_type_ids' => array_slice($zeroTypeIds, 0, 10),
-        ]);
-
-        $side = $this->resolveSidePreference($setting);
-        $recovered = 0;
-        $fallbackError = null;
-        $jitaPrices = [];
-
         try {
-            $jitaPrices = match ($provider) {
-                self::PROVIDER_JANICE => $this->janiceFetch(
-                    $zeroTypeIds,
-                    '2',
-                    $setting->janice_api_key,
-                    $setting->janice_price_method ?? 'buy'
-                ),
-                self::PROVIDER_MANAGER_CORE => $this->mcFetchAtMarket($zeroTypeIds, 'jita', $setting),
-                default => $this->fuzzworkFetch($zeroTypeIds, self::DEFAULT_REGION_ID, $side),
-            };
-        } catch (Exception $e) {
-            $fallbackError = $e->getMessage();
+            $rows = BuybackPriceCache::where('market', $this->cacheMarket($provider, $market))
+                ->where('provider', $provider)
+                ->whereIn('type_id', $typeIds)
+                ->where('checked_at', '>=', Carbon::now()->subMinutes($ttlMinutes))
+                ->get();
+        } catch (\Throwable $e) {
+            Log::warning('[Buyback Manager] Could not read cached prices: ' . $e->getMessage());
+
+            return [];
         }
 
-        foreach ($jitaPrices as $tid => $p) {
-            if ($p > 0 && ($prices[$tid] ?? 0) <= 0) {
-                $prices[$tid] = $p;
-                $this->lastJitaFallbackTypeIds[] = $tid;
-                $recovered++;
-            }
-        }
-
-        $unrecovered = $zeroCount - $recovered;
-        $recoveryPct = $zeroCount > 0 ? round($recovered / $zeroCount * 100, 1) : 0;
-
-        $this->lastFallbackSummary = [
-            'provider' => $provider,
-            'configured_market' => $currentMarket,
-            'requested_count' => count($typeIds),
-            'zero_count' => $zeroCount,
-            'fallback_recovered_count' => $recovered,
-            'fallback_unrecovered_count' => $unrecovered,
-            'recovery_pct' => $recoveryPct,
-            'fallback_error' => $fallbackError,
-            'timestamp' => Carbon::now()->toIso8601String(),
-        ];
-
-        if ($fallbackError !== null) {
-            Log::warning('[Buyback Manager] Jita fallback request failed', $this->lastFallbackSummary);
-        } elseif ($recovered > 0 && $recoveryPct < 50) {
-            Log::warning('[Buyback Manager] Jita fallback recovered <50% of missing prices', $this->lastFallbackSummary);
-        } elseif ($recovered > 0) {
-            Log::info('[Buyback Manager] Jita fallback completed', $this->lastFallbackSummary);
-        }
-
-        return $prices;
-    }
-
-    protected function mcFetchAtMarket(array $typeIds, string $market, BuybackSetting $setting): array
-    {
-        $variant = $setting->manager_core_variant ?? 'min';
-        $side = $this->resolveSidePreference($setting);
-        $bridgeSide = $side === 'split' ? 'sell' : $side;
-
-        try {
-            $bridge = ManagerCoreIntegration::bridge();
-            $rawResult = $bridge->call(
-                'ManagerCore',
-                'pricing.getPrices',
-                $typeIds,
-                $market,
-                $bridgeSide
-            );
-        } catch (Exception $e) {
-            return array_fill_keys($typeIds, 0.0);
-        }
-
-        if (!is_array($rawResult)) {
-            return array_fill_keys($typeIds, 0.0);
-        }
-
-        $resultByType = $this->normaliseBridgeShape($rawResult, $typeIds);
         $prices = [];
-        foreach ($typeIds as $tid) {
-            $entry = $resultByType[$tid] ?? null;
-            if ($entry === null) {
-                $prices[$tid] = 0;
-                continue;
-            }
-            $hasBuySell = is_array($entry) && (array_key_exists('buy', $entry) || array_key_exists('sell', $entry));
-            $stats = $hasBuySell ? ($entry[$bridgeSide] ?? null) : $entry;
-            $prices[$tid] = $stats ? $this->extractVariant($stats, $variant) : 0;
-        }
-        return $prices;
-    }
-
-    // ============================================================
-    // BOTH-SIDES FETCH (per-rule price_side support)
-    // ============================================================
-
-    /**
-     * Fuzzwork batch fetch that returns BOTH sides per type. The single-
-     * side fuzzworkFetch retains its existing API for callers that only
-     * need one side; this variant feeds the per-rule price_side feature.
-     */
-    protected function fuzzworkFetchBoth(array $typeIds, int $regionId): array
-    {
-        $prices = [];
-        $batches = 0;
-        $failed = 0;
-        $succeeded = 0;
-        $lastError = '';
-
-        foreach (array_chunk($typeIds, self::BATCH_SIZE) as $chunk) {
-            // Fail fast. Once two batches have failed with nothing getting
-            // through, the provider is down, and grinding through the rest
-            // (each with its own retries and timeout) would stall the request
-            // for minutes before reaching the same conclusion.
-            if ($failed >= 2 && $succeeded === 0) {
-                throw new PriceFetchException('Fuzzwork unreachable, abandoning remaining batches: ' . $lastError);
-            }
-
-            $batches++;
-            try {
-                $response = Http::timeout(self::HTTP_TIMEOUT)
-                    ->retry(self::HTTP_RETRIES, self::HTTP_RETRY_DELAY_MS, throw: false)
-                    ->acceptJson()
-                    ->get(self::FUZZWORK_URL, [
-                        'region' => $regionId,
-                        'types' => implode(',', $chunk),
-                    ]);
-
-                if (! $response->successful()) {
-                    $failed++;
-                    $lastError = 'HTTP ' . $response->status();
-                    Log::warning('[Buyback Manager] Fuzzwork (both) batch failed', [
-                        'status' => $response->status(),
-                        'region' => $regionId,
-                        'types' => count($chunk),
-                    ]);
-                    foreach ($chunk as $tid) {
-                        $prices[$tid] = ['buy' => 0.0, 'sell' => 0.0];
-                    }
-                    continue;
-                }
-
-                $succeeded++;
-                $data = $response->json() ?: [];
-                foreach ($chunk as $tid) {
-                    $row = is_array($data[$tid] ?? null) ? $data[$tid] : null;
-                    $prices[$tid] = [
-                        'buy' => (float) ($row['buy']['max'] ?? 0),
-                        'sell' => (float) ($row['sell']['min'] ?? 0),
-                    ];
-                }
-            } catch (PriceFetchException $e) {
-                throw $e;
-            } catch (\Throwable $e) {
-                $failed++;
-                $lastError = $e->getMessage();
-                Log::error('[Buyback Manager] Fuzzwork (both) exception: ' . $e->getMessage());
-                foreach ($chunk as $tid) {
-                    $prices[$tid] = ['buy' => 0.0, 'sell' => 0.0];
-                }
-            }
-        }
-
-        // Nothing got through: the provider is unreachable, not "these items
-        // are worthless". Throw so the caller can fall back to cache or
-        // refuse to quote instead of publishing a page of zeroes.
-        if ($batches > 0 && $failed === $batches) {
-            throw new PriceFetchException('Fuzzwork unreachable for all ' . $batches . ' batch(es): ' . $lastError);
+        foreach ($rows as $row) {
+            // A side last seen before the latest answer had no orders in it.
+            $buy = $row->buy_seen_at && $row->buy_seen_at->gte($row->checked_at) ? (float) $row->buy_price : 0.0;
+            $sell = $row->sell_seen_at && $row->sell_seen_at->gte($row->checked_at) ? (float) $row->sell_price : 0.0;
+            $prices[(int) $row->type_id] = self::sides($buy, $sell);
         }
 
         return $prices;
     }
 
     /**
-     * Janice per-type fetch that returns BOTH sides. immediatePrices
-     * carries both buyPrice + sellPrice in the same response, so this
-     * just preserves both instead of reducing.
-     */
-    protected function janiceFetchBoth(array $typeIds, BuybackSetting $setting): array
-    {
-        $apiKey = $setting->janice_api_key ?? null;
-        if (empty($apiKey)) {
-            throw new Exception('Janice API key not configured for corporation ' . $setting->corporation_id);
-        }
-        return $this->janiceFetchBothRaw(
-            $typeIds,
-            $this->resolveJaniceMarketParam($setting),
-            $apiKey
-        );
-    }
-
-    /**
-     * Janice both-sides fetch with explicit market + key — used by the
-     * primary path AND the Jita-fallback path (which needs to override
-     * the market to '2' regardless of the corp's configured market).
-     */
-    protected function janiceFetchBothRaw(array $typeIds, string $marketParam, string $apiKey): array
-    {
-        $prices = [];
-        $attempted = 0;
-        $failed = 0;
-        $succeeded = 0;
-        $lastError = '';
-
-        foreach ($typeIds as $typeId) {
-            // Janice is queried one type at a time, so a dead endpoint would
-            // otherwise burn a timeout per item. Give up after three straight
-            // failures with nothing succeeding.
-            if ($failed >= 3 && $succeeded === 0) {
-                throw new PriceFetchException('Janice unreachable, abandoning remaining lookups: ' . $lastError);
-            }
-
-            $attempted++;
-            try {
-                $url = sprintf('%s/%d?market=%s', self::JANICE_PRICER_URL, $typeId, $marketParam);
-                $response = Http::timeout(self::HTTP_TIMEOUT)
-                    ->retry(self::HTTP_RETRIES, self::HTTP_RETRY_DELAY_MS, throw: false)
-                    ->withHeaders([
-                        'X-ApiKey' => $apiKey,
-                        'accept' => 'application/json',
-                    ])
-                    ->get($url);
-
-                // A rejected key is a configuration fault, not a missing
-                // price. Fail immediately and say so, rather than quietly
-                // pricing the whole list at zero.
-                if (in_array($response->status(), [401, 403], true)) {
-                    throw new PriceFetchException(
-                        'Janice rejected the API key (HTTP ' . $response->status() . '). Check the key in the corporation settings.'
-                    );
-                }
-
-                if (! $response->successful()) {
-                    $failed++;
-                    $lastError = 'HTTP ' . $response->status();
-                    Log::warning('[Buyback Manager] Janice (both) failed for type ' . $typeId . ': ' . $lastError);
-                    $prices[$typeId] = ['buy' => 0.0, 'sell' => 0.0];
-                    usleep(self::JANICE_RATE_LIMIT_MICROSECONDS);
-                    continue;
-                }
-
-                $succeeded++;
-                $data = $response->json();
-                $imm = $data['immediatePrices'] ?? [];
-                $prices[$typeId] = [
-                    'buy' => (float) ($imm['buyPrice'] ?? 0),
-                    'sell' => (float) ($imm['sellPrice'] ?? 0),
-                ];
-                usleep(self::JANICE_RATE_LIMIT_MICROSECONDS);
-            } catch (PriceFetchException $e) {
-                throw $e;
-            } catch (\Throwable $e) {
-                $failed++;
-                $lastError = $e->getMessage();
-                Log::error('[Buyback Manager] Janice (both) fetch exception for ' . $typeId . ': ' . $e->getMessage());
-                $prices[$typeId] = ['buy' => 0.0, 'sell' => 0.0];
-            }
-        }
-
-        // Every single lookup failed: treat it as the provider being down.
-        if ($attempted > 0 && $failed === $attempted) {
-            throw new PriceFetchException('Janice unreachable for all ' . $attempted . ' lookup(s): ' . $lastError);
-        }
-
-        return $prices;
-    }
-
-    /**
-     * Manager Core both-sides fetch. Uses priceType='both' on the
-     * pricing.getPrices bridge capability so we get buy + sell stats
-     * in one round-trip. Lazy subscribe-on-encounter still fires.
-     */
-    protected function mcFetchBoth(array $typeIds, BuybackSetting $setting): array
-    {
-        if (! ManagerCoreIntegration::isAvailable()) {
-            throw new Exception('Manager Core is not installed');
-        }
-
-        $market = $this->resolveMcMarket($setting);
-        // immediateRefresh=false matches the single-side path above —
-        // avoid queue-flooding RefreshMarketPricesJob during contract
-        // sync. MC's 4h cron + Jita fallback cover the cold-start gap.
-        $this->subscribeToManagerCore($typeIds, $market, false);
-
-        return $this->mcFetchBothAtMarket(
-            $typeIds,
-            $market,
-            $setting->manager_core_variant ?? 'min'
-        );
-    }
-
-    /**
-     * Resolve the effective MC market for this corp.
+     * The last real price of each side, however old, for standing in when
+     * nothing can be asked.
      *
-     * Precedence:
-     *   1. An ADMIN override in MC's Pricing Preferences UI
-     *      (manager_core_pricing_preferences.admin_overridden = true).
-     *      This is the cross-plugin admin override the operator asked
-     *      for: set the market once in MC and it wins over BB's setting.
-     *   2. BB's own manager_core_market setting.
-     *   3. 'jita'.
-     *
-     * Read directly from MC's table (guarded by Schema::hasTable),
-     * consistent with how loadManagerCoreMarkets reads
-     * manager_core_markets. We only honour the row when admin_overridden
-     * is true — a plugin-default registration (admin_overridden=false)
-     * mirrors BB's own setting, so deferring to it would be a no-op at
-     * best and stale at worst.
+     * @return array<int, array{buy: ?float, sell: ?float}>
      */
-    protected function resolveMcMarket(BuybackSetting $setting): string
+    protected function lastCachedPrices(string $provider, string $market, array $typeIds): array
     {
-        $market = $setting->manager_core_market ?: 'jita';
+        $typeIds = $this->cleanIds($typeIds);
+        if (empty($typeIds)) {
+            return [];
+        }
 
         try {
-            if (Schema::hasTable('manager_core_pricing_preferences')) {
-                $pref = DB::table('manager_core_pricing_preferences')
-                    ->where('plugin_key', 'buyback-manager')
-                    ->first();
-                if ($pref && (int) ($pref->admin_overridden ?? 0) === 1 && ! empty($pref->market)) {
-                    return (string) $pref->market;
+            $rows = BuybackPriceCache::where('market', $this->cacheMarket($provider, $market))
+                ->whereIn('type_id', $typeIds)
+                ->get();
+        } catch (\Throwable $e) {
+            Log::warning('[Buyback Manager] Could not read cached prices: ' . $e->getMessage());
+
+            return [];
+        }
+
+        $prices = [];
+        foreach ($rows as $row) {
+            $sides = self::sides((float) ($row->buy_price ?? 0), (float) ($row->sell_price ?? 0));
+            if ($sides !== null) {
+                $prices[(int) $row->type_id] = $sides;
+            }
+        }
+
+        return $prices;
+    }
+
+    protected function countPricedInCache(string $provider, string $market, array $typeIds): int
+    {
+        if (empty($typeIds)) {
+            return 0;
+        }
+
+        try {
+            return BuybackPriceCache::where('market', $this->cacheMarket($provider, $market))
+                ->whereIn('type_id', $typeIds)
+                ->where(function ($q) {
+                    $q->whereNotNull('buy_price')->orWhereNotNull('sell_price');
+                })
+                ->count();
+        } catch (\Throwable $e) {
+            // Counting nothing leaves the provider unblamed, which is the
+            // safe side for a status note.
+            return 0;
+        }
+    }
+
+    /**
+     * Write an answer to the cache. A side only changes when it has a real
+     * price, so an answer with no orders on one side never wipes the last
+     * price there; it only moves checked_at past it.
+     */
+    protected function rememberPrices(string $provider, string $market, array $answer): void
+    {
+        if (empty($answer['answered'])) {
+            return;
+        }
+
+        $key = $this->cacheMarket($provider, $market);
+        $now = Carbon::now()->toDateTimeString();
+        $groups = [];
+
+        foreach ($answer['answered'] as $typeId) {
+            $sides = $answer['prices'][$typeId] ?? ['buy' => null, 'sell' => null];
+            $row = ['market' => $key, 'type_id' => (int) $typeId, 'provider' => $provider, 'checked_at' => $now];
+            $columns = ['provider', 'checked_at'];
+
+            foreach (['buy', 'sell'] as $side) {
+                if ($sides[$side] !== null) {
+                    $row[$side . '_price'] = $sides[$side];
+                    $row[$side . '_seen_at'] = $now;
+                    array_push($columns, $side . '_price', $side . '_seen_at');
+                }
+            }
+
+            // upsert needs the same columns on every row, so rows are grouped
+            // by which sides they carry.
+            $groupKey = implode(',', $columns);
+            $groups[$groupKey]['columns'] = $columns;
+            $groups[$groupKey]['rows'][] = $row;
+        }
+
+        try {
+            foreach ($groups as $group) {
+                foreach (array_chunk($group['rows'], 500) as $chunk) {
+                    BuybackPriceCache::upsert($chunk, ['market', 'type_id'], $group['columns']);
                 }
             }
         } catch (\Throwable $e) {
-            // Fall through to BB's own setting.
+            Log::warning('[Buyback Manager] Could not cache prices: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * The cache key for a market. Manager Core's own market keys are kept
+     * apart from hubs and region ids, which every provider shares.
+     */
+    public function cacheMarket(string $provider, string $market): string
+    {
+        if ($provider === self::PROVIDER_MANAGER_CORE && ! isset(self::HUB_REGIONS[$market])) {
+            return 'mc:' . $market;
         }
 
         return $market;
     }
 
-    /**
-     * MC both-sides fetch with explicit market + variant — shared
-     * between the primary path and the Jita-fallback path.
-     */
-    protected function mcFetchBothAtMarket(array $typeIds, string $market, string $variant): array
-    {
-        try {
-            $bridge = ManagerCoreIntegration::bridge();
-            $rawResult = $bridge->call(
-                'ManagerCore',
-                'pricing.getPrices',
-                $typeIds,
-                $market,
-                'both'
-            );
-        } catch (Exception $e) {
-            Log::warning('[Buyback Manager] MC mcFetchBoth threw: ' . $e->getMessage());
-            return array_fill_keys($typeIds, ['buy' => 0.0, 'sell' => 0.0]);
-        }
-
-        if (! is_array($rawResult)) {
-            return array_fill_keys($typeIds, ['buy' => 0.0, 'sell' => 0.0]);
-        }
-
-        $resultByType = $this->normaliseBridgeShape($rawResult, $typeIds);
-        $prices = [];
-        foreach ($typeIds as $tid) {
-            $entry = $resultByType[$tid] ?? null;
-            if ($entry === null) {
-                $prices[$tid] = ['buy' => 0.0, 'sell' => 0.0];
-                continue;
-            }
-
-            $hasBuySell = is_array($entry) && (array_key_exists('buy', $entry) || array_key_exists('sell', $entry));
-            if (! $hasBuySell) {
-                $prices[$tid] = ['buy' => 0.0, 'sell' => 0.0];
-                continue;
-            }
-
-            $buyStats = $entry['buy'] ?? null;
-            $sellStats = $entry['sell'] ?? null;
-            $prices[$tid] = [
-                'buy' => $buyStats ? $this->extractVariant($buyStats, $variant) : 0.0,
-                'sell' => $sellStats ? $this->extractVariant($sellStats, $variant) : 0.0,
-            ];
-        }
-        return $prices;
-    }
-
-    /**
-     * Jita fallback for the both-sides path. Retries Jita for any type
-     * where BOTH sides came back zero from the configured market.
-     */
-    protected function applyJitaFallbackBoth(string $provider, array $prices, array $typeIds, BuybackSetting $setting): array
-    {
-        if (! ($setting->fallback_to_jita ?? true)) {
-            return $prices;
-        }
-
-        $currentMarket = match ($provider) {
-            self::PROVIDER_JANICE => $this->resolveJaniceMarketParam($setting) === '2' ? 'jita' : 'amarr',
-            self::PROVIDER_MANAGER_CORE => $setting->manager_core_market ?? 'jita',
-            default => $this->resolveRegionId($setting) === self::DEFAULT_REGION_ID ? 'jita' : 'other',
-        };
-        if ($currentMarket === 'jita') {
-            return $prices;
-        }
-
-        $zeroTypeIds = [];
-        foreach ($typeIds as $tid) {
-            $entry = $prices[$tid] ?? ['buy' => 0, 'sell' => 0];
-            if (($entry['buy'] ?? 0) <= 0 && ($entry['sell'] ?? 0) <= 0) {
-                $zeroTypeIds[] = $tid;
-            }
-        }
-        if (empty($zeroTypeIds)) {
-            return $prices;
-        }
-
-        $jitaPrices = [];
-        try {
-            $jitaPrices = match ($provider) {
-                self::PROVIDER_JANICE => $this->janiceFetchBothRaw($zeroTypeIds, '2', $setting->janice_api_key),
-                self::PROVIDER_MANAGER_CORE => $this->mcFetchBothAtMarket($zeroTypeIds, 'jita', $setting->manager_core_variant ?? 'min'),
-                default => $this->fuzzworkFetchBoth($zeroTypeIds, self::DEFAULT_REGION_ID),
-            };
-        } catch (Exception $e) {
-            Log::warning('[Buyback Manager] Jita fallback (both sides) failed: ' . $e->getMessage());
-        }
-
-        $recovered = 0;
-        foreach ($jitaPrices as $tid => $sides) {
-            if (($sides['buy'] ?? 0) > 0 || ($sides['sell'] ?? 0) > 0) {
-                $prices[$tid] = $sides;
-                $recovered++;
-            }
-        }
-
-        // Record every fallback, not just the ones that error. A quiet
-        // fallback still means the configured market returned nothing, which
-        // is exactly what an operator needs to see in the SeAT log before it
-        // becomes a pricing complaint.
-        $summary = [
-            'provider' => $provider,
-            'market' => $currentMarket,
-            'corporation_id' => $setting->corporation_id,
-            'missing_at_configured_market' => count($zeroTypeIds),
-            'recovered_at_jita' => $recovered,
-        ];
-
-        if ($recovered === 0) {
-            Log::warning('[Buyback Manager] Jita fallback (both sides) recovered nothing', $summary);
-        } elseif ($recovered < count($zeroTypeIds)) {
-            Log::warning('[Buyback Manager] Jita fallback (both sides) recovered only some prices', $summary);
-        } else {
-            Log::info('[Buyback Manager] Jita fallback (both sides) recovered all missing prices', $summary);
-        }
-
-        return $prices;
-    }
-
     // ============================================================
-    // LOCAL CACHE
+    // STATUS AND ALERTS
     // ============================================================
 
     /**
-     * Local-cache fallback for the both-sides path. Called by
-     * getPricesBothSides when the upstream provider throws. Returns
-     * the shape [typeId => ['buy' => float, 'sell' => float]] using
-     * whichever of the cache's buy_price / sell_price columns has
-     * data. Missing rows become zero pairs.
+     * How the corporation's provider is doing, for the settings and
+     * Diagnostics pages.
+     */
+    public function providerStatus(BuybackSetting $setting): ?BuybackPriceStatus
+    {
+        try {
+            return BuybackPriceStatus::where('setting_id', $setting->id)->first();
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Whether an outcome is news. A provider that is down stays down for a
+     * while and a message on every quote would be noise nobody reads, so only
+     * the change is announced: failing, answering again, or while it is down
+     * its fallback starting or stopping answering.
+     */
+    public static function statusChanged(bool $wasFailing, ?string $previousFallback, bool $previousFallbackOk, bool $ok, ?string $fallback, bool $fallbackOk): bool
+    {
+        if ($ok) {
+            return $wasFailing;
+        }
+
+        return ! $wasFailing || $previousFallback !== $fallback || $previousFallbackOk !== $fallbackOk;
+    }
+
+    /**
+     * Remember how the provider did, and say so once when that changes. An
+     * item with no price is not a failure and never gets here.
+     */
+    protected function recordOutcome(BuybackSetting $setting, string $provider, string $market, bool $ok, ?string $error = null, array $fallback = []): void
+    {
+        if (! $setting->exists) {
+            return;
+        }
+
+        try {
+            Cache::lock('buyback-manager:price-status:' . $setting->id, 10)->get(function () use ($setting, $provider, $market, $ok, $error, $fallback) {
+                $status = BuybackPriceStatus::firstOrNew(['setting_id' => $setting->id]);
+                $wasFailing = $status->exists && $status->failing;
+
+                $fallbackKey = $ok ? null : ($fallback['provider'] ?? null);
+                $fallbackOk = $fallbackKey !== null && ! empty($fallback['ok']);
+                $fallbackError = $ok ? null : ($fallbackKey !== null ? ($fallback['error'] ?? null) : ($fallback['why'] ?? null));
+
+                $changed = self::statusChanged($wasFailing, $status->fallback, (bool) $status->fallback_ok, $ok, $fallbackKey, $fallbackOk);
+
+                $now = Carbon::now();
+                $since = $ok ? null : ($wasFailing && $status->since ? $status->since : $now);
+                $failedSince = $status->since;
+                $lastSuccess = $ok ? $now : $status->last_success;
+
+                $status->fill([
+                    'provider' => $provider,
+                    'market' => $market,
+                    'failing' => ! $ok,
+                    'error' => $ok ? null : Str::limit((string) $error, 1000),
+                    'since' => $since,
+                    'last_success' => $lastSuccess,
+                    'fallback' => $fallbackKey,
+                    'fallback_ok' => $fallbackOk,
+                    'fallback_error' => $fallbackError !== null ? Str::limit((string) $fallbackError, 1000) : null,
+                ])->save();
+
+                if (! $changed) {
+                    return;
+                }
+
+                $this->announce($ok ? 'buyback.pricing.recovered' : 'buyback.pricing.failing', [
+                    'corporation_id' => (int) $setting->corporation_id,
+                    'corporation_name' => optional($setting->corporation)->name,
+                    'provider' => $provider,
+                    'market' => $this->marketName($market),
+                    'error' => $ok ? null : $error,
+                    'since' => ($ok ? $failedSince : $since)?->toIso8601String(),
+                    'last_success' => $lastSuccess?->toIso8601String(),
+                    'fallback' => $fallbackKey !== null
+                        ? $this->providerLabel($fallbackKey) . ', ' . $this->marketName((string) $fallback['market'])
+                        : null,
+                    'fallback_ok' => $fallbackOk,
+                    'fallback_error' => $fallbackError,
+                    'fallback_note' => $fallbackKey !== null ? ($fallback['note'] ?? null) : null,
+                    'advice' => $ok ? null : $this->advice($provider),
+                    'at' => $now->toIso8601String(),
+                ]);
+            });
+        } catch (\Throwable $e) {
+            // Pricing a quote must not fall over because a status note or an
+            // alert did.
+            Log::warning('[Buyback Manager] Could not record the price provider status: ' . $e->getMessage());
+        }
+    }
+
+    protected function advice(string $provider): string
+    {
+        if ($provider === self::PROVIDER_MANAGER_CORE && ! $this->managerCoreInstalled()) {
+            return 'Manager Core is set as the price provider but is not installed. Install it again, or pick another provider under Buyback Settings.';
+        }
+
+        return 'Test the provider under Buyback Settings, or pick another one. The Diagnostics page shows the last error.';
+    }
+
+    protected function announce(string $eventName, array $payload): void
+    {
+        try {
+            app(WebhookDispatcher::class)->dispatch($eventName, $payload);
+        } catch (\Throwable $e) {
+            Log::warning('[Buyback Manager] Price provider alert could not be sent: ' . $e->getMessage());
+        }
+    }
+
+    // ============================================================
+    // MANAGER CORE SUBSCRIPTIONS
+    // ============================================================
+
+    /**
+     * Ask Manager Core to keep these items priced at this market. Only items
+     * the local ledger has not seen reach the bridge, so a busy quote page
+     * does not call it on every quote.
      *
-     * The legacy single-side cachePrices/getPricesFromLocalCache pair
-     * was removed in the v1.0.0 audit because the single-side write
-     * stored the same scalar in all three columns (buy_price,
-     * sell_price, average_price), corrupting the side-distinction
-     * the cache table was meant to preserve. All cache writes now
-     * happen inside getPricesBothSides which has access to both
-     * sides authoritatively.
+     * @param  int[]  $typeIds
+     * @return int  Count of newly subscribed items
      */
-    protected function getPricesFromLocalCacheBothSides(array $typeIds, BuybackSetting $setting): array
+    public function subscribeToManagerCore(array $typeIds, string $market = 'jita', bool $immediateRefresh = false): int
     {
-        $regionId = $this->resolveRegionId($setting);
-        $rows = BuybackPriceCache::where('region_id', $regionId)
-            ->whereIn('type_id', $typeIds)
-            ->get()
-            ->keyBy('type_id');
-
-        $out = [];
-        foreach ($typeIds as $tid) {
-            $row = $rows->get($tid);
-            $out[$tid] = $row ? [
-                'buy' => (float) $row->buy_price,
-                'sell' => (float) $row->sell_price,
-            ] : ['buy' => 0.0, 'sell' => 0.0];
+        if (! $this->managerCoreInstalled()) {
+            return 0;
         }
-        return $out;
+
+        try {
+            $newTypeIds = BuybackSubscribedType::missingFrom($typeIds, $market);
+            if (empty($newTypeIds)) {
+                return 0;
+            }
+
+            ManagerCoreIntegration::bridge()->call(
+                'ManagerCore',
+                'pricing.subscribeTypes',
+                self::MC_PLUGIN_KEY,
+                $newTypeIds,
+                $market,
+                1,
+                $immediateRefresh
+            );
+            BuybackSubscribedType::markSubscribed($newTypeIds, $market);
+
+            Log::info('[Buyback Manager] Subscribed ' . count($newTypeIds) . " new types to Manager Core market '{$market}'");
+
+            return count($newTypeIds);
+        } catch (\Throwable $e) {
+            Log::warning('[Buyback Manager] Manager Core subscribe failed: ' . $e->getMessage());
+
+            return 0;
+        }
+    }
+
+    public function unsubscribeFromManagerCore(): int
+    {
+        if (! $this->managerCoreInstalled()) {
+            return 0;
+        }
+
+        try {
+            $count = ManagerCoreIntegration::bridge()->call('ManagerCore', 'pricing.unsubscribeTypes', self::MC_PLUGIN_KEY, null);
+            BuybackSubscribedType::query()->delete();
+            Log::info('[Buyback Manager] Unsubscribed all types from Manager Core (count=' . (int) $count . ')');
+
+            return (int) $count;
+        } catch (\Throwable $e) {
+            Log::warning('[Buyback Manager] Manager Core unsubscribe failed: ' . $e->getMessage());
+
+            return 0;
+        }
     }
 
     // ============================================================
     // HELPERS
     // ============================================================
 
-    protected function resolveRegionId(BuybackSetting $setting): int
-    {
-        if ($setting->price_source === 'region' && $setting->region_id) {
-            return (int) $setting->region_id;
-        }
-        return self::DEFAULT_REGION_ID;
-    }
-
     /**
-     * Translate the corp's chosen Janice market to Janice's URL parameter:
-     *   '2' = Jita (default), '1' = Amarr.
-     */
-    protected function resolveJaniceMarketParam(BuybackSetting $setting): string
-    {
-        $market = $setting->janice_market ?? 'jita';
-        return $market === 'amarr' ? '1' : '2';
-    }
-
-    /**
-     * Side preference is derived from janice_price_method when provider is
-     * Janice; otherwise defaults to 'sell' (cheapest sell-side is the right
-     * conservative valuation for a buyback program: what the operator
-     * could rebuy the item for in the open market).
+     * Both sides of an answer, null for a side with no orders, or null when
+     * neither side has a price.
      *
-     * Returns one of: 'buy', 'sell', 'split'. AppraisalService::
-     * resolveDefaultSide uses the same vocabulary so per-rule price_side
-     * overrides and setting-wide defaults compose cleanly.
+     * @return array{buy: ?float, sell: ?float}|null
      */
-    protected function resolveSidePreference(BuybackSetting $setting): string
+    public static function sides(float $buy, float $sell): ?array
     {
-        if ($setting->price_provider === self::PROVIDER_JANICE) {
-            return $setting->janice_price_method ?? 'buy';
+        if ($buy <= 0 && $sell <= 0) {
+            return null;
         }
-        return 'sell';
+
+        return [
+            'buy' => $buy > 0 ? $buy : null,
+            'sell' => $sell > 0 ? $sell : null,
+        ];
     }
 
-    protected function fillMissingWithZero(array $prices, array $typeIds): array
+    protected function emptyAnswer(): array
     {
-        foreach ($typeIds as $tid) {
-            if (!isset($prices[$tid])) {
-                $prices[$tid] = 0;
+        return ['prices' => [], 'answered' => [], 'unanswered' => [], 'errors' => 0, 'error' => null];
+    }
+
+    protected function noteRequestError(array &$answer, array $batch, string $error): void
+    {
+        $answer['errors']++;
+        $answer['error'] = $error;
+        array_push($answer['unanswered'], ...$batch);
+
+        Log::warning('[Buyback Manager] Price request failed: ' . $error, ['types' => count($batch)]);
+    }
+
+    /**
+     * @return int[]
+     */
+    protected function cleanIds(array $typeIds): array
+    {
+        return array_values(array_unique(array_filter(array_map('intval', $typeIds), fn ($id) => $id > 0)));
+    }
+
+    /**
+     * Manager Core answers [typeId => stats]. An older Manager Core collapsed
+     * a one-item answer to the bare stats, so that is wrapped back up.
+     */
+    protected static function normaliseBridgeShape(array $result, array $typeIds): array
+    {
+        $asked = array_flip($typeIds);
+        foreach (array_keys($result) as $key) {
+            if (! isset($asked[$key])) {
+                return count($typeIds) === 1 ? [$typeIds[0] => $result] : [];
             }
         }
-        return $prices;
+
+        return $result;
+    }
+
+    protected static function isStale(?array $stats, Carbon $threshold): bool
+    {
+        $updatedAt = $stats['updated_at'] ?? null;
+        if ($updatedAt === null) {
+            return false;
+        }
+
+        try {
+            return ($updatedAt instanceof \DateTimeInterface ? Carbon::instance($updatedAt) : Carbon::parse((string) $updatedAt))->lt($threshold);
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 }

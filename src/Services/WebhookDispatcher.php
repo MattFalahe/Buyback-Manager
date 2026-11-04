@@ -45,6 +45,10 @@ class WebhookDispatcher
         'buyback.contract.completed' => BuybackWebhook::CATEGORY_CONTRACT_COMPLETED,
         'buyback.contract.cancelled' => BuybackWebhook::CATEGORY_CONTRACT_CANCELLED,
         'buyback.contract.nudge' => BuybackWebhook::CATEGORY_CONTRACT_NUDGE,
+        // The price provider failing, and answering again. Each is sent once
+        // per change, so a provider that stays down is announced once.
+        'buyback.pricing.failing' => BuybackWebhook::CATEGORY_PRICE_PROVIDER,
+        'buyback.pricing.recovered' => BuybackWebhook::CATEGORY_PRICE_PROVIDER,
     ];
 
     private const HTTP_TIMEOUT = 10;
@@ -202,7 +206,9 @@ class WebhookDispatcher
     {
         $title = $this->titleFor($eventName, $payload);
         $color = $this->colorFor($eventName);
-        $fields = $this->fieldsFor($eventName, $payload);
+        $fields = str_starts_with($eventName, 'buyback.pricing.')
+            ? $this->pricingFields($eventName, $payload)
+            : $this->fieldsFor($eventName, $payload);
 
         $embed = [
             'title' => $title,
@@ -226,13 +232,18 @@ class WebhookDispatcher
             ? number_format((float) $payload['total_buyback_value'], 2) . ' ISK'
             : null;
 
+        $provider = $this->providerLabel((string) ($payload['provider'] ?? ''));
+        $corporation = ! empty($payload['corporation_name']) ? ' for ' . $payload['corporation_name'] : '';
+
         return match ($eventName) {
-            'buyback.contract.matched' => 'New buyback contract' . ($contractId ? " #{$contractId}" : '') . ($valueText ? " — {$valueText}" : ''),
+            'buyback.contract.matched' => 'New buyback contract' . ($contractId ? " #{$contractId}" : '') . ($valueText ? ": {$valueText}" : ''),
             'buyback.contract.flagged' => 'Buyback contract needs review' . ($contractId ? " #{$contractId}" : ''),
             'buyback.contract.unmatched' => 'Unmatched buyback attempt' . ($contractId ? " (contract #{$contractId})" : ''),
-            'buyback.contract.completed' => 'Buyback completed' . ($valueText ? " — {$valueText}" : ''),
+            'buyback.contract.completed' => 'Buyback completed' . ($valueText ? ": {$valueText}" : ''),
             'buyback.contract.cancelled' => 'Buyback contract cancelled' . ($contractId ? " #{$contractId}" : ''),
             'buyback.contract.nudge' => 'Buyback contract awaiting action' . ($contractId ? " #{$contractId}" : ''),
+            'buyback.pricing.failing' => "Buyback prices: {$provider} is not answering{$corporation}",
+            'buyback.pricing.recovered' => "Buyback prices: {$provider} is answering again{$corporation}",
             default => 'Buyback event: ' . $eventName,
         };
     }
@@ -247,9 +258,56 @@ class WebhookDispatcher
             'buyback.contract.unmatched',
             'buyback.contract.cancelled',
             'buyback.contract.nudge' => 0xeab308,
-            'buyback.contract.flagged' => 0xef4444,
+            'buyback.contract.flagged',
+            'buyback.pricing.failing' => 0xef4444,
+            'buyback.pricing.recovered' => 0x22c55e,
             default => 0x6366f1,
         };
+    }
+
+    /**
+     * What failed and since when, and what prices quotes until it answers.
+     */
+    private function pricingFields(string $eventName, array $payload): array
+    {
+        $fields = [];
+        $add = function (string $name, ?string $value, bool $inline = true) use (&$fields) {
+            if ($value !== null && $value !== '') {
+                $fields[] = ['name' => $name, 'value' => mb_substr($value, 0, 1024), 'inline' => $inline];
+            }
+        };
+
+        $add('Provider', $this->providerLabel((string) ($payload['provider'] ?? ''))
+            . (! empty($payload['market']) ? ' @ ' . $payload['market'] : ''));
+
+        if ($eventName === 'buyback.pricing.recovered') {
+            $add('Not answering since', ! empty($payload['since']) ? $this->formatTime((string) $payload['since']) : null);
+
+            return $fields;
+        }
+
+        $add('Since', ! empty($payload['since']) ? $this->formatTime((string) $payload['since']) : null);
+        $add('Last answered', ! empty($payload['last_success']) ? $this->formatTime((string) $payload['last_success']) : 'Never');
+        $add('Error', $payload['error'] ?? null, false);
+
+        $cached = 'Anything else keeps the last cached price, and an item never priced is not accepted.';
+        if (empty($payload['fallback'])) {
+            // The reason is a sentence of its own: none set, or why the one
+            // set cannot run.
+            $meanwhile = (! empty($payload['fallback_error']) ? $payload['fallback_error'] : 'No fallback provider is set.')
+                . ' Quotes use the last cached prices, and an item never priced is not accepted.';
+        } elseif (! empty($payload['fallback_ok'])) {
+            $meanwhile = $payload['fallback'] . ' prices quotes. ' . $cached
+                . (! empty($payload['fallback_note']) ? ' ' . $payload['fallback_note'] : '');
+        } else {
+            $meanwhile = $payload['fallback'] . ' is not answering either'
+                . (! empty($payload['fallback_error']) ? ' (' . $payload['fallback_error'] . ')' : '')
+                . '. Quotes use the last cached prices, and an item never priced is not accepted.';
+        }
+        $add('Meanwhile', $meanwhile, false);
+        $add('What to do', $payload['advice'] ?? null, false);
+
+        return $fields;
     }
 
     private function fieldsFor(string $eventName, array $payload): array
@@ -395,12 +453,12 @@ class WebhookDispatcher
     }
 
     /**
-     * Render an expiry ISO timestamp as EVE (UTC) time plus Discord's
-     * locale-aware timestamp markdown, so each reader also sees the time in
-     * their own timezone and a live countdown. Falls back to the raw
-     * string if parsing fails.
+     * Render an ISO timestamp as EVE (UTC) time plus Discord's locale-aware
+     * timestamp markdown, so each reader also sees the time in their own
+     * timezone and how long ago it was. Falls back to the raw string if
+     * parsing fails.
      */
-    private function formatExpiry(string $iso): string
+    private function formatTime(string $iso): string
     {
         try {
             $ts = \Illuminate\Support\Carbon::parse($iso);

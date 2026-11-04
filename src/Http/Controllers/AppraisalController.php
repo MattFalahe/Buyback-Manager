@@ -2,7 +2,6 @@
 
 namespace BuybackManager\Http\Controllers;
 
-use BuybackManager\Integrations\ManagerCoreIntegration;
 use BuybackManager\Models\BuybackAppraisal;
 use BuybackManager\Models\BuybackSetting;
 use BuybackManager\Services\AppraisalRecordService;
@@ -41,9 +40,7 @@ class AppraisalController extends Controller
             ->get()
             ->pluck('corporation.name', 'corporation_id');
 
-        $managerCoreAvailable = ManagerCoreIntegration::isAvailable();
-
-        return view('buyback-manager::appraisal.index', compact('corporations', 'managerCoreAvailable'));
+        return view('buyback-manager::appraisal.index', compact('corporations'));
     }
 
     /**
@@ -53,7 +50,7 @@ class AppraisalController extends Controller
     {
         $request->validate([
             'corporation_id' => 'required|integer|exists:corporation_infos,corporation_id',
-            'items' => 'required|string|min:3',
+            'items' => 'required|string|min:3|max:200000',
         ]);
 
         $corporationId = (int) $request->input('corporation_id');

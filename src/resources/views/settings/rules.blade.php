@@ -319,14 +319,14 @@
                 });
                 typeIdSelect.prop('disabled', false);
             } else if (type === 'item') {
-                // SDE has 30k+ types — render a numeric input instead of a 30k-row dropdown.
+                // SDE has 30k+ types, so render a numeric input instead of a 30k-row dropdown.
                 typeIdSelect.hide().prop('disabled', true).removeAttr('name');
                 manualInput.show().prop('name', 'type_id').prop('required', true);
                 hint.show();
             }
         });
 
-        // Excluded checkbox handler — disable percentage AND price_side
+        // Excluded checkbox handler: disable percentage AND price_side
         // for excluded rules (they're meaningless when the rule rejects
         // the item entirely).
         $('#excluded').on('change', function() {

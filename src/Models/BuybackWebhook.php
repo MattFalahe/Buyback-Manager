@@ -31,6 +31,8 @@ class BuybackWebhook extends Model
     public const CATEGORY_CONTRACT_CANCELLED = 'contract_cancelled';
     /** A matched contract has sat unaccepted past the auto-nudge window. */
     public const CATEGORY_CONTRACT_NUDGE = 'contract_nudge';
+    /** The price provider stopped answering, or answers again. */
+    public const CATEGORY_PRICE_PROVIDER = 'price_provider';
 
     public const ALL_CATEGORIES = [
         self::CATEGORY_CONTRACT_MATCHED,
@@ -39,6 +41,7 @@ class BuybackWebhook extends Model
         self::CATEGORY_CONTRACT_COMPLETED,
         self::CATEGORY_CONTRACT_CANCELLED,
         self::CATEGORY_CONTRACT_NUDGE,
+        self::CATEGORY_PRICE_PROVIDER,
     ];
 
     /**
@@ -88,6 +91,12 @@ class BuybackWebhook extends Model
                 'events' => ['buyback.contract.nudge'],
                 'color' => '#eab308',
             ],
+            self::CATEGORY_PRICE_PROVIDER => [
+                'label' => 'Pricing problems',
+                'help' => 'The price provider stopped answering, and again when it answers. Meanwhile quotes use the fallback provider or the last cached prices.',
+                'events' => ['buyback.pricing.failing', 'buyback.pricing.recovered'],
+                'color' => '#ef4444',
+            ],
         ];
     }
 
@@ -114,6 +123,11 @@ class BuybackWebhook extends Model
                 'title' => 'Stalled and cancelled',
                 'icon' => 'fa-clock',
                 'keys' => [self::CATEGORY_CONTRACT_CANCELLED, self::CATEGORY_CONTRACT_NUDGE],
+            ],
+            [
+                'title' => 'Pricing',
+                'icon' => 'fa-tags',
+                'keys' => [self::CATEGORY_PRICE_PROVIDER],
             ],
         ];
     }

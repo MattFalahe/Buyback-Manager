@@ -2,7 +2,7 @@
 
 A buyback programme for [SeAT](https://github.com/eveseat/seat) 5.x. Let your corporation buy items at a configurable percentage of market value, with an appraise-then-contract workflow that **needs no login at all** for the person selling.
 
-Buyback Manager works standalone on free Fuzzwork pricing or your own Janice key. [Manager Core](https://github.com/MattFalahe/manager-core) is an optional upgrade that adds regional market pricing, a shared price cache, and a cross-plugin event feed. Nothing here requires it.
+Buyback Manager works standalone on free Fuzzwork pricing or your own Janice key. [Manager Core](https://github.com/MattFalahe/manager-core) is optional: once it is installed it can be picked as the price provider, for its markets and citadels, and other plugins can follow buyback events through it. Nothing here requires it.
 
 > **Mental model:** an appraisal is a price quote with a receipt number. The receipt number (the appraisal key) is how an in-game contract is matched back to the quote it came from, so you can tell whether the seller asked for what you actually offered.
 
@@ -10,7 +10,7 @@ Buyback Manager works standalone on free Fuzzwork pricing or your own Janice key
 
 ## How it works
 
-1. A seller pastes their items into the **Appraisal** tool, or into the public page with no account at all.
+1. A seller pastes their items into the **Appraisal** tool, or into the public page with no account at all: an inventory, assets or contract copy, one item per line, or an EFT fit.
 2. They get a valuation plus a short single-use **appraisal key** (for example `bb-zj2cc262`) and a shareable page with the full breakdown.
 3. They create an in-game item exchange **contract** to the target you name, set the price to the quoted value, and paste the key into the contract's **Description**.
 4. Buyback Manager **syncs contracts** on a schedule, resolves the key back to the appraisal, and compares the two.
@@ -42,9 +42,12 @@ Pick who receives the contracts, matching EVE's own visibility rules:
 - **Specific Player** (visible only to the receiver): reads the designated character's personal feed.
 
 ### 💰 Flexible pricing
-- Providers: **Fuzzwork** (free, no key), **Janice** (API key, regional markets), or **Manager Core** (optional).
+- Providers: **Fuzzwork** (free, no key, at Jita, Amarr, Dodixie, Hek, Rens or any region), **Janice** (API key, at Jita or Amarr), or **Manager Core** (offered only when it is installed, at any market added there, citadels included).
 - Both-sides pricing (buy and sell per item) so rules can apply to either side of the spread, or the midpoint.
-- Three-layer fallback (configured market, then a Jita fallback, then the local cache) so one upstream outage never zeroes a contract.
+- Each price comes from the provider, then from a fallback provider when the provider fails outright or cannot answer for an item, then from the last cached price. Fuzzwork and Janice answers are reused for a per-corporation cache TTL.
+- An item nothing can price is listed as not accepted with *no market price*, never valued at zero, and a quote says where its prices came from when they did not all come from the provider.
+- A **Pricing problems** Discord alert when the provider stops answering and again when it answers, once per change rather than on every quote.
+- **Test Connection** prices Tritanium at the chosen market before you save. A saved Janice key is never shown again.
 
 ### 🧮 Pricing rules
 - One page holds the **default rate**, the **price exceptions** and the **buyback exclusions**, and a new rule lands in whichever block it belongs to.
@@ -54,13 +57,13 @@ Pick who receives the contracts, matching EVE's own visibility rules:
 - Groups and categories come from EVE's own item database, and groups are narrower than their names suggest: a category such as *Charge* covers all ammunition, while covering "all missiles" takes several group rules. Faction and Tech II variants frequently sit in their own group, so confirm which group an item really belongs to before relying on a group rule. If an appraisal prices an item at your base percentage, no rule matched it.
 
 ### 📍 Location restrictions
-- Optionally restrict buyback to specific **regions, constellations, systems, stations, or citadels** — mix freely, since a region entry covers everything inside it.
+- Optionally restrict buyback to specific **regions, constellations, systems, stations, or citadels**, mixed freely, since a region entry covers everything inside it.
 - Contracts from anywhere else are flagged for review, and the accepted locations are shown on the public page and every appraisal page. A searchable picker resolves names from the SDE.
 
 ### 🔔 Discord notifications
-- Per-corporation or global webhooks with six subscribable categories.
+- Per-corporation or global webhooks with seven subscribable categories, including Pricing problems.
 - Role mentions via a picker that reads your SeAT Discord integration, plus a Routing Map that shows which webhook announces which category.
-- De-duplicated and rate-limited delivery, and a contract's first sighting fires exactly one of matched, flagged or unmatched. No double pings.
+- De-duplicated and rate-limited delivery, and a contract's first sighting fires exactly one of matched, needs review or key did not resolve. No double pings.
 
 ### 🌐 Public landing page
 - An optional per-corporation page at `/buyback/{ticker}` that advertises your rates, runs the no-login appraisal, and issues keys.
@@ -74,6 +77,7 @@ Pick who receives the contracts, matching EVE's own visibility rules:
 
 ### 🩺 Diagnostics
 - An admin-only Diagnostic page with Health Checks, Master Test, System Validation, Settings Health, Data Integrity, Contract Trace, and Notification Testing.
+- Health Checks shows how each corporation's price provider last answered, and Settings Health lists any provider or fallback that cannot run.
 - The Contract Trace tab walks a single contract through the whole pipeline.
 
 ### 📖 In-app help
@@ -85,7 +89,7 @@ Pick who receives the contracts, matching EVE's own visibility rules:
 
 | Requirement | Version |
 |---|---|
-| PHP | ^8.0 |
+| PHP | ^8.1 |
 | SeAT | ^5.0 (`eveseat/web`, `eveseat/services`) |
 | Laravel | ^10.0 |
 | Manager Core | Optional (`mattfalahe/manager-core`) |
@@ -135,8 +139,8 @@ Selling needs no permission at all: the public page works without an account. Th
 
 When [Manager Core](https://github.com/MattFalahe/manager-core) is installed, Buyback Manager detects it automatically and adds:
 
-- **Regional market pricing** through Manager Core's pricing service and shared cache.
-- **Pricing preferences** in Manager Core, where an admin can override the market centrally.
+- **A price provider** for any market added in Manager Core, citadels included. Items it has not priced yet are priced by the fallback provider for that quote, and Buyback Manager asks Manager Core to keep them priced.
+- **Pricing preferences** in Manager Core, where an admin can override Buyback Manager's market centrally. The Settings page says when an override is in force.
 - **EventBus** publishing of `buyback.contract.matched / flagged / unmatched / completed / cancelled / nudge` for other plugins to consume.
 
 Install or uninstall Manager Core in any order. There is no composer dependency between them.
@@ -149,7 +153,11 @@ Install or uninstall Manager Core in any order. There is no composer dependency 
 |---|---|---|
 | `buyback-manager:sync-contracts` | every 15 minutes | Detect contracts, resolve appraisal keys, raise review flags, notify, nudge idle contracts, and prune old data. |
 
-It registers automatically. The Diagnostic page's Health Checks tab confirms it is present, and its Sync Now button runs a detection pass on demand.
+It registers automatically. The Diagnostic page's Health Checks tab confirms it is present, and its Sync Now button runs a detection pass on demand. To run one from the command line instead, `--sync` runs it straight away rather than queueing it:
+
+```bash
+docker exec -it seat-docker-front-1 php artisan buyback-manager:sync-contracts --sync
+```
 
 ---
 
@@ -157,7 +165,8 @@ It registers automatically. The Diagnostic page's Health Checks tab confirms it 
 
 - Player-target detection requires the designated character's token to carry `read_character_contracts`.
 - The appraisal key must be pasted into the contract Description; a contract without one is not tracked by design.
-- Fuzzwork prices The Forge only. Use Janice or Manager Core for other markets.
+- Janice prices at Jita and Amarr only. Fuzzwork prices at any hub or region, and Manager Core at any market added there.
+- An item with no orders on the side its rule pays on is not accepted. At a hub other than Jita, Jita's price can fill that side.
 - A citadel SeAT does not know about cannot be resolved to a system, so a contract there is flagged when location rules are set.
 
 ---

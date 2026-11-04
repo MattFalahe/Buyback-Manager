@@ -2,11 +2,11 @@
     Notification Routing Map (BB port of SM's read-only routing view).
 
     For each notification category, shows which enabled webhooks fire and
-    the role each pings. Read-only — there's nothing to configure here,
+    the role each pings. Read-only: there's nothing to configure here,
     it's the resolved answer to "if X happens, who gets pinged?".
 
     Expects (from SettingsController::index):
-      $routingMap            — category => [description, events, webhooks]
+      $routingMap: category => [description, events, webhooks]
       $roleProviderAvailable
       $roleLookup
 --}}

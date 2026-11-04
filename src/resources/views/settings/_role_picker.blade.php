@@ -3,7 +3,7 @@
     role_mention input with a .js-pick-role trigger button.
 
     Expects:
-      $roleProviderAvailable — only renders the modal when a provider exists.
+      $roleProviderAvailable: only renders the modal when a provider exists.
 --}}
 @if($roleProviderAvailable)
 <div class="modal fade" id="rolePickerModal" tabindex="-1" role="dialog">

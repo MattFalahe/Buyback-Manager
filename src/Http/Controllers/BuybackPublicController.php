@@ -99,6 +99,7 @@ class BuybackPublicController extends Controller
             'instructions' => $setting->publicContractInstructions(),
             'locations'    => $setting->allowedLocationLabels(),
             'excluded'     => $appraisal->excluded_json ?? [],
+            'pricingNote'  => $setting->public_show_pricing_detail ? $appraisal->pricing_note : null,
             'staleHours'   => $setting->staleAfterHours(),
             'publicUrl'    => route('buyback-manager.public.show', ['ticker' => $setting->corp_ticker], false),
         ]);
@@ -204,12 +205,21 @@ class BuybackPublicController extends Controller
             'appraisal_url' => $record
                 ? route('buyback-manager.public.appraisal', ['ticker' => $setting->corp_ticker, 'key' => $record->public_id], false)
                 : null,
-            // Items excluded by a pricing rule — surfaced so visitors know
-            // they were not valued, rather than silently missing.
+            // Items not valued, by a pricing rule or for want of a price, and
+            // lines that named nothing. Listed so the visitor knows they are
+            // not in the total rather than silently missing.
             'excluded' => array_map(
-                fn ($e) => ['name' => (string) $e['type_name'], 'quantity' => (int) $e['quantity']],
+                fn ($e) => [
+                    'name' => (string) $e['type_name'],
+                    'quantity' => (int) $e['quantity'],
+                    'unpriced' => ($e['reason'] ?? null) === AppraisalService::NOT_ACCEPTED_UNPRICED,
+                ],
                 is_array($result['excluded'] ?? null) ? $result['excluded'] : []
             ),
+            'unrecognised' => array_values(array_map('strval', array_slice($result['unrecognised'] ?? [], 0, 20))),
+            // The note names the provider and market, which the corporation
+            // may have chosen to keep off its public page.
+            'pricing_note' => $setting->public_show_pricing_detail ? ($result['pricing_note'] ?? null) : null,
         ]);
     }
 

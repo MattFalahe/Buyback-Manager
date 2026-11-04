@@ -82,14 +82,26 @@
         <div class="bb-public-section">
             <h2>Not accepted</h2>
             <div class="bb-estimate-warn">
-                We do not currently buy these, so they are <strong>not included</strong> in the value above.
-                Leave them out of the contract and ask us for a custom quote.
+                These are <strong>not included</strong> in the value above, so leave them out of the contract.
+                Ask us for a custom quote on anything we do not buy. An item with no market price had none
+                anywhere we look when this was appraised.
                 <ul style="margin:8px 0 0; padding-left:18px;">
                     @foreach($excluded as $ex)
-                        <li>{{ $ex['type_name'] ?? ('Type #' . ($ex['type_id'] ?? '?')) }} &times; {{ number_format((int) ($ex['quantity'] ?? 0)) }}</li>
+                        <li>
+                            {{ $ex['type_name'] ?? ('Type #' . ($ex['type_id'] ?? '?')) }} &times; {{ number_format((int) ($ex['quantity'] ?? 0)) }}
+                            @if(($ex['reason'] ?? null) === 'unpriced')
+                                (no market price)
+                            @endif
+                        </li>
                     @endforeach
                 </ul>
             </div>
+        </div>
+        @endif
+
+        @if($pricingNote)
+        <div class="bb-public-section">
+            <div class="bb-note">{{ $pricingNote }}</div>
         </div>
         @endif
 

@@ -5,36 +5,35 @@ namespace BuybackManager\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Local price cache.
+ * The last price seen for an item at a market.
  *
- * Written through by PriceProviderService::cachePrices after every
- * successful provider fetch (any of Fuzzwork/Janice/MC). Read by
- * PriceProviderService::getPricesFromLocalCache when the upstream
- * provider throws — last-resort source so a contract sync doesn't
- * return zeros just because the network blipped.
- *
- * Schema mirrors Mining Manager's mining_price_cache shape so operators
- * see a familiar table.
+ * One row per market and item, whichever provider answered last. Each side
+ * keeps its last real price and when it was seen, and is never overwritten
+ * by an answer with no orders on that side, so it can stand in when the
+ * provider is down. `checked_at` is when a provider last answered for the
+ * item at all: a side seen before that answer had no orders in it.
  */
 class BuybackPriceCache extends Model
 {
     protected $table = 'buyback_price_cache';
 
     protected $fillable = [
+        'market',
         'type_id',
-        'region_id',
-        'sell_price',
+        'provider',
         'buy_price',
-        'average_price',
-        'cached_at',
+        'buy_seen_at',
+        'sell_price',
+        'sell_seen_at',
+        'checked_at',
     ];
 
     protected $casts = [
         'type_id' => 'integer',
-        'region_id' => 'integer',
-        'sell_price' => 'decimal:2',
-        'buy_price' => 'decimal:2',
-        'average_price' => 'decimal:2',
-        'cached_at' => 'datetime',
+        'buy_price' => 'float',
+        'buy_seen_at' => 'datetime',
+        'sell_price' => 'float',
+        'sell_seen_at' => 'datetime',
+        'checked_at' => 'datetime',
     ];
 }

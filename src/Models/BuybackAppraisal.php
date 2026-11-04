@@ -29,6 +29,7 @@ class BuybackAppraisal extends Model
         'average_percentage',
         'market',
         'provider',
+        'pricing_note',
         'excluded_json',
         'matched_contract_id',
         'matched_at',

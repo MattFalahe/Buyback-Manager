@@ -5,16 +5,16 @@ namespace BuybackManager\Integrations;
 /**
  * Manager Core integration detection.
  *
- * Buyback Manager uses MC for pricing/parsing. This helper guards all MC
- * calls with a runtime class_exists check so a missing or disabled MC
- * degrades to a clear error instead of a fatal autoload failure.
+ * Buyback Manager can price through Manager Core and publishes its events
+ * there. This helper guards all MC calls with a runtime class_exists check so
+ * a missing or disabled MC degrades to a clear error instead of a fatal
+ * autoload failure.
  */
 class ManagerCoreIntegration
 {
     public static function isAvailable(): bool
     {
-        return class_exists('\ManagerCore\Services\PluginBridge')
-            && class_exists('\ManagerCore\Services\AppraisalService');
+        return class_exists('\ManagerCore\Services\PluginBridge');
     }
 
     public static function bridge()

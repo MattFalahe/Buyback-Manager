@@ -88,7 +88,7 @@
         @if($appraisalEnabled)
         <div class="bb-public-section bb-estimate-section" id="bb-estimate">
             <h2>Quick estimate</h2>
-            <p class="bb-estimate-note">Paste your items to see what we'd pay. No login needed &mdash; you'll get a key to put in your contract.</p>
+            <p class="bb-estimate-note">Paste your items to see what we'd pay. No login needed, and you'll get a key to put in your contract.</p>
             <textarea id="bb-estimate-input" class="bb-estimate-input" rows="5" placeholder="Paste items, one per line (e.g. Tritanium  1000)"></textarea>
             <button type="button" id="bb-estimate-btn" class="bb-public-cta" style="margin-top:12px; border:none; cursor:pointer;">Estimate</button>
             <div id="bb-estimate-result" class="bb-estimate-result" style="display:none;"></div>
@@ -157,11 +157,20 @@
                     var notAccepted = '';
                     if (j.excluded && j.excluded.length) {
                         var names = j.excluded.map(function (e) {
-                            return esc(e.name) + ' &times; ' + new Intl.NumberFormat('en-US').format(e.quantity);
+                            return esc(e.name) + ' &times; ' + new Intl.NumberFormat('en-US').format(e.quantity)
+                                + (e.unpriced ? ' (no market price)' : '');
                         }).join(', ');
                         notAccepted = '<div class="bb-estimate-warn"><strong>' + j.excluded.length
                             + ' item(s) not accepted</strong> and not included in this estimate: ' + names
-                            + '. Ask us for a custom quote on those.</div>';
+                            + '. Ask us for a custom quote on anything we do not buy.</div>';
+                    }
+                    if (j.unrecognised && j.unrecognised.length) {
+                        notAccepted += '<div class="bb-estimate-warn"><strong>' + j.unrecognised.length
+                            + ' line(s) not recognised</strong> and not included: '
+                            + j.unrecognised.map(esc).join(', ') + '. Check the spelling, or copy the items from the game.</div>';
+                    }
+                    if (j.pricing_note) {
+                        notAccepted += '<div class="bb-estimate-sub">' + esc(j.pricing_note) + '</div>';
                     }
                     out.innerHTML = '<div class="bb-estimate-total">' + isk(j.total_buyback_value) + '</div>'
                         + '<div class="bb-estimate-sub">' + j.item_count + ' item type(s) &middot; ' + j.average_percentage + '% of market'

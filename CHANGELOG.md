@@ -7,15 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.0] - Initial Release
 
-The first public release of Buyback Manager. It turns a corporation buyback programme into an appraise-then-contract workflow that needs no login from the person selling: they appraise their items, get a single-use key, and paste it into an in-game contract. Buyback Manager detects the contract, resolves the key back to the appraisal, compares the two, and flags anything that does not line up for a director to review. The plugin runs standalone on free Fuzzwork pricing or a Janice key, and treats Manager Core as an optional upgrade for regional pricing and a cross-plugin event feed rather than a dependency.
+The first public release of Buyback Manager. It turns a corporation buyback programme into an appraise-then-contract workflow that needs no login from the person selling: they appraise their items, get a single-use key, and paste it into an in-game contract. Buyback Manager detects the contract, resolves the key back to the appraisal, compares the two, and flags anything that does not line up for a director to review. The plugin runs standalone on free Fuzzwork pricing or a Janice key, and treats Manager Core as an optional price provider and cross-plugin event feed rather than a dependency.
 
 ### Added
 
 **Appraise-then-contract workflow**
 - Appraisal tool that values a pasted item list against a corporation's provider and pricing rules, returning both buy and sell prices per item.
+- One paste reader for every provider: inventory, assets and contract copies, one item per line (`1,000 x Tritanium`, `1000 Tritanium`, `Tritanium 1000`, `Tritanium x1000`), and EFT fits without their loaded charges. The same item on several lines is added up, and lines that name no item are listed back to the seller.
 - Every appraisal is stored and returns a short single-use key (for example `bb-zj2cc262`) plus a public, shareable appraisal page with the full breakdown, the key to copy, the contract instructions, and the accepted locations.
 - No account, no ESI scopes, and no permission are needed to sell. Signing in is optional and only adds history under My Appraisals.
-- Items a programme does not buy are reported back to the seller rather than silently dropped, with a prompt to ask for a custom quote.
+- Items a programme does not buy, and items nothing could price, are reported back to the seller as not accepted rather than silently dropped or valued at zero, with a prompt to ask for a custom quote on items the programme does not buy.
 - Two-tier retention: bulky line-item rows are pruned early while appraisal totals are kept for months of statistics. Housekeeping runs inside the sync cycle, so no extra cron is needed.
 
 **Contract detection and review**
@@ -28,10 +29,13 @@ The first public release of Buyback Manager. It turns a corporation buyback prog
 - CSV export of the filtered contracts list, including asked price, deviation and review flags, honouring the same per-user corporation visibility as the on-screen list.
 
 **Pricing**
-- Three providers: Fuzzwork (free, The Forge), Janice (API key, regional markets, with a raw appraisal endpoint for large lists), and Manager Core (optional).
+- Three providers: Fuzzwork (free, at Jita, Amarr, Dodixie, Hek, Rens or any region), Janice (API key, at Jita or Amarr), and Manager Core (offered only when it is installed, at any market added there, citadels included).
 - Both-sides pricing so a rule can apply its percentage to the buy price, the sell price, or the midpoint.
-- Three-layer resilience: the configured market, then an optional Jita fallback, then the most recent locally cached price.
-- Local price cache with a per-corp TTL for Fuzzwork and Janice. Manager Core bypasses the local cache and uses its own.
+- Each price comes from the provider, then from a fallback provider when the provider fails outright or cannot answer for an item, then from the last cached price. The fallback prices at the same market, or at Jita when it cannot price there.
+- An optional Jita fill: at another market, a side with no orders takes Jita's price.
+- Local price cache per market for Fuzzwork and Janice answers, reused for a per-corp TTL. Manager Core keeps its own prices and is read on every quote.
+- An item nothing can price is listed as not accepted with "no market price", and the quote notes where its prices came from when they did not all come from the provider.
+- Test Connection on the Settings form prices Tritanium at the chosen market without saving anything. A saved Janice key is never shown again.
 
 **Pricing rules**
 - A single Pricing Rules page holding the default rate, the price exceptions and the buyback exclusions, with new rules filed into the block they belong to.
@@ -44,16 +48,17 @@ The first public release of Buyback Manager. It turns a corporation buyback prog
 - Contracts created outside the accepted locations are tracked and flagged for review rather than dropped, and the accepted locations are shown on the public page and every appraisal page. A searchable picker resolves names from the SDE.
 
 **Discord notifications**
-- Per-corporation or global webhooks with six subscribable categories (Contract Matched, Contract Flagged, Contract Unmatched, Contract Completed, Contract Cancelled, Contract Nudge).
+- Per-corporation or global webhooks with seven subscribable categories (Contract matched, Needs review, Key did not resolve, Buyback completed, Contract cancelled, Waiting too long, Pricing problems).
+- A Pricing problems alert when a corporation's price provider stops answering and again when it answers, once per change rather than on every quote, saying what the quotes use meanwhile.
 - Flagged contracts announce the quoted value, the asked price, the percentage difference and the reasons in one message.
 - Role mentions via a picker that reads detected Discord roles from the SeAT Discord integration.
 - A Notification Routing Map showing which webhook announces which category.
-- De-duplicated, per-webhook rate-limited delivery, and a contract's first sighting fires exactly one of matched, flagged or unmatched.
+- De-duplicated, per-webhook rate-limited delivery, and a contract's first sighting fires exactly one of matched, needs review or key did not resolve.
 
 **Manager Core integration (optional)**
 - Automatic detection of Manager Core with a clean standalone fallback when it is absent.
-- Regional market pricing and shared cache through Manager Core's pricing service.
-- Registration in Manager Core's pricing preferences so an admin can override the market centrally.
+- Manager Core as the price provider or the fallback provider, for any market added there. Items it has not priced yet are priced by the fallback provider for that quote and subscribed so Manager Core keeps them priced.
+- Registration in Manager Core's pricing preferences so an admin can override the market centrally, with the Settings page saying when an override is in force.
 - EventBus publishing of `buyback.contract.matched / flagged / unmatched / completed / cancelled / nudge` for other plugins to consume.
 
 **Public landing page**
@@ -69,6 +74,7 @@ The first public release of Buyback Manager. It turns a corporation buyback prog
 - Appraisal funnel health, orphaned appraisal-item detection, and a retention check that flags when the prune has stopped running.
 - An admin-only Diagnostic page (not in the sidebar) with Health Checks, Master Test, System Validation, Settings Health, Data Integrity, Contract Trace, and Notification Testing tabs.
 - A Contract Trace tab that walks a single contract through the pricing and matching pipeline.
+- A price provider health check showing how each corporation's provider last answered, and Settings Health issues for a provider or fallback that cannot run.
 - A Sync Now action to run a detection pass on demand.
 
 **Help & operations**

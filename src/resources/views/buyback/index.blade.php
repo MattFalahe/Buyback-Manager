@@ -75,7 +75,7 @@
                                     @if($contract->appraisal_public_id)
                                         <code>{{ $contract->appraisal_public_id }}</code>
                                     @else
-                                        <span class="text-muted">—</span>
+                                        <span class="text-muted">-</span>
                                     @endif
                                 </td>
                                 <td>

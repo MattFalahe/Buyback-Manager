@@ -2,10 +2,10 @@
     Resolved-role pill (BB port of SM's _role_pill).
 
     Expects:
-      $desc — result of DiscordRoleResolver::describeRoleMention(), or null
+      $desc: result of DiscordRoleResolver::describeRoleMention(), or null
               for an empty / unset mention.
     Inherited from the parent view:
-      $roleProviderAvailable — bool, whether any Discord role source exists.
+      $roleProviderAvailable: bool, whether any Discord role source exists.
 --}}
 @php($rp_hasProvider = $roleProviderAvailable ?? false)
 @if(empty($desc))

@@ -30,7 +30,7 @@
     <div class="card card-dark">
         <div class="card-header">
             <h3 class="card-title">
-                Public page &mdash; {{ optional($setting->corporation)->name ?? ('Corporation #' . $setting->corporation_id) }}
+                Public page: {{ optional($setting->corporation)->name ?? ('Corporation #' . $setting->corporation_id) }}
                 <span class="text-muted">[{{ $setting->corp_ticker }}]</span>
             </h3>
             <div class="card-tools">
@@ -47,7 +47,7 @@
                     {{ route('buyback-manager.public.show', ['ticker' => $setting->corp_ticker]) }}
                 </a>
                 @unless($setting->public_page_enabled)
-                    <span class="text-muted">&mdash; enable below to make it live (it 404s while disabled).</span>
+                    <span class="text-muted">(enable below to make it live; it 404s while disabled)</span>
                 @endunless
             </div>
 
@@ -84,8 +84,8 @@
                 <div class="form-group">
                     <label for="public_layout">Page layout</label>
                     <select id="public_layout" name="public_layout" class="form-control" style="max-width:340px;">
-                        <option value="stacked" {{ old('public_layout', $setting->public_layout ?: 'stacked') === 'stacked' ? 'selected' : '' }}>Stacked &mdash; rates above instructions (default)</option>
-                        <option value="split" {{ old('public_layout', $setting->public_layout) === 'split' ? 'selected' : '' }}>Side by side &mdash; rates left, instructions right</option>
+                        <option value="stacked" {{ old('public_layout', $setting->public_layout ?: 'stacked') === 'stacked' ? 'selected' : '' }}>Stacked: rates above instructions (default)</option>
+                        <option value="split" {{ old('public_layout', $setting->public_layout) === 'split' ? 'selected' : '' }}>Side by side: rates left, instructions right</option>
                     </select>
                     <small class="form-text text-muted">Side by side widens the page into two columns; it stacks automatically on narrow screens.</small>
                 </div>
@@ -166,7 +166,7 @@
                         <label for="public_logo_style">Logo background</label>
                         <select id="public_logo_style" name="public_logo_style" class="form-control" style="max-width:340px;">
                             <option value="dark" {{ old('public_logo_style', $setting->public_logo_style ?: 'dark') === 'dark' ? 'selected' : '' }}>Dark box (default)</option>
-                            <option value="none" {{ old('public_logo_style', $setting->public_logo_style) === 'none' ? 'selected' : '' }}>No box &mdash; logo directly on the image</option>
+                            <option value="none" {{ old('public_logo_style', $setting->public_logo_style) === 'none' ? 'selected' : '' }}>No box: logo directly on the image</option>
                             <option value="light" {{ old('public_logo_style', $setting->public_logo_style) === 'light' ? 'selected' : '' }}>White square</option>
                         </select>
                         <small class="form-text text-muted">"No box" suits a transparent logo; the dark box suits the square EVE corp logo.</small>

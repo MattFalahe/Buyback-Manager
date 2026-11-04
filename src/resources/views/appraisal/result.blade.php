@@ -17,31 +17,61 @@
                     <i class="fas fa-calculator"></i> Buyback Appraisal
                 </h3>
                 <div class="card-tools">
-                    <span class="badge badge-info">{{ strtoupper($market) }}</span>
+                    <span class="badge badge-info">{{ $market }}</span>
                     <span class="badge badge-success">{{ $corporation->name }}</span>
                 </div>
             </div>
             <div class="card-body">
+                @php
+                    $excluded = $excluded ?? [];
+                    $unrecognised = $unrecognised ?? [];
+                    $unpricedCount = count(array_filter($excluded, fn ($ex) => ($ex['reason'] ?? null) === 'unpriced'));
+                @endphp
                 @if(! empty($truncated))
                     <div class="alert alert-warning">
                         <i class="fa fa-exclamation-triangle"></i>
-                        <strong>Heads up.</strong> Your paste exceeded the parser's 1000-item cap.
-                        Items beyond that were dropped. Total below reflects only the first 1000
-                        resolved items. Split the paste into smaller batches if you need to appraise the rest.
+                        <strong>Heads up.</strong> Your paste held more than one quote can take
+                        (1,000 item types, or 5,000 lines), so the rest was left out of the total below.
+                        Split the paste into smaller batches to appraise the rest.
                     </div>
                 @endif
                 @if(! empty($excluded))
                     <div class="alert alert-warning">
                         <i class="fa fa-exclamation-triangle"></i>
                         <strong>{{ count($excluded) }} {{ \Illuminate\Support\Str::plural('item', count($excluded)) }} not accepted.</strong>
-                        These are not part of our buyback service right now, so they are
-                        <strong>not valued or included</strong> in the total below. Leave them out of the
-                        contract, and ask a buyback director for a custom quote if you want to sell them.
+                        They are <strong>not valued or included</strong> in the total below, so leave them
+                        out of the contract. Ask a buyback director for a custom quote on items we do not buy.
+                        @if($unpricedCount > 0)
+                            Items with no market price had none anywhere we look right now; appraise them again later.
+                        @endif
                         <ul style="margin:0.5rem 0 0; padding-left:1.2rem;">
                             @foreach($excluded as $ex)
-                                <li>{{ $ex['type_name'] }} &times; {{ number_format($ex['quantity']) }}</li>
+                                <li>
+                                    {{ $ex['type_name'] }} &times; {{ number_format($ex['quantity']) }}
+                                    @if(($ex['reason'] ?? null) === 'unpriced')
+                                        <span class="badge badge-secondary">no market price</span>
+                                    @endif
+                                </li>
                             @endforeach
                         </ul>
+                    </div>
+                @endif
+                @if(! empty($unrecognised))
+                    <div class="alert alert-warning">
+                        <i class="fa fa-question-circle"></i>
+                        <strong>{{ count($unrecognised) }} {{ \Illuminate\Support\Str::plural('line', count($unrecognised)) }} not recognised.</strong>
+                        These did not name an item, so nothing on them is in the total below. Check the
+                        spelling, or copy the items from the game.
+                        <ul style="margin:0.5rem 0 0; padding-left:1.2rem;">
+                            @foreach($unrecognised as $line)
+                                <li><code>{{ $line }}</code></li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
+                @if(! empty($pricing_note))
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> {{ $pricing_note }}
                     </div>
                 @endif
                 <div class="row mb-4">
@@ -126,7 +156,7 @@
                     <dd class="col-sm-6">{{ $corporation->name }}</dd>
 
                     <dt class="col-sm-6">Market</dt>
-                    <dd class="col-sm-6">{{ strtoupper($market) }}</dd>
+                    <dd class="col-sm-6">{{ $market }}</dd>
 
                     <dt class="col-sm-6">Items</dt>
                     <dd class="col-sm-6">{{ count($items) }}</dd>
@@ -161,7 +191,7 @@
                             </button>
                         </div>
                         <p style="font-size:0.85rem; color:#6c757d; margin:0.6rem 0 0;">
-                            The key is single use. Set the contract price to the quoted value &mdash; a
+                            The key is single use. Set the contract price to the quoted value. A
                             different amount still reaches us but is flagged for a director to check.
                         </p>
                     </div>

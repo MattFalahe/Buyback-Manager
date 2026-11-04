@@ -14,13 +14,6 @@
         <h3 class="card-title">
             <i class="fas fa-calculator"></i> Buyback Appraisal
         </h3>
-        <div class="card-tools">
-            @if($managerCoreAvailable)
-                <span class="badge badge-success" title="Richer paste-format support + shared market pricing">Manager Core active</span>
-            @else
-                <span class="badge badge-secondary" title="Install mattfalahe/manager-core for richer parsing">Standalone mode</span>
-            @endif
-        </div>
     </div>
     <div class="card-body">
         @if(session('error'))
@@ -54,7 +47,7 @@
                     id="items"
                     class="form-control @error('items') is-invalid @enderror"
                     rows="15"
-                    placeholder="Paste your items here...&#10;&#10;Supported formats:&#10;• EVE inventory (Ctrl+C)&#10;• Item Name    Quantity&#10;• Cargo scan format"
+                    placeholder="Paste your items here...&#10;&#10;Supported formats:&#10;• EVE inventory or contract (Ctrl+C)&#10;• Item Name    Quantity&#10;• EFT fit"
                     required
                 >{{ old('items') }}</textarea>
                 @error('items')
@@ -64,9 +57,9 @@
                 <small class="form-text text-muted">
                     <strong>Supported formats:</strong>
                     <ul class="mb-0">
-                        <li>EVE inventory copy (Ctrl+C in inventory)</li>
-                        <li>Cargo scan format: <code>1,000  Tritanium</code></li>
-                        <li>Asset list format: <code>Tritanium    1000000</code></li>
+                        <li>EVE inventory, assets or contract copy (Ctrl+C)</li>
+                        <li>One item per line: <code>1,000 x Tritanium</code>, <code>1000 Tritanium</code>, <code>Tritanium 1000</code> or <code>Tritanium x1000</code></li>
+                        <li>An EFT fit: the ship, its modules, drones and cargo (loaded charges are not counted)</li>
                     </ul>
                 </small>
             </div>

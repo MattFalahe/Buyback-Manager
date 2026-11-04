@@ -6,7 +6,7 @@
 @push('head')
 <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/buyback-manager.css') }}?v=2">
 <style>
-    /* Diagnostic page — bespoke chrome, scoped to
+    /* Diagnostic page: bespoke chrome, scoped to
        .buyback-manager-wrapper.diagnostic-page so it never leaks. The
        diag-* primitives match the canonical reference layout in SM. */
 
@@ -58,7 +58,7 @@
         color: #6366f1;
     }
 
-    /* Tab intro box — mandatory per the diagnostic standard. */
+    /* Tab intro box, mandatory per the diagnostic standard. */
     .buyback-manager-wrapper.diagnostic-page .diag-tab-intro {
         padding: 0.85rem 1.1rem;
         background: rgba(99, 102, 241, 0.08);
@@ -111,7 +111,7 @@
         color: #c2c7d0;
     }
 
-    /* Semantic status badges — DO NOT CHANGE colors */
+    /* Semantic status badges. DO NOT CHANGE colors */
     .buyback-manager-wrapper.diagnostic-page .diag-badge {
         font-size: 0.78rem;
         font-weight: 700;
@@ -252,9 +252,10 @@
 
                 <div class="diag-tab-intro">
                     <p>
-                        <strong>What this tab does:</strong> At-a-glance dashboard of plugin state. Nine read-only checks
+                        <strong>What this tab does:</strong> At-a-glance dashboard of plugin state. Eleven read-only checks
                         across environment, plugin tables, SeAT/SDE tables, the scheduled sync job, buyback settings,
-                        Manager Core integration, price cache, recent contract sync activity, and EventBus publishing.
+                        Manager Core integration, each corporation's price provider, price cache, recent contract sync
+                        activity, appraisals, and EventBus publishing.
                         Each shows <strong>OK / WARN / ERROR</strong> with one-line summary and an expandable detail block.
                     </p>
                     <p>
@@ -350,10 +351,11 @@
                 <div class="diag-tab-intro">
                     <p>
                         <strong>What this tab does:</strong> Verifies the <strong>hardcoded</strong> parts of the plugin
-                        are still valid: constant type IDs (Tritanium=34, Jita region=10000002), the
-                        <code>PriceProviderService</code> class itself, and (when Manager Core is installed) the five
-                        capabilities BB depends on (<code>pricing.getPrices</code>, <code>subscribeTypes</code>,
-                        <code>unsubscribeTypes</code>, <code>appraisal.create</code>, <code>events.publish</code>).
+                        are still valid: constant type IDs (Tritanium=34, and the region of each trade hub Fuzzwork
+                        prices), the <code>PriceProviderService</code> class itself, and (when Manager Core is installed)
+                        the six capabilities BB depends on (<code>pricing.getPrices</code>, <code>subscribeTypes</code>,
+                        <code>unsubscribeTypes</code>, <code>registerPreference</code>, <code>getPreferenceForPlugin</code>,
+                        <code>events.publish</code>).
                     </p>
                     <p>
                         <strong>When to use:</strong> After upgrading SeAT (in case CCP renamed a type), after upgrading
@@ -398,9 +400,10 @@
                 <div class="diag-tab-intro">
                     <p>
                         <strong>What this tab does:</strong> Per-corporation audit of every BuybackSetting row. Validates
-                        the configured provider can actually run (API key present for Janice, MC installed for
-                        manager-core), checks <code>base_percentage</code> is in range, and flags missing market keys.
-                        Counts pricing rules attached per setting.
+                        the configured provider and fallback provider can actually run (API key present for Janice, MC
+                        installed for manager-core), shows the provider's last error while it is not answering, checks
+                        <code>base_percentage</code> is in range, and flags missing market keys. Counts pricing rules
+                        attached per setting.
                     </p>
                     <p>
                         <strong>When to use:</strong> After a settings save when something seems off, or to spot the
@@ -430,6 +433,7 @@
                                             <th>Base %</th>
                                             <th>Rules</th>
                                             <th>Fallback</th>
+                                            <th>Jita fill</th>
                                             <th>Status</th>
                                             <th>Issues</th>
                                         </tr>
@@ -442,11 +446,12 @@
                                                 <td><code>{{ $row['provider'] }}</code></td>
                                                 <td>{{ $row['base_percentage'] }}%</td>
                                                 <td>{{ $row['rule_count'] }}</td>
+                                                <td>{{ $row['fallback'] }}</td>
                                                 <td>{{ $row['fallback_to_jita'] ? 'yes' : 'no' }}</td>
                                                 <td><span class="diag-badge {{ $row['status'] }}">{{ strtoupper($row['status']) }}</span></td>
                                                 <td>
                                                     @if(empty($row['issues']))
-                                                        <span style="color:#8b95a5;">—</span>
+                                                        <span style="color:#8b95a5;">-</span>
                                                     @else
                                                         <ul style="margin:0; padding-left:1rem;">
                                                             @foreach($row['issues'] as $issue)
@@ -592,8 +597,8 @@
                                         <dt>Status</dt><dd>{{ $c->status }}</dd>
                                         <dt>Total value</dt><dd>{{ number_format((float)$c->total_value, 2) }} ISK</dd>
                                         <dt>Items count</dt><dd>{{ $c->items_count }}</dd>
-                                        <dt>Issued</dt><dd>{{ optional($c->issued_date)->toDateTimeString() ?: '—' }}</dd>
-                                        <dt>Completed</dt><dd>{{ optional($c->completed_date)->toDateTimeString() ?: '—' }}</dd>
+                                        <dt>Issued</dt><dd>{{ optional($c->issued_date)->toDateTimeString() ?: '-' }}</dd>
+                                        <dt>Completed</dt><dd>{{ optional($c->completed_date)->toDateTimeString() ?: '-' }}</dd>
                                     </dl>
                                 </div>
                             </div>
@@ -668,9 +673,9 @@
                                                     <tr>
                                                         <td><code>{{ $ev['event_name'] }}</code></td>
                                                         <td>{{ $ev['created_at'] }}</td>
-                                                        <td>{{ $ev['status'] ?? '—' }}</td>
+                                                        <td>{{ $ev['status'] ?? '-' }}</td>
                                                         <td>{{ $ev['previous_status'] ?? '∅' }} → {{ $ev['status_field'] ?? '?' }}</td>
-                                                        <td style="font-family:monospace; font-size:0.78rem;">{{ $ev['event_id'] ?? '—' }}</td>
+                                                        <td style="font-family:monospace; font-size:0.78rem;">{{ $ev['event_id'] ?? '-' }}</td>
                                                     </tr>
                                                 @endforeach
                                             </tbody>
