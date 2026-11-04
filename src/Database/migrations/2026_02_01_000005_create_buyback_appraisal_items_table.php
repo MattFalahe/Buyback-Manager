@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Schema;
  * contract claims an appraisal the item snapshot is copied onto
  * buyback_contract_items, which is the durable payout record.
  */
-return new class extends Migration
+class CreateBuybackAppraisalItemsTable extends Migration
 {
     public function up(): void
     {
@@ -38,4 +38,4 @@ return new class extends Migration
     {
         Schema::dropIfExists('buyback_appraisal_items');
     }
-};
+}

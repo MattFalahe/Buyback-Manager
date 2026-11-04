@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Schema;
  * was valued at. Copied from the claimed appraisal at match time, which is
  * why the appraisal's own item rows can be pruned on a short window.
  */
-return new class extends Migration
+class CreateBuybackContractItemsTable extends Migration
 {
     public function up(): void
     {
@@ -30,4 +30,4 @@ return new class extends Migration
     {
         Schema::dropIfExists('buyback_contract_items');
     }
-};
+}

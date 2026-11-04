@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Schema;
  * still tracked so a director can review and decline it in game, rather
  * than it being dropped silently.
  */
-return new class extends Migration
+class CreateBuybackContractsTable extends Migration
 {
     public function up(): void
     {
@@ -55,4 +55,4 @@ return new class extends Migration
     {
         Schema::dropIfExists('buyback_contracts');
     }
-};
+}

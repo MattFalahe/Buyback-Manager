@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Schema;
  * `categories` is a JSON array of subscription keys, and `role_mention` is
  * stored ready to send (for example "<@&123>") and used verbatim.
  */
-return new class extends Migration
+class CreateBuybackWebhooksTable extends Migration
 {
     public function up(): void
     {
@@ -35,4 +35,4 @@ return new class extends Migration
     {
         Schema::dropIfExists('buyback_webhooks');
     }
-};
+}

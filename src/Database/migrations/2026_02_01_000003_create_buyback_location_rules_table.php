@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Schema;
  * are still tracked but flagged for review, so a director can see and
  * decline them rather than them vanishing silently.
  */
-return new class extends Migration
+class CreateBuybackLocationRulesTable extends Migration
 {
     public function up(): void
     {
@@ -35,4 +35,4 @@ return new class extends Migration
     {
         Schema::dropIfExists('buyback_location_rules');
     }
-};
+}

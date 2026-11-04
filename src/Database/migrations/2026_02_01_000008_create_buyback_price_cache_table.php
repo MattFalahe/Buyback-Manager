@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Schema;
  *
  * Manager Core bypasses this table and uses its own cache.
  */
-return new class extends Migration
+class CreateBuybackPriceCacheTable extends Migration
 {
     public function up(): void
     {
@@ -33,4 +33,4 @@ return new class extends Migration
     {
         Schema::dropIfExists('buyback_price_cache');
     }
-};
+}

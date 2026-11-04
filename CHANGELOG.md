@@ -82,4 +82,8 @@ The first public release of Buyback Manager. It turns a corporation buyback prog
 - One scheduled job registered automatically: `buyback-manager:sync-contracts` (every 15 minutes), which also handles housekeeping.
 - Two permissions: `buyback-manager.view` and `buyback-manager.settings`.
 
+### Tests
+
+- Unit tests for the price chain, each provider's answer, the paste reader and the pricing rules, and checks on the source itself: Blade directives closed the way Blade reads them, routes and views that exist, migrations named as they should be and running on an empty database, the docs keeping up with the commands, and nothing writing to SeAT's tables. They need no SeAT and no MySQL, and run on every push on PHP 8.1 to 8.4.
+
 [1.0.0]: https://github.com/MattFalahe/Buyback-Manager/releases/tag/1.0.0

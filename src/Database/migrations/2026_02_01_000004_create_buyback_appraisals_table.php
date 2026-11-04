@@ -24,7 +24,7 @@ use Illuminate\Support\Facades\Schema;
  * already been claimed cannot be claimed again, so there is no separate
  * status column to drift out of sync with it.
  */
-return new class extends Migration
+class CreateBuybackAppraisalsTable extends Migration
 {
     public function up(): void
     {
@@ -64,4 +64,4 @@ return new class extends Migration
     {
         Schema::dropIfExists('buyback_appraisals');
     }
-};
+}

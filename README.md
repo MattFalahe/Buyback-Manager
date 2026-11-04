@@ -171,6 +171,19 @@ docker exec -it seat-docker-front-1 php artisan buyback-manager:sync-contracts -
 
 ---
 
+## Tests
+
+The tests need no SeAT and no MySQL, and run on every push on PHP 8.1 to 8.4. The price chain runs against an in-memory SQLite database built by the plugin's own migrations. To run them yourself, from a checkout:
+
+```bash
+composer install --working-dir=tests
+tests/vendor/bin/phpunit
+```
+
+They cover the price chain (provider, fallback, cache and the Pricing problems alert), each provider's answer, the paste reader and the pricing rules, and read the source for what would otherwise only show on a live install: Blade directives closed the way Blade reads them, routes and views that exist, migrations named as they should be and running in order on an empty database, the docs keeping up with the commands, and nothing writing to SeAT's tables.
+
+---
+
 ## Support
 
 - **Email:** mattfalahe@gmail.com

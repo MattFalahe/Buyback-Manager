@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Schema;
  * The ledger is Buyback Manager's own source of truth, so it survives
  * Manager Core being absent or reinstalled.
  */
-return new class extends Migration
+class CreateBuybackSubscribedTypesTable extends Migration
 {
     public function up(): void
     {
@@ -32,4 +32,4 @@ return new class extends Migration
     {
         Schema::dropIfExists('buyback_subscribed_types');
     }
-};
+}

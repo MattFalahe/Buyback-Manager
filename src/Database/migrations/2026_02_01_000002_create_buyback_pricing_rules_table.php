@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Schema;
  * `excluded` marks an item the programme does not buy at all; `featured`
  * spotlights it as "most wanted" on the public page.
  */
-return new class extends Migration
+class CreateBuybackPricingRulesTable extends Migration
 {
     public function up(): void
     {
@@ -38,4 +38,4 @@ return new class extends Migration
     {
         Schema::dropIfExists('buyback_pricing_rules');
     }
-};
+}

@@ -1,0 +1,13 @@
+{
+    "name": "mattfalahe/buyback-manager-tests",
+    "description": "Runs Buyback Manager's tests on their own, with no SeAT and an in-memory database",
+    "license": "GPL-2.0-or-later",
+    "require-dev": {
+        "illuminate/database": "^10.0",
+        "nesbot/carbon": "^2.72",
+        "phpunit/phpunit": "^10.5"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

@@ -31,10 +31,6 @@
   "suggest": {
     "mattfalahe/manager-core": "Adds Manager Core as a price provider, including its own markets, and shares buyback events with other plugins."
   },
-  "require-dev": {
-    "phpunit/phpunit": "^10.0",
-    "orchestra/testbench": "^8.0"
-  },
   "autoload": {
     "psr-4": {
       "BuybackManager\\": "src/"
@@ -53,7 +49,7 @@
     }
   },
   "scripts": {
-    "test": "vendor/bin/phpunit"
+    "test": "tests/vendor/bin/phpunit"
   },
   "minimum-stability": "stable",
   "prefer-stable": true

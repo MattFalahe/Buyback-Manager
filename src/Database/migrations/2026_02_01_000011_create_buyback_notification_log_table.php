@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Schema;
  *
  * Rows are pruned inside the contract-sync cycle, so no extra cron.
  */
-return new class extends Migration
+class CreateBuybackNotificationLogTable extends Migration
 {
     public function up(): void
     {
@@ -36,4 +36,4 @@ return new class extends Migration
     {
         Schema::dropIfExists('buyback_notification_log');
     }
-};
+}

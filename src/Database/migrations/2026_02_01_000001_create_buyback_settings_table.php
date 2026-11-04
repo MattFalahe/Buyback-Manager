@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Schema;
  * One row per corporation. Many corporations can run their own
  * independent programme on the same SeAT install.
  */
-return new class extends Migration
+class CreateBuybackSettingsTable extends Migration
 {
     public function up(): void
     {
@@ -90,4 +90,4 @@ return new class extends Migration
     {
         Schema::dropIfExists('buyback_settings');
     }
-};
+}
