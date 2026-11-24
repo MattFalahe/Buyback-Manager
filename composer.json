@@ -1,0 +1,56 @@
+{
+  "name": "mattfalahe/buyback-manager",
+  "description": "Corporation buyback plugin for SeAT - Sellers appraise their items with no login, paste the key into an in-game contract, and every contract is matched to its quote and checked",
+  "type": "seat-plugin",
+  "keywords": [
+    "seat",
+    "eve",
+    "eveonline",
+    "buyback",
+    "corporation",
+    "management",
+    "contract",
+    "appraisal",
+    "trading",
+    "plugin"
+  ],
+  "license": "GPL-2.0-or-later",
+  "authors": [
+    {
+      "name": "Matt Falahe",
+      "email": "mattfalahe@gmail.com"
+    }
+  ],
+  "homepage": "https://github.com/MattFalahe/Buyback-Manager",
+  "require": {
+    "php": "^8.1",
+    "laravel/framework": "^10.0",
+    "eveseat/web": "^5.0",
+    "eveseat/services": "^5.0"
+  },
+  "suggest": {
+    "mattfalahe/manager-core": "Adds Manager Core as a price provider, including its own markets, and shares buyback events with other plugins."
+  },
+  "autoload": {
+    "psr-4": {
+      "BuybackManager\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "BuybackManager\\Tests\\": "tests/"
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "BuybackManager\\BuybackManagerServiceProvider"
+      ]
+    }
+  },
+  "scripts": {
+    "test": "tests/vendor/bin/phpunit"
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}

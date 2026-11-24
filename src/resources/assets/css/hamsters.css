@@ -1,0 +1,2404 @@
+/* The hamsters shown while a quote waits for its prices, the ones out of
+   coffee when no provider answered, the one beside the paste box and the ones
+   on a closed public page. Each wait draws one of four scenes. Used on the
+   signed-in appraisal page and the public pages, so nothing here leans on any
+   page's stylesheet. */
+
+.bb-hamsters {
+    --bb-hamster-accent: #667eea;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 0;
+    text-align: center;
+}
+
+.bb-hamsters[hidden],
+.bb-hamsters__scene[hidden] {
+    display: none;
+}
+
+.bb-public-body .bb-hamsters {
+    --bb-hamster-accent: var(--bb-pub-accent, #667eea);
+}
+
+.bb-hamsters__stage {
+    width: 100%;
+    max-width: 400px;
+}
+
+.bb-hamsters__art {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+}
+
+/* The Jita run brings its own sky, so it keeps to a rounded box. */
+.bb-hamsters__art.bbh-scene--space {
+    overflow: hidden;
+    border-radius: 14px;
+    color: #cfd8dc;
+}
+
+/* The order book and the ticker scroll through these windows. */
+.bbh-clip {
+    overflow: hidden;
+}
+
+.bb-hamsters__line {
+    max-width: 400px;
+    min-height: 1.5em;
+    font-size: 1.05rem;
+    font-weight: 600;
+    transition: opacity 0.25s ease;
+}
+
+.bb-hamsters__line.is-swapping {
+    opacity: 0;
+}
+
+.bb-hamsters__sub {
+    max-width: 400px;
+    min-height: 1.3em;
+    font-size: 0.9rem;
+    opacity: 0.75;
+}
+
+/* Shared by every scene: the hamster, its kit, the mug and the zzz. */
+.bbh-ground {
+    stroke: currentColor;
+    stroke-opacity: 0.25;
+    stroke-width: 2;
+    stroke-linecap: round;
+}
+
+.bbh-stand line {
+    stroke: currentColor;
+    stroke-opacity: 0.35;
+    stroke-width: 4;
+    stroke-linecap: round;
+}
+
+.bbh-rim {
+    fill: none;
+    stroke: var(--bb-hamster-accent);
+    stroke-width: 3;
+}
+
+.bbh-spokes line {
+    stroke: var(--bb-hamster-accent);
+    stroke-opacity: 0.45;
+    stroke-width: 1.5;
+}
+
+.bbh-rungs {
+    fill: none;
+    stroke: var(--bb-hamster-accent);
+    stroke-opacity: 0.8;
+    stroke-width: 3;
+    stroke-dasharray: 2 7;
+}
+
+.bbh-hub {
+    fill: var(--bb-hamster-accent);
+}
+
+.bbh-spin {
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+    animation: bbh-spin 1.2s linear infinite;
+}
+
+.bbh-fur {
+    fill: #e0a35f;
+}
+
+.bbh-belly {
+    fill: #f6dcb8;
+}
+
+.bbh-pink {
+    fill: #f2a0b4;
+}
+
+.bbh-cheek {
+    fill: #f2a0b4;
+    opacity: 0.5;
+}
+
+.bbh-eye {
+    fill: #2b2b2b;
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+    animation: bbh-blink 4.8s infinite;
+}
+
+.bbh-shut {
+    display: none;
+    fill: none;
+    stroke: #2b2b2b;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+}
+
+.bbh-leg {
+    fill: #c98a4a;
+    transform-box: fill-box;
+    transform-origin: 50% 0;
+}
+
+.bbh-paw {
+    fill: #c98a4a;
+}
+
+.bbh-run {
+    animation: bbh-bob 0.3s ease-in-out infinite alternate;
+}
+
+.bbh-run .bbh-leg {
+    animation: bbh-leg 0.3s ease-in-out infinite alternate;
+}
+
+.bbh-run .bbh-leg--b {
+    animation-direction: alternate-reverse;
+}
+
+.bbh-hat {
+    fill: #ffc107;
+    stroke: #c79100;
+    stroke-width: 1;
+}
+
+.bbh-lamp {
+    fill: #fffde7;
+}
+
+.bbh-lamp-glow {
+    fill: #fff59d;
+    opacity: 0.45;
+    animation: bbh-glow 1.2s ease-in-out infinite alternate;
+}
+
+.bbh-headset {
+    fill: none;
+    stroke: #37474f;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+}
+
+.bbh-headset-cup {
+    fill: #37474f;
+}
+
+.bbh-mic {
+    fill: none;
+    stroke: #37474f;
+    stroke-width: 1.3;
+    stroke-linecap: round;
+}
+
+.bbh-mic-tip {
+    fill: var(--bb-hamster-accent);
+}
+
+.bbh-visor {
+    fill: #43a047;
+    opacity: 0.92;
+}
+
+.bbh-mega path {
+    fill: #ef5350;
+    stroke: #b71c1c;
+    stroke-width: 1;
+}
+
+.bbh-mega rect {
+    fill: #eceff1;
+    stroke: #b0bec5;
+    stroke-width: 0.8;
+}
+
+.bbh-type {
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+    animation: bbh-type 0.15s ease-in-out infinite alternate;
+}
+
+.bbh-type--b {
+    animation-direction: alternate-reverse;
+}
+
+.bbh-cup {
+    fill: #eceff1;
+    stroke: #90a4ae;
+    stroke-width: 1.5;
+}
+
+.bbh-handle {
+    fill: none;
+    stroke: #90a4ae;
+    stroke-width: 2.5;
+}
+
+.bbh-coffee {
+    fill: #6d4c41;
+    stroke: #90a4ae;
+    stroke-width: 1.5;
+}
+
+.bbh-drop,
+.bbh-puddle {
+    display: none;
+    fill: #6d4c41;
+}
+
+.bbh-mug {
+    transform-box: fill-box;
+    transform-origin: 0 100%;
+    transition: transform 0.6s ease;
+}
+
+.bbh-mug--tipped .bbh-mug {
+    transform: rotate(-90deg);
+}
+
+.bbh-steam {
+    fill: none;
+    stroke: currentColor;
+    stroke-opacity: 0.45;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    animation: bbh-steam 2.4s ease-in-out infinite;
+}
+
+.bbh-steam--2 {
+    animation-delay: -1.2s;
+}
+
+.bbh-zzz {
+    display: none;
+}
+
+.bbh-zzz text {
+    fill: currentColor;
+    font: bold 11px sans-serif;
+    opacity: 0.75;
+}
+
+.bbh-tiny {
+    font: bold 7px sans-serif;
+    fill: #cfd8dc;
+}
+
+.bbh-alarm {
+    font: bold 9px monospace;
+    fill: #ef5350;
+    animation: bbh-led 1.2s steps(1) infinite;
+}
+
+.bbh-only-out {
+    display: none;
+}
+
+/* Out of coffee: eyes shut, the mug on its side, everything that moved stops. */
+.bb-hamsters--out .bbh-eye,
+.bb-hamsters--out .bbh-steam,
+.bb-hamsters--out .bbh-lamp-glow,
+.bb-hamsters--out .bbh-only-work {
+    display: none;
+}
+
+.bb-hamsters--out .bbh-shut,
+.bb-hamsters--out .bbh-zzz,
+.bb-hamsters--out .bbh-drop,
+.bb-hamsters--out .bbh-puddle,
+.bb-hamsters--out .bbh-only-out {
+    display: inline;
+}
+
+.bb-hamsters--out .bbh-run,
+.bb-hamsters--out .bbh-run .bbh-leg,
+.bb-hamsters--out .bbh-spin,
+.bb-hamsters--out .bbh-type {
+    animation: none;
+}
+
+.bb-hamsters--out .bbh-run {
+    transform: translateY(2px);
+}
+
+.bb-hamsters--out .bbh-mug {
+    transform: rotate(-90deg);
+}
+
+.bb-hamsters--out .bbh-coffee {
+    fill: #455a64;
+}
+
+.bb-hamsters--out .bbh-lamp {
+    fill: #9e9e9e;
+}
+
+.bb-hamsters--out .bbh-zzz text {
+    animation: bbh-zzz 2.4s ease-in-out infinite;
+}
+
+.bb-hamsters--out .bbh-zzz text:nth-child(2) {
+    animation-delay: -1.6s;
+}
+
+.bb-hamsters--out .bbh-zzz text:nth-child(3) {
+    animation-delay: -0.8s;
+}
+
+@keyframes bbh-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes bbh-bob {
+    from {
+        transform: translateY(0);
+    }
+    to {
+        transform: translateY(-2px);
+    }
+}
+
+@keyframes bbh-leg {
+    from {
+        transform: rotate(-28deg);
+    }
+    to {
+        transform: rotate(28deg);
+    }
+}
+
+@keyframes bbh-blink {
+    0%, 93%, 100% {
+        transform: scaleY(1);
+    }
+    96% {
+        transform: scaleY(0.1);
+    }
+}
+
+@keyframes bbh-steam {
+    0% {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    40% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+}
+
+@keyframes bbh-zzz {
+    0% {
+        opacity: 0;
+        transform: translate(0, 4px);
+    }
+    30% {
+        opacity: 0.8;
+    }
+    100% {
+        opacity: 0;
+        transform: translate(4px, -6px);
+    }
+}
+
+@keyframes bbh-glow {
+    from {
+        opacity: 0.2;
+    }
+    to {
+        opacity: 0.6;
+    }
+}
+
+@keyframes bbh-type {
+    from {
+        transform: translateY(0);
+    }
+    to {
+        transform: translateY(-1.6px);
+    }
+}
+
+@keyframes bbh-led {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.2;
+    }
+}
+
+/* The server room */
+.bbh1-note rect {
+    fill: #fff59d;
+}
+
+.bbh1-note text {
+    font: bold 6.5px sans-serif;
+    fill: #5d4037;
+}
+
+.bbh1-belt {
+    fill: none;
+    stroke: #546e7a;
+    stroke-width: 3;
+    stroke-dasharray: 6 3.4;
+    animation: bbh1-belt 0.2s linear infinite;
+}
+
+.bbh1-pulley {
+    fill: #455a64;
+    stroke: #90a4ae;
+    stroke-width: 2;
+}
+
+.bbh1-spoke {
+    stroke: #cfd8dc;
+    stroke-width: 1.5;
+}
+
+.bbh1-shaft {
+    stroke: #263238;
+    stroke-width: 3;
+}
+
+.bbh-box {
+    fill: #455a64;
+    stroke: #263238;
+    stroke-width: 2;
+}
+
+.bbh1-bolt {
+    fill: #ffd54f;
+    animation: bbh-led 0.3s steps(1) infinite;
+}
+
+.bbh1-cable {
+    fill: none;
+    stroke: #37474f;
+    stroke-width: 3.5;
+    stroke-linecap: round;
+}
+
+.bbh1-pulse {
+    fill: none;
+    stroke: #ffeb3b;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-dasharray: 3 37;
+    animation: bbh1-pulse 0.6s linear infinite;
+}
+
+.bbh1-rack {
+    fill: #263238;
+    stroke: #546e7a;
+    stroke-width: 2;
+}
+
+.bbh1-unit {
+    fill: #37474f;
+}
+
+.bbh1-slot {
+    fill: #1c262b;
+}
+
+.bbh1-led {
+    fill: #66bb6a;
+    animation: bbh-led 1.2s steps(1) infinite;
+}
+
+.bbh1-led--a {
+    fill: #ffca28;
+    animation-duration: 0.6s;
+}
+
+.bbh1-screen {
+    fill: #0d1b2a;
+    stroke: #90a4ae;
+    stroke-width: 2;
+}
+
+.bbh1-stand {
+    fill: #546e7a;
+}
+
+.bbh1-chart {
+    fill: none;
+    stroke: #66bb6a;
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    stroke-dasharray: 80;
+    animation: bbh1-chart 2.4s ease-out infinite;
+}
+
+.bbh1-drip {
+    display: none;
+    fill: #6d4c41;
+}
+
+.bb-hamsters--out .bbh1-belt {
+    animation: none;
+}
+
+.bb-hamsters--out .bbh1-bolt {
+    animation: none;
+    fill: #78909c;
+}
+
+.bb-hamsters--out .bbh1-pulse,
+.bb-hamsters--out .bbh1-chart {
+    display: none;
+}
+
+.bb-hamsters--out .bbh1-led {
+    fill: #ef5350;
+    animation-duration: 2.4s;
+}
+
+.bb-hamsters--out .bbh1-drip {
+    display: inline;
+    animation: bbh1-drip 1.2s ease-in infinite;
+}
+
+@keyframes bbh1-belt {
+    to {
+        stroke-dashoffset: -9.4;
+    }
+}
+
+@keyframes bbh1-pulse {
+    to {
+        stroke-dashoffset: -40;
+    }
+}
+
+@keyframes bbh1-chart {
+    0% {
+        stroke-dashoffset: 80;
+    }
+    60%, 100% {
+        stroke-dashoffset: 0;
+    }
+}
+
+@keyframes bbh1-drip {
+    0% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+    85% {
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(54px);
+        opacity: 0;
+    }
+}
+
+/* The call centre */
+.bbh2-clock {
+    fill: #fafafa;
+    stroke: #90a4ae;
+    stroke-width: 2.5;
+}
+
+.bbh2-tick {
+    stroke: #90a4ae;
+    stroke-width: 1.5;
+}
+
+.bbh2-hand {
+    stroke: #37474f;
+    stroke-linecap: round;
+    transform-origin: 56px 40px;
+}
+
+.bbh2-hand--h {
+    stroke-width: 2.6;
+    animation: bbh-spin 4.8s linear infinite;
+}
+
+.bbh2-hand--m {
+    stroke-width: 1.6;
+    animation: bbh-spin 0.6s linear infinite;
+}
+
+.bbh2-pin {
+    fill: #37474f;
+}
+
+.bbh-wood {
+    fill: #a1887f;
+    stroke: #6d4c41;
+    stroke-width: 1.5;
+}
+
+.bbh2-leg {
+    stroke: #6d4c41;
+    stroke-width: 4;
+    stroke-linecap: round;
+}
+
+.bbh2-kbd {
+    fill: #cfd8dc;
+    stroke: #90a4ae;
+    stroke-width: 1;
+}
+
+.bbh2-screen {
+    fill: #0d1b2a;
+    stroke: #90a4ae;
+    stroke-width: 2.5;
+}
+
+.bbh2-rows {
+    animation: bbh2-scroll 1.2s linear infinite;
+}
+
+.bbh2-buy {
+    font: bold 8px monospace;
+    fill: #66bb6a;
+}
+
+.bbh2-sell {
+    font: bold 8px monospace;
+    fill: #ef5350;
+}
+
+.bbh-bubble path {
+    fill: #ffffff;
+    stroke: var(--bb-hamster-accent);
+    stroke-width: 1.5;
+}
+
+.bbh-say {
+    font: bold 9.5px sans-serif;
+    fill: #333333;
+}
+
+.bbh2-say {
+    opacity: 0;
+    animation: bbh2-say 4.8s infinite;
+}
+
+.bbh2-say--2 {
+    animation-delay: -3.2s;
+}
+
+.bbh2-say--3 {
+    animation-delay: -1.6s;
+}
+
+.bbh2-note {
+    font: 13px sans-serif;
+    fill: currentColor;
+    opacity: 0;
+    animation: bbh2-note 2.4s ease-out infinite;
+}
+
+.bbh2-note--2 {
+    animation-delay: -1.2s;
+}
+
+.bbh2-breathe {
+    animation: bbh2-breathe 1.2s ease-in-out infinite alternate;
+}
+
+.bbh2-walk {
+    animation: bbh2-walk 4.8s linear infinite;
+}
+
+.bb-hamsters--out .bbh2-hand {
+    animation: none;
+}
+
+.bb-hamsters--out .bbh2-hand--h {
+    transform: rotate(120deg);
+}
+
+.bb-hamsters--out .bbh2-a {
+    animation: none;
+    transform-box: fill-box;
+    transform-origin: 25% 90%;
+    transform: rotate(13deg);
+}
+
+.bb-hamsters--out .bbh2-walk {
+    animation: none;
+}
+
+@keyframes bbh2-scroll {
+    to {
+        transform: translateY(-36px);
+    }
+}
+
+@keyframes bbh2-say {
+    0%, 32% {
+        opacity: 1;
+    }
+    34%, 98% {
+        opacity: 0;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+@keyframes bbh2-note {
+    0% {
+        opacity: 0;
+        transform: translate(0, 0);
+    }
+    20% {
+        opacity: 0.8;
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-14px, -22px);
+    }
+}
+
+@keyframes bbh2-breathe {
+    from {
+        transform: translateY(0);
+    }
+    to {
+        transform: translateY(-1px);
+    }
+}
+
+@keyframes bbh2-walk {
+    0% {
+        transform: translateX(0) scaleX(1);
+    }
+    46% {
+        transform: translateX(90px) scaleX(1);
+    }
+    50% {
+        transform: translateX(90px) scaleX(-1);
+    }
+    96% {
+        transform: translateX(0) scaleX(-1);
+    }
+    100% {
+        transform: translateX(0) scaleX(1);
+    }
+}
+
+/* The Jita run */
+.bbh3-sky {
+    fill: #0b1020;
+}
+
+.bbh3-star {
+    fill: #ffffff;
+}
+
+.bbh3-far {
+    animation: bbh3-scroll 4.8s linear infinite;
+}
+
+.bbh3-near {
+    animation: bbh3-scroll 2.4s linear infinite;
+}
+
+.bbh3-planet {
+    fill: #283593;
+}
+
+.bbh3-planet-lit {
+    fill: #5c6bc0;
+    opacity: 0.4;
+}
+
+.bbh3-tower {
+    fill: #78909c;
+    stroke: #455a64;
+    stroke-width: 1.5;
+}
+
+.bbh3-antenna {
+    stroke: #90a4ae;
+    stroke-width: 1.5;
+}
+
+.bbh3-ring {
+    fill: none;
+    stroke: #b0bec5;
+    stroke-width: 5;
+    stroke-dasharray: 14 6;
+    animation: bbh3-ring 2.4s linear infinite;
+}
+
+.bbh3-beacon {
+    fill: #ff5252;
+    animation: bbh-led 1.2s steps(1) infinite;
+}
+
+.bbh3-window {
+    fill: #ffe082;
+}
+
+.bbh3-bay {
+    fill: #263238;
+}
+
+.bbh3-ship {
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+    animation: bbh3-bob 2.4s ease-in-out infinite alternate;
+}
+
+.bbh3-hull {
+    fill: #cfd8dc;
+    stroke: #607d8b;
+    stroke-width: 1.5;
+}
+
+.bbh3-wing {
+    fill: #90a4ae;
+    stroke: #607d8b;
+    stroke-width: 1.2;
+}
+
+.bbh3-stripe {
+    stroke: var(--bb-hamster-accent);
+    stroke-width: 3;
+    stroke-linecap: round;
+}
+
+.bbh3-port {
+    fill: #263238;
+    stroke: #90a4ae;
+    stroke-width: 1;
+}
+
+.bbh3-name {
+    font: bold 5.5px sans-serif;
+    fill: #607d8b;
+}
+
+.bbh3-dome {
+    fill: #81d4fa;
+    fill-opacity: 0.22;
+    stroke: #e1f5fe;
+    stroke-width: 1.5;
+}
+
+.bbh3-shine {
+    fill: none;
+    stroke: #ffffff;
+    stroke-opacity: 0.6;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+}
+
+.bbh3-engine {
+    fill: #546e7a;
+}
+
+.bbh3-flame {
+    transform-box: fill-box;
+    transform-origin: 100% 50%;
+    animation: bbh3-flame 0.15s ease-in-out infinite alternate;
+}
+
+.bbh3-flame-outer {
+    fill: #ffb74d;
+}
+
+.bbh3-flame-inner {
+    fill: #fff8e1;
+}
+
+.bbh3-coin {
+    animation: bbh3-pay 1.6s linear infinite;
+}
+
+.bbh3-coin circle {
+    fill: #ffd54f;
+    stroke: #f9a825;
+    stroke-width: 1.2;
+}
+
+.bbh3-coin text {
+    font: bold 8px sans-serif;
+    fill: #8d6e00;
+}
+
+.bbh3-crate {
+    animation: bbh3-sell 1.6s linear infinite;
+}
+
+.bbh3-crate rect {
+    fill: #a1887f;
+    stroke: #5d4037;
+    stroke-width: 1;
+}
+
+.bbh3-crate path {
+    stroke: #5d4037;
+    stroke-width: 0.8;
+}
+
+.bbh3-hud {
+    font: bold 8px monospace;
+    fill: #80cbc4;
+}
+
+.bbh3-fuel {
+    font: bold 9px monospace;
+    fill: #ffab40;
+    animation: bbh-led 1.2s steps(1) infinite;
+}
+
+.bbh3-mugfloat {
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+    animation: bbh-spin 4.8s linear infinite;
+}
+
+.bb-hamsters--out .bbh3-far,
+.bb-hamsters--out .bbh3-near {
+    animation: none;
+}
+
+.bb-hamsters--out .bbh3-flame,
+.bb-hamsters--out .bbh3-coin,
+.bb-hamsters--out .bbh3-crate {
+    display: none;
+}
+
+.bb-hamsters--out .bbh3-ship {
+    animation: bbh3-drift 4.8s ease-in-out infinite;
+}
+
+@keyframes bbh3-scroll {
+    to {
+        transform: translateX(-360px);
+    }
+}
+
+@keyframes bbh3-ring {
+    to {
+        stroke-dashoffset: -40;
+    }
+}
+
+@keyframes bbh3-bob {
+    from {
+        transform: translateY(0);
+    }
+    to {
+        transform: translateY(-4px);
+    }
+}
+
+@keyframes bbh3-flame {
+    from {
+        transform: scaleX(0.75);
+    }
+    to {
+        transform: scaleX(1.15);
+    }
+}
+
+@keyframes bbh3-pay {
+    0% {
+        transform: translate(0, 0);
+        opacity: 0;
+    }
+    12% {
+        opacity: 1;
+    }
+    85% {
+        opacity: 1;
+    }
+    100% {
+        transform: translate(-104px, -6px);
+        opacity: 0;
+    }
+}
+
+@keyframes bbh3-sell {
+    0% {
+        transform: translate(0, 0);
+        opacity: 0;
+    }
+    12% {
+        opacity: 1;
+    }
+    85% {
+        opacity: 1;
+    }
+    100% {
+        transform: translate(104px, -4px);
+        opacity: 0;
+    }
+}
+
+@keyframes bbh3-drift {
+    0%, 100% {
+        transform: rotate(-9deg) translate(0, 2px);
+    }
+    50% {
+        transform: rotate(-5deg) translate(-3px, 5px);
+    }
+}
+
+/* The trading floor */
+.bbh4-tape {
+    fill: #111111;
+}
+
+.bbh4-tick {
+    font: bold 10px monospace;
+    fill: #ffca28;
+}
+
+.bbh4-up {
+    fill: #66bb6a;
+}
+
+.bbh4-down {
+    fill: #ef5350;
+}
+
+.bbh4-scroll {
+    animation: bbh4-scroll 4.8s linear infinite;
+}
+
+.bbh4-closed {
+    font: bold 10px monospace;
+    fill: #ef5350;
+    animation: bbh-led 1.2s steps(1) infinite;
+}
+
+.bbh4-board {
+    fill: #0d1b2a;
+    stroke: #90a4ae;
+    stroke-width: 2;
+}
+
+.bbh4-label {
+    font: bold 7.5px sans-serif;
+    fill: #90a4ae;
+    letter-spacing: 0.5px;
+}
+
+.bbh4-live {
+    fill: #ef5350;
+    animation: bbh-led 1.2s steps(1) infinite;
+}
+
+.bbh4-bar {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    animation: bbh4-bar 1.2s ease-in-out infinite alternate;
+}
+
+.bbh4-bar--up {
+    fill: #66bb6a;
+}
+
+.bbh4-bar--down {
+    fill: #ef5350;
+}
+
+.bbh4-trend {
+    fill: none;
+    stroke: #ffca28;
+    stroke-width: 1.6;
+    stroke-dasharray: 4 3;
+}
+
+.bbh4-hop {
+    animation: bbh4-hop 0.3s ease-out infinite alternate;
+}
+
+.bbh4-burst {
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+    animation: bbh4-burst 0.3s ease-in-out infinite alternate;
+}
+
+.bbh4-burst polygon {
+    fill: #fff59d;
+    stroke: #f9a825;
+    stroke-width: 1.5;
+}
+
+.bbh4-shout {
+    font: 900 9.5px sans-serif;
+    fill: #c62828;
+    animation: bbh-led-off 1.2s steps(1) infinite;
+}
+
+.bbh4-shout--b {
+    animation-delay: -0.6s;
+}
+
+.bbh4-paper {
+    fill: #eceff1;
+    stroke: #b0bec5;
+    stroke-width: 0.8;
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+    animation: bbh4-fall 2.4s linear infinite;
+}
+
+.bbh4-paper--l {
+    animation-name: bbh4-fall-l;
+}
+
+.bbh4-floor {
+    fill: #eceff1;
+    stroke: #b0bec5;
+    stroke-width: 0.8;
+}
+
+.bbh4-plank {
+    fill: #8d6e63;
+}
+
+.bbh4-stencil {
+    font: 900 13px sans-serif;
+    fill: #5d4037;
+    letter-spacing: 1px;
+}
+
+.bbh4-sign rect {
+    fill: #ef5350;
+    stroke: #b71c1c;
+    stroke-width: 1.5;
+}
+
+.bbh4-sign text {
+    font: 900 11px sans-serif;
+    fill: #ffffff;
+    letter-spacing: 1px;
+}
+
+.bbh4-sign line {
+    stroke: #90a4ae;
+    stroke-width: 1.2;
+}
+
+.bb-hamsters--out .bbh4-bar {
+    animation: none;
+    transform: scaleY(0.12);
+    fill: #546e7a;
+}
+
+.bb-hamsters--out .bbh4-hop {
+    animation: none;
+}
+
+@keyframes bbh-led-off {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0;
+    }
+}
+
+@keyframes bbh4-scroll {
+    to {
+        transform: translateX(-470px);
+    }
+}
+
+@keyframes bbh4-bar {
+    from {
+        transform: scaleY(0.5);
+    }
+    to {
+        transform: scaleY(1.05);
+    }
+}
+
+@keyframes bbh4-hop {
+    from {
+        transform: translateY(0);
+    }
+    to {
+        transform: translateY(-8px);
+    }
+}
+
+@keyframes bbh4-burst {
+    from {
+        transform: scale(0.88);
+    }
+    to {
+        transform: scale(1.04);
+    }
+}
+
+@keyframes bbh4-fall {
+    0% {
+        transform: translate(0, 0) rotate(0deg);
+        opacity: 0;
+    }
+    8% {
+        opacity: 1;
+    }
+    88% {
+        opacity: 1;
+    }
+    100% {
+        transform: translate(14px, 160px) rotate(540deg);
+        opacity: 0;
+    }
+}
+
+@keyframes bbh4-fall-l {
+    0% {
+        transform: translate(0, 0) rotate(0deg);
+        opacity: 0;
+    }
+    8% {
+        opacity: 1;
+    }
+    88% {
+        opacity: 1;
+    }
+    100% {
+        transform: translate(-14px, 160px) rotate(-450deg);
+        opacity: 0;
+    }
+}
+
+/* The hamster beside the paste box. It waits for loot, then gets excited and
+   counts the lines once something is pasted, so the seller can see the paste
+   landed. Each page load draws one of four. */
+.bb-paste-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(200px, 280px);
+    gap: 24px;
+    align-items: start;
+}
+
+.bb-idle {
+    padding: 0;
+}
+
+.bb-idle .bb-hamsters__stage,
+.bb-idle .bb-hamsters__line,
+.bb-idle .bb-hamsters__sub {
+    max-width: 280px;
+}
+
+.bb-idle .bb-hamsters__line {
+    font-size: 1rem;
+}
+
+.bb-idle .bb-hamsters__sub {
+    font-size: 0.85rem;
+}
+
+@media (max-width: 767.98px) {
+    .bb-paste-row {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+    }
+
+    .bb-idle .bb-hamsters__stage {
+        max-width: 220px;
+    }
+}
+
+.bbi-only-loot {
+    display: none;
+}
+
+.bb-idle--loot .bbi-only-idle {
+    display: none;
+}
+
+.bb-idle--loot .bbi-only-loot {
+    display: inline;
+}
+
+.bbi-bang {
+    font: 900 17px sans-serif;
+    fill: #ffca28;
+    stroke: #6d4c00;
+    stroke-width: 0.6;
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    animation: bbi-pop 0.6s ease-in-out infinite alternate;
+}
+
+.bb-idle--loot .bbh-eye {
+    animation: none;
+    transform: scale(1.35);
+}
+
+.bbi-wood-top {
+    fill: #8d6e63;
+    stroke: #5d4037;
+    stroke-width: 1.5;
+}
+
+.bbi-inset {
+    fill: none;
+    stroke: #6d4c41;
+    stroke-width: 1.2;
+    opacity: 0.6;
+}
+
+.bbi-chev {
+    fill: none;
+    stroke: #ffca28;
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    animation: bbi-chase 1.2s steps(1) infinite;
+}
+
+.bbi-label {
+    font: bold 9px sans-serif;
+    fill: #ffca28;
+    letter-spacing: 0.5px;
+}
+
+.bbi-label--small {
+    font-size: 7px;
+}
+
+@keyframes bbi-pop {
+    from {
+        transform: translateY(0) scale(1);
+    }
+    to {
+        transform: translateY(-3px) scale(1.12);
+    }
+}
+
+@keyframes bbi-chase {
+    0% {
+        opacity: 1;
+    }
+    33% {
+        opacity: 0.2;
+    }
+}
+
+@keyframes bbi-breathe {
+    from {
+        transform: translateY(0);
+    }
+    to {
+        transform: translateY(-1.5px);
+    }
+}
+
+@keyframes bbi-hop {
+    from {
+        transform: translateY(0);
+    }
+    to {
+        transform: translateY(-7px);
+    }
+}
+
+/* Idle: the counter */
+.bbi1-string {
+    stroke: currentColor;
+    stroke-opacity: 0.4;
+    stroke-width: 1.5;
+}
+
+.bbi1-sign {
+    fill: #1a1f2b;
+    stroke: var(--bb-hamster-accent);
+    stroke-width: 2;
+}
+
+.bbi1-title {
+    font: bold 13px sans-serif;
+    fill: #ffd54f;
+    letter-spacing: 1.5px;
+}
+
+.bbi1-pill rect {
+    fill: #43a047;
+}
+
+.bbi1-pill text {
+    font: bold 7.5px sans-serif;
+    fill: #ffffff;
+    letter-spacing: 0.5px;
+}
+
+.bbi1-pill {
+    animation: bbi1-flicker 4.8s steps(1) infinite;
+}
+
+.bb-idle--loot .bbi1-pill rect {
+    fill: #ef6c00;
+}
+
+.bbi1-ham {
+    animation: bbi-breathe 1.2s ease-in-out infinite alternate;
+}
+
+.bb-idle--loot .bbi1-ham {
+    animation: bbi-hop 0.3s ease-out infinite alternate;
+}
+
+.bbi1-paw {
+    fill: #c98a4a;
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    animation: bbi1-tap 0.6s ease-in-out infinite alternate;
+}
+
+.bbi1-paw--b {
+    animation-delay: -0.3s;
+}
+
+.bb-idle--loot .bbi1-paw {
+    animation-duration: 0.15s;
+}
+
+.bbi1-bell {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    animation: bbi1-ding 4.8s ease-in-out infinite;
+}
+
+.bb-idle--loot .bbi1-bell {
+    animation-duration: 1.2s;
+}
+
+.bbi1-bell-dome {
+    fill: #ffca28;
+    stroke: #c79100;
+    stroke-width: 1;
+}
+
+.bbi1-bell-base {
+    fill: #9e9e9e;
+}
+
+.bbi1-bell-knob {
+    fill: #c79100;
+}
+
+.bbi1-ding {
+    font: bold italic 9px sans-serif;
+    fill: currentColor;
+    opacity: 0;
+    animation: bbi1-ding-text 4.8s ease-out infinite;
+}
+
+.bb-idle--loot .bbi1-ding {
+    animation-duration: 1.2s;
+}
+
+@keyframes bbi1-flicker {
+    0%, 61%, 64%, 67%, 100% {
+        opacity: 1;
+    }
+    62%, 65% {
+        opacity: 0.35;
+    }
+}
+
+@keyframes bbi1-tap {
+    from {
+        transform: translateY(0);
+    }
+    to {
+        transform: translateY(-2.5px);
+    }
+}
+
+@keyframes bbi1-ding {
+    0%, 70%, 82%, 100% {
+        transform: rotate(0deg);
+    }
+    72% {
+        transform: rotate(-12deg);
+    }
+    75% {
+        transform: rotate(10deg);
+    }
+    78% {
+        transform: rotate(-6deg);
+    }
+    80% {
+        transform: rotate(3deg);
+    }
+}
+
+@keyframes bbi1-ding-text {
+    0%, 70% {
+        opacity: 0;
+        transform: translateY(2px);
+    }
+    74%, 88% {
+        opacity: 0.9;
+        transform: translateY(-3px);
+    }
+    96%, 100% {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+}
+
+/* Idle: the scales */
+.bbi2-metal {
+    fill: #90a4ae;
+    stroke: #546e7a;
+    stroke-width: 1.2;
+}
+
+.bbi2-brass {
+    fill: #ffca28;
+    stroke: #b28704;
+    stroke-width: 1.2;
+}
+
+.bbi2-chain {
+    stroke: #b0bec5;
+    stroke-width: 1.2;
+}
+
+.bbi2-dish {
+    fill: #cfd8dc;
+    stroke: #78909c;
+    stroke-width: 1.5;
+}
+
+.bbi2-coin {
+    fill: #ffd54f;
+    stroke: #f9a825;
+    stroke-width: 1;
+}
+
+.bbi2-ore {
+    fill: #8d99ae;
+    stroke: #5c677d;
+    stroke-width: 1;
+}
+
+.bbi2-gem {
+    fill: #4dd0e1;
+    stroke: #00838f;
+    stroke-width: 1;
+}
+
+.bbi2-beam {
+    transform-origin: 84px 66px;
+    animation: bbi2-beam 2.4s ease-in-out infinite alternate;
+}
+
+.bbi2-pan--l {
+    animation: bbi2-left 2.4s ease-in-out infinite alternate;
+}
+
+.bbi2-pan--r {
+    animation: bbi2-right 2.4s ease-in-out infinite alternate;
+}
+
+.bb-idle--loot .bbi2-beam {
+    animation: bbi2-beam-tip 0.9s ease-out forwards;
+}
+
+.bb-idle--loot .bbi2-pan--l {
+    animation: bbi2-left-tip 0.9s ease-out forwards;
+}
+
+.bb-idle--loot .bbi2-pan--r {
+    animation: bbi2-right-tip 0.9s ease-out forwards;
+}
+
+.bbi2-drop {
+    animation: bbi2-drop 0.6s cubic-bezier(0.3, 1.4, 0.6, 1) both;
+}
+
+.bbi2-loupe {
+    fill: #b3e5fc;
+    fill-opacity: 0.45;
+    stroke: #37474f;
+    stroke-width: 1.6;
+}
+
+.bbi2-strap {
+    fill: none;
+    stroke: #37474f;
+    stroke-width: 1.2;
+}
+
+.bbi2-cloth {
+    fill: #eceff1;
+}
+
+.bbi2-polish {
+    animation: bbi2-polish 1.2s linear infinite;
+}
+
+.bbi2-ham {
+    transform-box: fill-box;
+    transform-origin: 30% 100%;
+    transition: transform 0.4s ease;
+}
+
+.bb-idle--loot .bbi2-ham {
+    transform: rotate(9deg);
+}
+
+.bb-idle--loot .bbi2-polish {
+    animation: none;
+}
+
+@keyframes bbi2-beam {
+    from {
+        transform: rotate(3deg);
+    }
+    to {
+        transform: rotate(7deg);
+    }
+}
+
+@keyframes bbi2-left {
+    from {
+        transform: translateY(-2.7px);
+    }
+    to {
+        transform: translateY(-6.3px);
+    }
+}
+
+@keyframes bbi2-right {
+    from {
+        transform: translateY(2.7px);
+    }
+    to {
+        transform: translateY(6.3px);
+    }
+}
+
+@keyframes bbi2-beam-tip {
+    0% {
+        transform: rotate(5deg);
+    }
+    55% {
+        transform: rotate(-12deg);
+    }
+    80% {
+        transform: rotate(-7deg);
+    }
+    100% {
+        transform: rotate(-9deg);
+    }
+}
+
+@keyframes bbi2-left-tip {
+    0% {
+        transform: translateY(-4.5px);
+    }
+    55% {
+        transform: translateY(10.8px);
+    }
+    80% {
+        transform: translateY(6.3px);
+    }
+    100% {
+        transform: translateY(8.1px);
+    }
+}
+
+@keyframes bbi2-right-tip {
+    0% {
+        transform: translateY(4.5px);
+    }
+    55% {
+        transform: translateY(-10.8px);
+    }
+    80% {
+        transform: translateY(-6.3px);
+    }
+    100% {
+        transform: translateY(-8.1px);
+    }
+}
+
+@keyframes bbi2-drop {
+    from {
+        transform: translateY(-60px);
+        opacity: 0;
+    }
+    30% {
+        opacity: 1;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes bbi2-polish {
+    0% {
+        transform: translate(0, 0);
+    }
+    25% {
+        transform: translate(2px, -2px);
+    }
+    50% {
+        transform: translate(0, -4px);
+    }
+    75% {
+        transform: translate(-2px, -2px);
+    }
+    100% {
+        transform: translate(0, 0);
+    }
+}
+
+/* Idle: the docking bay */
+.bbi3-sign {
+    fill: #263238;
+    stroke: #546e7a;
+    stroke-width: 1.5;
+}
+
+.bbi3-sign-text {
+    font: bold 8.5px sans-serif;
+    fill: #cfd8dc;
+    letter-spacing: 0.5px;
+}
+
+.bbi3-status {
+    fill: #66bb6a;
+    animation: bbh-led 2.4s steps(1) infinite;
+}
+
+.bb-idle--loot .bbi3-status {
+    fill: #ffca28;
+    animation-duration: 0.6s;
+}
+
+.bbi3-pad {
+    fill: #37474f;
+    stroke: #263238;
+    stroke-width: 1.5;
+}
+
+.bbi3-pad-ring {
+    fill: none;
+    stroke: #ffca28;
+    stroke-width: 2;
+    stroke-dasharray: 7 5;
+    opacity: 0.85;
+}
+
+.bbi3-light {
+    fill: #80deea;
+    animation: bbi-chase 1.2s steps(1) infinite;
+}
+
+.bb-idle--loot .bbi3-light {
+    fill: #69f0ae;
+    animation-duration: 0.6s;
+}
+
+.bbi3-vest {
+    fill: #c6ff00;
+    opacity: 0.92;
+}
+
+.bbi3-stripe {
+    stroke: #eceff1;
+    stroke-width: 1.6;
+}
+
+.bbi3-wand rect {
+    fill: #ff9100;
+}
+
+.bbi3-wand .bbi3-glow {
+    fill: #ffe0b2;
+}
+
+.bbi3-wand {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    animation: bbi3-wave 0.6s ease-in-out infinite alternate;
+}
+
+.bbi3-wand--b {
+    animation-direction: alternate-reverse;
+}
+
+.bb-idle--loot .bbi3-wand {
+    animation: none;
+    transform: rotate(-38deg);
+}
+
+.bb-idle--loot .bbi3-wand--b {
+    transform: rotate(-4deg);
+}
+
+.bbi3-crate {
+    animation: bbi3-land 0.9s ease-out both;
+}
+
+.bbi3-crate rect {
+    fill: #a1887f;
+    stroke: #5d4037;
+    stroke-width: 1.5;
+}
+
+.bbi3-crate path {
+    stroke: #5d4037;
+    stroke-width: 1.2;
+    fill: none;
+}
+
+.bbi3-crate text {
+    font: 900 7px sans-serif;
+    fill: #4e342e;
+    letter-spacing: 0.5px;
+}
+
+.bbi3-puff {
+    fill: currentColor;
+    opacity: 0;
+    animation: bbi3-puff 0.9s ease-out both;
+}
+
+@keyframes bbi3-wave {
+    from {
+        transform: rotate(-28deg);
+    }
+    to {
+        transform: rotate(22deg);
+    }
+}
+
+@keyframes bbi3-land {
+    0% {
+        transform: translateY(-140px);
+    }
+    70% {
+        transform: translateY(0);
+    }
+    82% {
+        transform: translateY(-5px);
+    }
+    100% {
+        transform: translateY(0);
+    }
+}
+
+@keyframes bbi3-puff {
+    0%, 65% {
+        opacity: 0;
+        transform: scale(0.4);
+    }
+    75% {
+        opacity: 0.35;
+    }
+    100% {
+        opacity: 0;
+        transform: scale(1.4);
+    }
+}
+
+.bbi3-puff {
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+}
+
+/* Idle: the Loot-o-Mat */
+.bbi4-body {
+    fill: #5c6bc0;
+    stroke: #3949ab;
+    stroke-width: 2;
+}
+
+.bbi4-foot {
+    fill: #3949ab;
+}
+
+.bbi4-head {
+    fill: #1a237e;
+}
+
+.bbi4-title {
+    font: bold 9.5px sans-serif;
+    fill: #ffd54f;
+    letter-spacing: 1px;
+}
+
+.bbi4-dot {
+    fill: #ffd54f;
+    opacity: 0.35;
+}
+
+.bb-idle--loot .bbi4-dot {
+    animation: bbi-chase 0.6s steps(1) infinite;
+    opacity: 1;
+}
+
+.bbi4-glass {
+    fill: #0d1b2a;
+    stroke: #9fa8da;
+    stroke-width: 1.5;
+}
+
+.bbi4-shelf {
+    stroke: #7986cb;
+    stroke-width: 2;
+}
+
+.bbi4-shine {
+    fill: #ffffff;
+    opacity: 0.12;
+    animation: bbi4-shine 4.8s ease-in-out infinite;
+}
+
+.bbi4-display {
+    fill: #102027;
+}
+
+.bbi4-digits {
+    font: bold 6.5px monospace;
+    fill: #69f0ae;
+}
+
+.bbi4-ready {
+    animation: bbh-led 0.6s steps(1) infinite;
+}
+
+.bbi4-slot {
+    fill: #1a1a2e;
+}
+
+.bbi4-tiny {
+    font: bold 5.5px sans-serif;
+    fill: #e8eaf6;
+    letter-spacing: 0.4px;
+}
+
+.bbi4-led {
+    fill: #69f0ae;
+    animation: bbh-led 2.4s steps(1) infinite;
+}
+
+.bb-idle--loot .bbi4-led {
+    fill: #ffca28;
+    animation-duration: 0.3s;
+}
+
+.bbi4-button {
+    fill: #9fa8da;
+}
+
+.bbi4-tray {
+    fill: #1a237e;
+}
+
+.bbi4-flap {
+    fill: #283593;
+}
+
+.bbi4-ham {
+    animation: bbi-breathe 1.2s ease-in-out infinite alternate;
+}
+
+.bb-idle--loot .bbi4-ham {
+    animation: bbi-hop 0.3s ease-out infinite alternate;
+}
+
+.bbi4-wave {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    animation: bbi4-wave 0.6s ease-in-out infinite alternate;
+}
+
+.bbi4-board {
+    fill: #fff8e1;
+    stroke: #8d6e63;
+    stroke-width: 1.5;
+}
+
+.bbi4-board-text {
+    font: 900 8px sans-serif;
+    fill: #5d4037;
+}
+
+.bbi4-leg {
+    stroke: #8d6e63;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+}
+
+.bbi4-coin {
+    fill: #ffd54f;
+    stroke: #f9a825;
+    stroke-width: 1;
+    animation: bbi4-coin 1.2s ease-out infinite;
+}
+
+@keyframes bbi4-shine {
+    0% {
+        transform: translateX(-70px);
+    }
+    35%, 100% {
+        transform: translateX(90px);
+    }
+}
+
+@keyframes bbi4-wave {
+    from {
+        transform: rotate(-25deg);
+    }
+    to {
+        transform: rotate(20deg);
+    }
+}
+
+@keyframes bbi4-coin {
+    0% {
+        transform: translateY(0);
+        opacity: 0;
+    }
+    15% {
+        opacity: 1;
+    }
+    60% {
+        transform: translateY(-16px);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(-2px);
+        opacity: 0;
+    }
+}
+
+.bbi3-ham {
+    animation: bbi-breathe 1.2s ease-in-out infinite alternate;
+}
+
+/* The closed public page. One scene each: a break behind the shutter while
+   the page is temporarily closed, and the stall boarded up once it is closed
+   for good. Both share the stall. */
+.bb-closed .bb-hamsters__stage {
+    max-width: 420px;
+}
+
+.bbc-post {
+    fill: #6d4c41;
+    stroke: #4e342e;
+    stroke-width: 1.5;
+}
+
+.bbc-shutter {
+    fill: #546e7a;
+    stroke: #37474f;
+    stroke-width: 1.5;
+}
+
+.bbc-slats line {
+    stroke: #455a64;
+    stroke-width: 1.5;
+}
+
+.bbc-shutter-bar {
+    fill: #37474f;
+}
+
+.bbc-nail {
+    fill: #263238;
+}
+
+.bbc-string {
+    fill: none;
+    stroke: #cfd8dc;
+    stroke-width: 1.2;
+}
+
+.bbc-card {
+    fill: #fff8e1;
+    stroke: #c79100;
+    stroke-width: 1.2;
+}
+
+.bbc-card-text {
+    font: bold 9px sans-serif;
+    fill: #c62828;
+    letter-spacing: 0.8px;
+}
+
+.bbc-clock {
+    fill: #fff8e1;
+    stroke: #4e342e;
+    stroke-width: 1.5;
+}
+
+.bbc-clock-hand {
+    stroke: #4e342e;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+}
+
+/* Gives a spinning or rolling group a box centred on its pivot. */
+.bbc-pivot {
+    fill: none;
+}
+
+.bbc-crate {
+    fill: #8d6e63;
+    stroke: #5d4037;
+    stroke-width: 1.5;
+}
+
+.bbc-crate-label {
+    font: bold 10px sans-serif;
+    fill: #4e342e;
+    letter-spacing: 1.5px;
+}
+
+.bbc-asleep .bbh-eye {
+    display: none;
+}
+
+.bbc-asleep .bbh-shut {
+    display: inline;
+}
+
+.bbc-zzz text {
+    fill: currentColor;
+    font: bold 11px sans-serif;
+    opacity: 0.75;
+    animation: bbh-zzz 2.4s ease-in-out infinite;
+}
+
+.bbc-zzz text:nth-child(2) {
+    animation-delay: -1.6s;
+}
+
+.bbc-zzz text:nth-child(3) {
+    animation-delay: -0.8s;
+}
+
+/* Temporarily closed: the break */
+.bbc1-card {
+    transform-box: fill-box;
+    transform-origin: 50% 0;
+    animation: bbc1-swing 1.8s ease-in-out infinite alternate;
+}
+
+.bbc1-minute {
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+    animation: bbh-spin 6s linear infinite;
+}
+
+.bbc1-nap {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    animation: bbc1-snooze 2.4s ease-in-out infinite;
+}
+
+@keyframes bbc1-swing {
+    from {
+        transform: rotate(-6deg);
+    }
+    to {
+        transform: rotate(6deg);
+    }
+}
+
+@keyframes bbc1-snooze {
+    0%, 100% {
+        transform: scaleY(1);
+    }
+    50% {
+        transform: scaleY(1.05);
+    }
+}
+
+/* Permanently closed: boarded up and gone */
+.bbc2-web {
+    fill: none;
+    stroke: currentColor;
+    stroke-opacity: 0.35;
+    stroke-width: 0.8;
+}
+
+.bbc2-plank {
+    fill: #8d6e63;
+    stroke: #5d4037;
+    stroke-width: 1.2;
+}
+
+.bbc2-sign {
+    transform-box: fill-box;
+    transform-origin: 0 0;
+    animation: bbc2-creak 3.2s ease-in-out infinite alternate;
+}
+
+.bbc2-prints ellipse {
+    fill: currentColor;
+    opacity: 0.2;
+}
+
+.bbc2-walk,
+.bbc2-walk .bbh-leg {
+    animation-duration: 0.5s;
+}
+
+.bbc2-stick {
+    stroke: #8d6e63;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+}
+
+.bbc2-bundle {
+    fill: #e53935;
+    stroke: #b71c1c;
+    stroke-width: 1;
+}
+
+.bbc2-dot {
+    fill: #ffffff;
+    opacity: 0.85;
+}
+
+.bbc2-knot {
+    fill: none;
+    stroke: #b71c1c;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+}
+
+.bbc2-roll {
+    animation: bbc2-roll 7s linear infinite;
+}
+
+.bbc2-weed {
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+    animation: bbc2-tumble 1.2s linear infinite;
+}
+
+/* Straw over a dark edge: half its roll is in front of the wooden counter,
+   where a wood-coloured weed disappears, and the rest is over the dark page. */
+.bbc2-weed-edge {
+    fill: none;
+    stroke: #3e2723;
+    stroke-width: 3.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.bbc2-weed-line {
+    fill: none;
+    stroke: #e0c98f;
+    stroke-width: 1.3;
+    stroke-linecap: round;
+}
+
+@keyframes bbc2-creak {
+    from {
+        transform: rotate(-1.5deg);
+    }
+    to {
+        transform: rotate(1.5deg);
+    }
+}
+
+@keyframes bbc2-tumble {
+    to {
+        transform: rotate(-360deg);
+    }
+}
+
+/* Blows in from the right with a few small hops and is gone before it
+   reaches the hamster. */
+@keyframes bbc2-roll {
+    0% {
+        transform: translate(60px, 0);
+        opacity: 0;
+    }
+    8% {
+        opacity: 1;
+    }
+    20% {
+        transform: translate(14px, -7px);
+    }
+    32% {
+        transform: translate(-32px, 0);
+    }
+    50% {
+        transform: translate(-75px, -5px);
+    }
+    65% {
+        transform: translate(-110px, 0);
+    }
+    85% {
+        opacity: 1;
+    }
+    100% {
+        transform: translate(-170px, 0);
+        opacity: 0;
+    }
+}
+
+/* A still picture for anyone who asked for less motion. The speech bubble and
+   the trader's shout take turns by animation, so without it only the first of
+   each is kept, rather than all of them on top of each other or none at all.
+   The idle scales still tip when loot is pasted, just without the swing. */
+@media (prefers-reduced-motion: reduce) {
+    .bb-hamsters *,
+    .bb-hamsters *::before,
+    .bb-hamsters *::after {
+        animation: none !important;
+        transition: none !important;
+    }
+
+    .bbh2-say {
+        opacity: 1;
+    }
+
+    .bbh2-say--2,
+    .bbh2-say--3,
+    .bbh4-shout--b {
+        display: none;
+    }
+
+    .bb-idle--loot .bbi2-beam {
+        transform: rotate(-9deg);
+    }
+
+    .bb-idle--loot .bbi2-pan--l {
+        transform: translateY(8.1px);
+    }
+
+    .bb-idle--loot .bbi2-pan--r {
+        transform: translateY(-8.1px);
+    }
+}

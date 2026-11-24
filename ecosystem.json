@@ -1,0 +1,20 @@
+{
+    "plugin": "buyback-manager",
+    "manager_core": { "relation": "optional", "minimum": "1.2.0" },
+    "migration_identifier": "buyback_manager",
+    "publishes": [
+        "buyback.contract.matched", "buyback.contract.flagged", "buyback.contract.unmatched",
+        "buyback.contract.completed", "buyback.contract.cancelled", "buyback.contract.expired", "buyback.contract.nudge"
+    ],
+    "subscribes": [],
+    "capabilities": {
+        "provides": [],
+        "calls": [
+            "ManagerCore:events.getRecentForPublisher", "ManagerCore:pricing.getPreferenceForPlugin", "ManagerCore:pricing.getPrices",
+            "ManagerCore:pricing.getSubscribedTypeCount", "ManagerCore:pricing.getVariantPrices", "ManagerCore:pricing.listMarkets",
+            "ManagerCore:pricing.registerPreference", "ManagerCore:pricing.subscribeTypes", "ManagerCore:pricing.subscribeVariants",
+            "ManagerCore:pricing.unsubscribeTypes", "ManagerCore:pricing.unsubscribeVariants"
+        ]
+    },
+    "routes": { "serves": ["buyback.appraisal.create"], "uses": [] }
+}
