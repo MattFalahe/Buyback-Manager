@@ -174,7 +174,7 @@ docker exec -it seat-docker-front-1 php artisan buyback-manager:sync-contracts -
 
 ### Moving off a development build
 
-Builds before 1.0.0 kept their data in `buyback_*` tables, which stay next to 1.0.0's until you clear them. Point `SEAT_PLUGINS` at `mattfalahe/buyback-manager`, with no branch after it, restart SeAT, then run this once. It carries your programme over or starts fresh, then removes what the old build left. `--carry-over` or `--fresh` picks without asking, and `--force` skips the confirmation. The [CHANGELOG](CHANGELOG.md) has the full steps.
+Builds before 1.0.0 kept their data in `buyback_*` tables, which stay next to 1.0.0's until you clear them. Point `SEAT_PLUGINS` at `mattfalahe/buyback-manager`, with no branch after it, restart SeAT, then run this once. It carries your programme over or starts fresh, then removes what the old build left. `--carry-over` or `--fresh` picks without asking, and `--force` skips the confirmation. Run without `-it`, it asks nothing, so give it both. The [CHANGELOG](CHANGELOG.md) has the full steps.
 
 ```bash
 docker exec -it seat-docker-front-1 php artisan buyback-manager:upgrade-dev-build

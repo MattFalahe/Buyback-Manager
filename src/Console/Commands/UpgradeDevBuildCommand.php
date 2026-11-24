@@ -18,6 +18,14 @@ class UpgradeDevBuildCommand extends Command
 
     public function handle(DevBuildUpgrade $upgrade): int
     {
+        // Run without a terminal (docker exec without -it), each question would
+        // read the end of the input and take its default, so the run ended on a
+        // message about something else. Not asking lets it say which options to
+        // pass. SHELL_INTERACTIVE is Symfony's own switch to ask anyway.
+        if (! self::hasTerminal() && getenv('SHELL_INTERACTIVE') === false) {
+            $this->input->setInteractive(false);
+        }
+
         $problem = DevBuildUpgrade::releaseProblem(self::seatPlugins(), self::installedVersion());
         if ($problem !== null) {
             $this->error($problem);
@@ -136,6 +144,11 @@ class UpgradeDevBuildCommand extends Command
         }
 
         return $mode;
+    }
+
+    private static function hasTerminal(): bool
+    {
+        return defined('STDIN') && function_exists('stream_isatty') && @stream_isatty(STDIN);
     }
 
     /** What the next restart installs, on SeAT Docker. Null elsewhere. */

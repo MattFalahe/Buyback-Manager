@@ -840,7 +840,7 @@
                     <h4>Moving off a development build</h4>
                     <p>Builds before 1.0.0 kept their data in tables named <code>buyback_*</code>, which stay next to 1.0.0's until you clear them. Diagnostics warns while they are there. Point <code>SEAT_PLUGINS</code> at <code>mattfalahe/buyback-manager</code>, with no branch after it, restart SeAT, then run this once. It asks whether to carry your programme over or start fresh, then removes what the old build left. It refuses to run while SeAT is set to install any other branch. The changelog has the full steps.</p>
                     <table class="plugin-info-table">
-                        <tr><td><code>docker exec -it seat-docker-front-1 php artisan buyback-manager:upgrade-dev-build</code></td><td>Run by hand, once. <code>--carry-over</code> or <code>--fresh</code> picks without asking, <code>--force</code> skips the confirmation.</td></tr>
+                        <tr><td><code>docker exec -it seat-docker-front-1 php artisan buyback-manager:upgrade-dev-build</code></td><td>Run by hand, once. <code>--carry-over</code> or <code>--fresh</code> picks without asking, <code>--force</code> skips the confirmation. Run without <code>-it</code>, it asks nothing, so give it both.</td></tr>
                     </table>
 
                     <h4>Configuration variables</h4>
