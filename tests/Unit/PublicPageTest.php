@@ -171,6 +171,23 @@ class PublicPageTest extends TestCase
         $this->assertSame('MINC', $link(['target_type' => BuybackSetting::TARGET_CORP, 'target_corporation_name' => '  ']));
     }
 
+    public function testTheNameUnderTheLogoIsWhoeverTheContractGoesTo(): void
+    {
+        $this->corporation(self::OURS, 'MINC', '2026-10-01 00:00:00');
+        $this->corporation(self::ALSO_ABC, 'HAUL', '2026-10-01 00:00:00');
+        DB::table('character_infos')->insert(['character_id' => 90000001, 'name' => "Kira O'Vex"]);
+
+        $badge = fn (array $target) => (new BuybackSetting($target + ['corporation_id' => self::OURS]))->publicTargetBadge();
+
+        $this->assertSame('MINC', $badge(['target_type' => BuybackSetting::TARGET_MY_CORP]));
+        $this->assertSame('MINC', $badge([]));
+        $this->assertSame('HAUL', $badge(['target_type' => BuybackSetting::TARGET_CORP, 'target_corporation_id' => self::ALSO_ABC, 'target_corporation_name' => 'Hauling Co']));
+        $this->assertSame('Hauling Co. Ltd', $badge(['target_type' => BuybackSetting::TARGET_CORP, 'target_corporation_name' => ' Hauling Co. Ltd ']));
+        $this->assertSame("Kira O'Vex", $badge(['target_type' => BuybackSetting::TARGET_PLAYER, 'character_id' => 90000001]));
+        $this->assertSame('MINC', $badge(['target_type' => BuybackSetting::TARGET_PLAYER, 'character_id' => 90000099]));
+        $this->assertSame('MINC', $badge(['target_type' => BuybackSetting::TARGET_CORP, 'target_corporation_name' => '  ']));
+    }
+
     public function testTheLinkFindsTheProgrammeAndTheOldTickerStillDoes(): void
     {
         $this->corporation(self::OURS, 'MINC', '2026-10-01 00:00:00');

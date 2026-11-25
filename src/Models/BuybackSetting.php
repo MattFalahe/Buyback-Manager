@@ -435,6 +435,23 @@ class BuybackSetting extends Model
     }
 
     /**
+     * The name under the logo on the public page, after the same rule as the
+     * link but as sellers read it: a ticker for a corporation SeAT knows, the
+     * name typed for one it does not, the character's name for a player.
+     */
+    public function publicTargetBadge(): string
+    {
+        $badge = match ($this->target_type ?: self::TARGET_MY_CORP) {
+            self::TARGET_CORP => optional($this->targetCorporation)->ticker
+                ?: trim((string) $this->target_corporation_name),
+            self::TARGET_PLAYER => trim((string) optional($this->character)->name),
+            default => '',
+        };
+
+        return $badge !== '' ? $badge : $this->corp_ticker;
+    }
+
+    /**
      * Public landing page URL for this corporation's buyback programme.
      */
     public function getPublicUrlAttribute(): string

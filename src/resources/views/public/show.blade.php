@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex">
     <title>{{ $corpName }} Buyback</title>
-    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/public.css') }}?v=12">
+    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/public.css') }}?v=13">
     <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/hamsters.css') }}?v=4">
     <style>
         .bb-public-body { --bb-pub-accent: {{ $accent }}; }
@@ -25,8 +25,8 @@
             <img class="bb-public-logo {{ $logoStyle === 'none' ? 'bb-logo-none' : '' }}" src="{{ $logoUrl }}" alt="{{ $corpName }} logo">
         @endif
         <h1 class="bb-public-title">{{ $setting->public_headline ?: ($corpName . ' Buyback') }}</h1>
-        <div class="bb-public-ticker">{{ $ticker }}</div>
-        <p class="bb-public-blurb">{{ $setting->public_blurb ?: 'We buy your items at competitive rates, with fast and locked-in payouts.' }}</p>
+        <div class="bb-public-ticker">{{ $badge }}</div>
+        <div class="bb-public-blurb">{{ $blurb }}</div>
         @if($appraisalEnabled)
             <a class="bb-public-cta" href="#bb-estimate">Get an appraisal</a>
         @endif

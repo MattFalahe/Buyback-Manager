@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex">
     <title>Appraisal {{ $appraisal->public_id }} - {{ $corpName }}</title>
-    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/public.css') }}?v=12">
+    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/public.css') }}?v=13">
     <style>
         .bb-public-body { --bb-pub-accent: {{ $accent }}; }
     </style>

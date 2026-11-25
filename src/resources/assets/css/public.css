@@ -107,6 +107,39 @@
     max-width: 620px;
     margin: 8px auto 26px;
 }
+.bb-public-blurb p {
+    margin: 0 0 12px;
+}
+.bb-public-blurb h3 {
+    font-size: 19px;
+    font-weight: 600;
+    color: #e6edf3;
+    margin: 18px 0 8px;
+}
+/* The hero is centred, but a list reads down its left edge, so each list is
+   left-aligned and centred as a block. */
+.bb-public-blurb ul,
+.bb-public-blurb ol {
+    display: table;
+    text-align: left;
+    margin: 0 auto 12px;
+    padding-left: 1.3em;
+}
+.bb-public-blurb li {
+    margin: 3px 0;
+}
+.bb-public-blurb strong {
+    color: #e6edf3;
+}
+.bb-public-blurb a {
+    color: var(--bb-pub-accent);
+}
+.bb-public-blurb > :first-child {
+    margin-top: 0;
+}
+.bb-public-blurb > :last-child {
+    margin-bottom: 0;
+}
 .bb-public-cta {
     display: inline-flex;
     align-items: center;

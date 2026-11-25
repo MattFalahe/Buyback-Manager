@@ -470,7 +470,7 @@
 
                     <h4>What a seller can paste</h4>
                     <table class="plugin-info-table">
-                        <tr><td>From the game</td><td>An inventory, assets or contract window copied with Ctrl+C.</td></tr>
+                        <tr><td>From the game</td><td>An inventory, assets or contract window copied with Ctrl+C. A copy that went through a chat or an editor and came out with spaces where its tabs were reads the same.</td></tr>
                         <tr><td>One item per line</td><td><code>1,000 x Tritanium</code>, <code>1000 Tritanium</code>, <code>Tritanium 1000</code> or <code>Tritanium x1000</code>.</td></tr>
                         <tr><td>An EFT fit</td><td>The ship, its modules, drones and cargo. Charges loaded in a module are not counted.</td></tr>
                     </table>
@@ -732,7 +732,7 @@
 
                     <h4>Branding &amp; layout</h4>
                     <ul>
-                        <li><strong>Headline, blurb and footer</strong>: your own copy for the hero and a small footer line.</li>
+                        <li><strong>Headline, blurb and footer</strong>: your own copy for the hero and a small footer line. The blurb keeps its line breaks, and the buttons above it add bold, italic, headings, bulleted and numbered lists, and links. Under the logo, the page names whoever the contract goes to.</li>
                         <li><strong>Accent colour</strong>: recolours the buttons and highlights.</li>
                         <li><strong>Background image</strong>: uploaded and shown behind the hero, with a <strong>dim overlay</strong> slider so the text stays readable over any image.</li>
                         <li><strong>Logo</strong>: defaults to the EVE corporation logo; upload your own. Choose its background: a dark box (default), no box (logo straight on the image, best for a transparent logo), or a white square.</li>

@@ -9,6 +9,7 @@ use BuybackManager\Services\AppraisalService;
 use BuybackManager\Services\BuybackPublicService;
 use BuybackManager\Services\Pricing\PriceProviderService;
 use BuybackManager\Services\Pricing\PriceWait;
+use BuybackManager\Services\PublicBlurb;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Log;
@@ -41,6 +42,7 @@ class BuybackPublicController extends Controller
 
         return view('buyback-manager::public.show', $this->branding($setting) + [
             'setting'       => $setting,
+            'blurb'         => PublicBlurb::html($setting->public_blurb ?: 'We buy your items at competitive rates, with fast and locked-in payouts.'),
             'instructions'  => $setting->publicContractInstructions(),
             'rates'         => $setting->public_show_rates ? $this->buildRates($setting, $prices) : null,
             // No login anything: selling needs no account. Whoever issues the
@@ -95,7 +97,7 @@ class BuybackPublicController extends Controller
 
         return [
             'corpName'      => optional($setting->corporation)->name ?? ('Corporation #' . $setting->corporation_id),
-            'ticker'        => $setting->corp_ticker,
+            'badge'         => $setting->publicTargetBadge(),
             'link'          => $setting->public_slug,
             'accent'        => $this->safeAccent($setting->public_accent_color),
             'overlay'       => max(0, min(100, (int) ($setting->public_overlay_opacity ?? 55))) / 100,

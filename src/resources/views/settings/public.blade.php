@@ -122,8 +122,17 @@
 
                 <div class="form-group">
                     <label for="public_blurb">Blurb</label>
-                    <textarea class="form-control" id="public_blurb" name="public_blurb" rows="3" maxlength="2000"
+                    <div class="bb-format-bar" role="toolbar" aria-label="Blurb formatting" aria-controls="public_blurb">
+                        <button type="button" class="btn btn-sm btn-bb-secondary" data-format="bold" title="Bold (Ctrl+B)" aria-label="Bold"><i class="fa fa-bold"></i></button>
+                        <button type="button" class="btn btn-sm btn-bb-secondary" data-format="italic" title="Italic (Ctrl+I)" aria-label="Italic"><i class="fa fa-italic"></i></button>
+                        <button type="button" class="btn btn-sm btn-bb-secondary" data-format="heading" title="Heading" aria-label="Heading"><i class="fa fa-heading"></i></button>
+                        <button type="button" class="btn btn-sm btn-bb-secondary" data-format="bullet" title="Bulleted list" aria-label="Bulleted list"><i class="fa fa-list-ul"></i></button>
+                        <button type="button" class="btn btn-sm btn-bb-secondary" data-format="numbered" title="Numbered list" aria-label="Numbered list"><i class="fa fa-list-ol"></i></button>
+                        <button type="button" class="btn btn-sm btn-bb-secondary" data-format="link" title="Link" aria-label="Link"><i class="fa fa-link"></i></button>
+                    </div>
+                    <textarea class="form-control" id="public_blurb" name="public_blurb" rows="10" maxlength="2000"
                               placeholder="A short pitch shown under the headline.">{{ old('public_blurb', $setting->public_blurb) }}</textarea>
+                    <small class="form-text text-muted">Line breaks show on the page as you type them, and a blank line starts a new paragraph. Select text and use the buttons, or type the marks yourself: **bold**, *italic*, [text](https://...) for a link, and ## , - or 1. at the start of a line for a heading, a bullet or a numbered item.</small>
                 </div>
 
                 <div class="form-group">
@@ -230,6 +239,156 @@
         toggle.addEventListener('change', sync);
         state.addEventListener('change', sync);
         sync();
+    })();
+
+    (function () {
+        var area = document.getElementById('public_blurb');
+        var bar = document.querySelector('.bb-format-bar[aria-controls="public_blurb"]');
+        if (!area || !bar) {
+            return;
+        }
+
+        var LINE_MARKS = {
+            heading: /^\s*#{1,3}\s+/,
+            bullet: /^\s*[-*•]\s+/,
+            numbered: /^\s*\d{1,3}[.)]\s+/
+        };
+        var ANY_LINE_MARK = /^\s*(#{1,3}|[-*•]|\d{1,3}[.)])\s+/;
+
+        // Replaces start..end with text and selects text's own from..to.
+        function put(start, end, text, from, to) {
+            area.focus();
+            area.setSelectionRange(start, end);
+            // insertText keeps the change in the browser's undo history.
+            var done = false;
+            try {
+                done = document.execCommand('insertText', false, text);
+            } catch (e) {
+                done = false;
+            }
+            if (!done) {
+                area.setRangeText(text, start, end, 'end');
+                area.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            area.setSelectionRange(start + from, start + to);
+        }
+
+        // The selection without the spaces around it: a double-click takes the
+        // space after a word, and a mark against a space does not count.
+        function selection() {
+            var start = area.selectionStart;
+            var end = area.selectionEnd;
+            var v = area.value;
+            while (start < end && /\s/.test(v.charAt(start))) {
+                start++;
+            }
+            while (end > start && /\s/.test(v.charAt(end - 1))) {
+                end--;
+            }
+            return { start: start, end: end, text: v.slice(start, end) };
+        }
+
+        // How many stars run from position at, stepping by step.
+        function stars(v, at, step) {
+            var n = 0;
+            while (at + n * step >= 0 && v.charAt(at + n * step) === '*') {
+                n++;
+            }
+            return n;
+        }
+
+        function wrap(mark, placeholder) {
+            var s = selection();
+            var v = area.value;
+            var left = stars(v, s.start - 1, -1);
+            var right = stars(v, s.end, 1);
+            // Clicked again on text it already wraps: take the marks off. The
+            // stars are counted because two of them are bold and three are bold
+            // and italic, so a star next to bold text is not an italic mark.
+            var wrapped = s.text !== '' && (mark === '**' ? left >= 2 && right >= 2 : left % 2 === 1 && right % 2 === 1);
+            if (wrapped) {
+                put(s.start - mark.length, s.end + mark.length, s.text, 0, s.text.length);
+                return;
+            }
+            var text = s.text || placeholder;
+            put(s.start, s.end, mark + text + mark, mark.length, mark.length + text.length);
+        }
+
+        function lines(kind) {
+            var v = area.value;
+            var start = area.selectionStart;
+            var end = area.selectionEnd;
+            if (end > start && v.charAt(end - 1) === '\n') {
+                end--;
+            }
+            var from = v.lastIndexOf('\n', start - 1) + 1;
+            var to = v.indexOf('\n', end);
+            if (to === -1) {
+                to = v.length;
+            }
+            var block = v.slice(from, to).split('\n');
+            var filled = block.filter(function (line) { return line.trim() !== ''; });
+            // Every line already marked this way: the button takes it off.
+            var remove = filled.length > 0 && filled.every(function (line) { return LINE_MARKS[kind].test(line); });
+            var n = 0;
+            var out = block.map(function (line) {
+                if (line.trim() === '' && filled.length > 0) {
+                    return line;
+                }
+                var bare = line.replace(ANY_LINE_MARK, '').replace(/^\s+/, '');
+                if (remove) {
+                    return bare;
+                }
+                n++;
+                return (kind === 'heading' ? '## ' : kind === 'bullet' ? '- ' : n + '. ') + bare;
+            }).join('\n');
+            var single = block.length === 1;
+            put(from, to, out, single ? out.length : 0, out.length);
+        }
+
+        function link() {
+            var s = selection();
+            var label = s.text || 'link text';
+            var text = '[' + label + '](https://)';
+            // The address part is selected, so pasting a link replaces it.
+            put(s.start, s.end, text, label.length + 3, text.length - 1);
+        }
+
+        function apply(format) {
+            if (format === 'bold') {
+                wrap('**', 'bold text');
+            } else if (format === 'italic') {
+                wrap('*', 'italic text');
+            } else if (format === 'link') {
+                link();
+            } else if (LINE_MARKS[format]) {
+                lines(format);
+            }
+        }
+
+        // Keeps the text selected while a button is pressed.
+        bar.addEventListener('mousedown', function (event) {
+            if (event.target.closest('[data-format]')) {
+                event.preventDefault();
+            }
+        });
+        bar.addEventListener('click', function (event) {
+            var button = event.target.closest('[data-format]');
+            if (button) {
+                event.preventDefault();
+                apply(button.getAttribute('data-format'));
+            }
+        });
+        area.addEventListener('keydown', function (event) {
+            if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) {
+                return;
+            }
+            var key = event.key.toLowerCase();
+            if (key === 'b' || key === 'i') {
+                event.preventDefault();
+                apply(key === 'b' ? 'bold' : 'italic');
+            }
+        });
     })();
 </script>
 @endpush

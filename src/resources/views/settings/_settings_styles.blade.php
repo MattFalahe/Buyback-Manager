@@ -131,6 +131,16 @@
         opacity: 0.55;
     }
 
+    .buyback-manager-wrapper .bb-format-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-bottom: 6px;
+    }
+    .buyback-manager-wrapper .bb-format-bar .btn {
+        min-width: 34px;
+    }
+
     /* Category badges. The colour matches the Discord embed for the same
        category, so the two surfaces read as one system. */
     .buyback-manager-wrapper .bb-cat-badge {

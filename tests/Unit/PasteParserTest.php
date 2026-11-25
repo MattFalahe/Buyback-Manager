@@ -28,6 +28,18 @@ class PasteParserTest extends TestCase
         $this->assertSame(['Tritanium' => 1000, 'Pyerite' => 2500, 'Rifter' => 1], $this->items($paste));
     }
 
+    public function test_an_inventory_copy_whose_tabs_became_spaces_still_reads_its_columns(): void
+    {
+        // As it arrives after a trip through a chat: every tab is four spaces,
+        // and the empty columns collapse into longer runs.
+        $paste = "Tritanium    1,000    Mineral    Material            10 m3        None    5,000.00 ISK\n"
+            . "Pyerite    2 500    Mineral    Material            25 m3        None\n"
+            . "Rifter        Frigate    Ship            27,289 m3\n"
+            . "Mexallon  300";
+
+        $this->assertSame(['Tritanium' => 1000, 'Pyerite' => 2500, 'Rifter' => 1, 'Mexallon' => 300], $this->items($paste));
+    }
+
     public function test_one_item_per_line_reads_in_every_common_form(): void
     {
         foreach (['1,000 x Tritanium', '1000x Tritanium', '1000 Tritanium', 'Tritanium 1000', 'Tritanium x1000', 'tritanium 1000'] as $line) {

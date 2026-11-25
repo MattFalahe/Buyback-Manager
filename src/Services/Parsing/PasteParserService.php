@@ -9,7 +9,8 @@ use Seat\Eveapi\Models\Sde\InvType;
  * provider prices by type id, so this is the only parser.
  *
  * It reads:
- *   - Inventory, asset and contract copies, tab separated: "Tritanium\t1,000\t..."
+ *   - Inventory, asset and contract copies, tab separated: "Tritanium\t1,000\t...",
+ *     or with the tabs turned into runs of spaces on the way
  *   - "1000 x Tritanium", "1000 Tritanium", "Tritanium 1000", "Tritanium x1000"
  *   - EFT fits: the ship from the header line, each module without its
  *     loaded charge, drones and cargo from their "x5" lines
@@ -180,6 +181,15 @@ class PasteParserService
         $line = preg_replace('/\s+\/offline$/i', '', $line);
         $readings = [];
 
+        // An inventory copy that went through a chat, a forum post or an
+        // editor can arrive with every tab turned into spaces. No item name
+        // holds two spaces in a row, so a run of them is a column break and
+        // the line reads as the copy it was.
+        $columns = preg_split('/ {2,}/', $line);
+        if (count($columns) > 1 && ($quantity = self::quantity($columns[1])) !== null) {
+            $readings[] = [$columns[0], $quantity];
+        }
+
         foreach ([self::SPACED_QUANTITY, self::PLAIN_QUANTITY] as $q) {
             foreach ([
                 '/^(?<qty>' . $q . ')\s*x\s+(?<name>.+)$/iu',
@@ -202,6 +212,12 @@ class PasteParserService
         // Read after the whole line, since a few item names hold a comma.
         if (preg_match('/^(?<module>[^,]+),\s*\S/u', $line, $m)) {
             $readings[] = [$m['module'], 1];
+        }
+
+        // A ship copied assembled has no quantity, and with spaces for tabs
+        // its empty column is gone too, so the name is one of it.
+        if (count($columns) > 1) {
+            $readings[] = [$columns[0], 1];
         }
 
         return $this->keep($readings);
