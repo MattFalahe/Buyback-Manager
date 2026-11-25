@@ -26,6 +26,10 @@ class BuybackContract extends Model
     // The key in the Description matches no appraisal of this corporation:
     // a typo, another corporation's key, or one already pruned.
     public const FLAG_UNKNOWN_KEY = 'unknown_key';
+    // The seller's corporation, or its alliance, is not one the programme
+    // buys from; or no source could say which alliance it is in.
+    public const FLAG_OUTSIDE_SELLER = 'outside_seller';
+    public const FLAG_SELLER_UNVERIFIED = 'seller_unverified';
 
     /**
      * Human wording for each flag, used in the UI and Discord embeds.
@@ -37,6 +41,8 @@ class BuybackContract extends Model
         self::FLAG_KEY_REUSED => 'Appraisal key had already been used',
         self::FLAG_WRONG_LOCATION => 'Created outside the accepted buyback locations',
         self::FLAG_UNKNOWN_KEY => 'Appraisal key matches no appraisal',
+        self::FLAG_OUTSIDE_SELLER => 'Seller is outside who can sell to this programme',
+        self::FLAG_SELLER_UNVERIFIED => 'Could not tell which alliance the seller is in',
     ];
 
     /**

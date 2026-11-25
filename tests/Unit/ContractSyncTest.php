@@ -17,6 +17,7 @@ use BuybackManager\Tests\Sqlite;
 use Carbon\Carbon;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\TestCase;
 
@@ -28,7 +29,11 @@ class ContractSyncTest extends TestCase
 {
     private const CORP = 98000001;
     private const OTHER_CORP = 98000002;
+    private const THIRD_CORP = 98000003;
+    private const ALLIANCE = 99000001;
+    private const OTHER_ALLIANCE = 99000002;
     private const SELLER = 2112000001;
+    private const SECOND_SELLER = 2112000002;
     private const OPERATOR = 2112000099;
     private const TRITANIUM = 34;
 
@@ -99,6 +104,12 @@ class ContractSyncTest extends TestCase
         Schema::create('character_affiliations', function (Blueprint $table) {
             $table->bigInteger('character_id')->primary();
             $table->bigInteger('corporation_id');
+            $table->bigInteger('alliance_id')->nullable();
+        });
+        Schema::create('alliance_members', function (Blueprint $table) {
+            $table->integer('alliance_id');
+            $table->bigInteger('corporation_id');
+            $table->primary(['alliance_id', 'corporation_id']);
         });
         Schema::create('corporation_infos', function (Blueprint $table) {
             $table->bigInteger('corporation_id')->primary();
@@ -761,5 +772,134 @@ class ContractSyncTest extends TestCase
         $this->assertNull($row->haul_fee);
         $this->assertSame(1000.0, (float) $row->total_value);
         $this->assertNull($this->events->events[0]['payload']['haul_fee']);
+    }
+
+    public function test_a_programme_open_to_any_corporation_never_looks_a_seller_up(): void
+    {
+        Http::fake();
+        $setting = $this->setting();
+        $this->appraisal('bb-abcd2345');
+        $this->contract();
+
+        $this->service()->syncContractsForSetting($setting);
+
+        $this->assertSame(['buyback.contract.matched'], $this->events->names());
+        Http::assertNothingSent();
+    }
+
+    public function test_a_seller_outside_the_programmes_corporation_is_flagged_not_refused(): void
+    {
+        $setting = $this->setting(['seller_scope' => BuybackSetting::SELLERS_CORPORATION]);
+        $this->appraisal('bb-abcd2345');
+        $this->appraisal('bb-efgh6789');
+        $member = $this->contract(['issuer_corporation_id' => self::CORP]);
+        $outsider = $this->contract(['title' => 'bb-efgh6789']);
+
+        $this->service()->syncContractsForSetting($setting);
+
+        $this->assertSame(['buyback.contract.matched', 'buyback.contract.flagged'], $this->events->names());
+        $this->assertSame([], BuybackContract::where('contract_id', $member)->first()->flags());
+        $this->assertSame([BuybackContract::FLAG_OUTSIDE_SELLER], BuybackContract::where('contract_id', $outsider)->first()->flags());
+        $this->assertSame([BuybackContract::FLAG_OUTSIDE_SELLER], $this->events->events[1]['payload']['flags']);
+    }
+
+    public function test_an_alliance_is_judged_by_the_corporation_the_contract_was_issued_from(): void
+    {
+        Http::fake();
+        $setting = $this->setting(['seller_scope' => BuybackSetting::SELLERS_ALLIANCE, 'seller_alliance_id' => self::ALLIANCE]);
+        DB::table('alliance_members')->insert([
+            ['alliance_id' => self::ALLIANCE, 'corporation_id' => self::OTHER_CORP],
+            ['alliance_id' => self::OTHER_ALLIANCE, 'corporation_id' => self::THIRD_CORP],
+        ]);
+        // SeAT has the second seller in the alliance's corporation now, but
+        // they sold from the other one, and that is the one that counts.
+        DB::table('character_affiliations')->insert(['character_id' => self::SECOND_SELLER, 'corporation_id' => self::OTHER_CORP, 'alliance_id' => self::ALLIANCE]);
+        $this->appraisal('bb-abcd2345');
+        $this->appraisal('bb-efgh6789');
+        $member = $this->contract();
+        $outsider = $this->contract(['title' => 'bb-efgh6789', 'issuer_id' => self::SECOND_SELLER, 'issuer_corporation_id' => self::THIRD_CORP]);
+
+        $this->service()->syncContractsForSetting($setting);
+
+        $this->assertSame([], BuybackContract::where('contract_id', $member)->first()->flags());
+        $this->assertSame([BuybackContract::FLAG_OUTSIDE_SELLER], BuybackContract::where('contract_id', $outsider)->first()->flags());
+        Http::assertNothingSent();
+    }
+
+    public function test_a_seller_seat_cannot_place_is_looked_up_online(): void
+    {
+        Http::fake([
+            'evewho.com/*' => Http::response(['info' => [[
+                'character_id' => self::SELLER, 'corporation_id' => self::OTHER_CORP, 'alliance_id' => self::ALLIANCE,
+                'faction_id' => 0, 'name' => 'Seller', 'sec_status' => '0.1',
+            ]], 'history' => []]),
+        ]);
+        $setting = $this->setting(['seller_scope' => BuybackSetting::SELLERS_ALLIANCE, 'seller_alliance_id' => self::ALLIANCE]);
+        $this->appraisal('bb-abcd2345');
+        $contractId = $this->contract();
+
+        $this->service()->syncContractsForSetting($setting);
+
+        $this->assertSame([], BuybackContract::where('contract_id', $contractId)->first()->flags());
+        Http::assertSentCount(1);
+    }
+
+    public function test_a_seller_no_source_can_place_is_flagged_as_unverified(): void
+    {
+        Http::fake(['*' => Http::response('Not found', 404)]);
+        $setting = $this->setting(['seller_scope' => BuybackSetting::SELLERS_ALLIANCE, 'seller_alliance_id' => self::ALLIANCE]);
+        $this->appraisal('bb-abcd2345');
+        $contractId = $this->contract();
+
+        $this->service()->syncContractsForSetting($setting);
+
+        $this->assertSame(['buyback.contract.flagged'], $this->events->names());
+        $this->assertSame([BuybackContract::FLAG_SELLER_UNVERIFIED], BuybackContract::where('contract_id', $contractId)->first()->flags());
+        Http::assertSentCount(2);
+    }
+
+    public function test_a_key_that_matches_nothing_still_says_the_seller_is_outside(): void
+    {
+        $setting = $this->setting(['seller_scope' => BuybackSetting::SELLERS_CORPORATION]);
+        $contractId = $this->contract(['title' => 'bb-zzzz9999']);
+
+        $this->service()->syncContractsForSetting($setting);
+
+        $this->assertSame(['buyback.contract.unmatched'], $this->events->names());
+        $this->assertSame(
+            [BuybackContract::FLAG_UNKNOWN_KEY, BuybackContract::FLAG_OUTSIDE_SELLER],
+            BuybackContract::where('contract_id', $contractId)->first()->flags()
+        );
+    }
+
+    public function test_who_can_sell_reads_in_words(): void
+    {
+        Schema::create('alliances', function (Blueprint $table) {
+            $table->integer('alliance_id')->primary();
+            $table->string('name')->nullable();
+            $table->string('ticker')->nullable();
+        });
+        DB::table('alliances')->insert(['alliance_id' => self::ALLIANCE, 'name' => 'Test Alliance', 'ticker' => 'TEST']);
+
+        $this->assertSame('Anyone', $this->setting()->sellerScopeLabel());
+        BuybackSetting::query()->delete();
+        $this->assertSame('Members of Test Corp', $this->setting(['seller_scope' => BuybackSetting::SELLERS_CORPORATION])->sellerScopeLabel());
+        BuybackSetting::query()->delete();
+        $this->assertSame('Members of Test Alliance', $this->setting(['seller_scope' => BuybackSetting::SELLERS_ALLIANCE, 'seller_alliance_id' => self::ALLIANCE])->sellerScopeLabel());
+        BuybackSetting::query()->delete();
+        $this->assertSame('Members of alliance #' . self::OTHER_ALLIANCE, $this->setting(['seller_scope' => BuybackSetting::SELLERS_ALLIANCE, 'seller_alliance_id' => self::OTHER_ALLIANCE])->sellerScopeLabel());
+        BuybackSetting::query()->delete();
+        $this->assertSame('Anyone', $this->setting(['seller_scope' => 'nonsense'])->sellerScopeLabel());
+    }
+
+    public function test_an_alliance_scope_with_no_alliance_checks_nobody(): void
+    {
+        $setting = $this->setting(['seller_scope' => BuybackSetting::SELLERS_ALLIANCE]);
+        $this->appraisal('bb-abcd2345');
+        $this->contract();
+
+        $this->service()->syncContractsForSetting($setting);
+
+        $this->assertSame(['buyback.contract.matched'], $this->events->names());
     }
 }

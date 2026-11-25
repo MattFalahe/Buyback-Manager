@@ -210,6 +210,7 @@
                                         <td>{{ $setting->base_percentage }}%</td>
                                         <td>
                                             <span class="badge badge-{{ $targetBadge }}">{{ $targetLabel }}</span>
+                                            <br><small class="text-muted">Sellers: {{ $setting->sellerScopeLabel() }}</small>
                                         </td>
                                         <td>
                                             <span class="badge badge-info">{{ $providerLabel }}</span>
@@ -260,6 +261,8 @@
                                                     data-target-type="{{ $setting->target_type ?? 'my_corp' }}"
                                                     data-target-corporation-id="{{ $setting->target_corporation_id }}"
                                                     data-target-corporation-name="{{ $setting->target_corporation_name }}"
+                                                    data-seller-scope="{{ $setting->seller_scope ?: 'any' }}"
+                                                    data-seller-alliance-id="{{ $setting->seller_alliance_id }}"
                                                     data-auto-nudge-hours="{{ $setting->auto_nudge_hours ?? 48 }}"
                                                     data-appraisal-item-retention-days="{{ $setting->appraisal_item_retention_days ?? 14 }}"
                                                     data-appraisal-retention-days="{{ $setting->appraisal_retention_days ?? 180 }}">
@@ -322,7 +325,7 @@
                                                 <option value="{{ $corporation->corporation_id }}">{{ $corporation->name }}</option>
                                             @endforeach
                                         </select>
-                                        <small class="text-muted">The corporation this buyback programme serves.</small>
+                                        <small class="text-muted">The corporation that runs this buyback programme. Who can sell to it is set under Contract Target.</small>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
@@ -449,6 +452,33 @@
                                         <input type="text" name="target_corporation_name" id="target_corporation_name" class="form-control"
                                                maxlength="255" placeholder="e.g. Goonswarm Federation Holdings">
                                         <small class="text-muted">External corps BB can't see are <strong>instructions-only</strong>: a director confirms those contracts by hand.</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {{-- Who can sell --}}
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="seller_scope">Who can sell?</label>
+                                        <select name="seller_scope" id="seller_scope" class="form-control bb-seller-scope">
+                                            <option value="any" selected>Any corporation</option>
+                                            <option value="corporation">Members of the corporation above</option>
+                                            <option value="alliance">Members of an alliance</option>
+                                        </select>
+                                        <small class="text-muted">A contract from anyone else is still tracked, but flagged for a director. It never stops a sale.</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 bb-seller-alliance-field" style="display:none;">
+                                    <div class="form-group">
+                                        <label for="seller_alliance_id">Alliance <span class="text-danger">*</span></label>
+                                        <select name="seller_alliance_id" id="seller_alliance_id" class="form-control">
+                                            <option value="">-- Select Alliance --</option>
+                                            @foreach($alliances as $alliance)
+                                                <option value="{{ $alliance->alliance_id }}">{{ $alliance->name }}{{ $alliance->ticker ? ' [' . $alliance->ticker . ']' : '' }}</option>
+                                            @endforeach
+                                        </select>
+                                        <small class="text-muted">Listed once SeAT holds a corporation in it. The seller's alliance comes from SeAT, then EveWho, then zKillboard.</small>
                                     </div>
                                 </div>
                             </div>
@@ -914,6 +944,31 @@
                             </div>
                         </div>
                     </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="edit_seller_scope">Who can sell?</label>
+                                <select name="seller_scope" id="edit_seller_scope" class="form-control bb-seller-scope">
+                                    <option value="any">Any corporation</option>
+                                    <option value="corporation">Members of this corporation</option>
+                                    <option value="alliance">Members of an alliance</option>
+                                </select>
+                                <small class="text-muted">Anyone else is flagged for a director, never refused. Applies to new contracts.</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6 bb-seller-alliance-field" style="display:none;">
+                            <div class="form-group">
+                                <label for="edit_seller_alliance_id">Alliance <span class="text-danger">*</span></label>
+                                <select name="seller_alliance_id" id="edit_seller_alliance_id" class="form-control">
+                                    <option value="">-- Select Alliance --</option>
+                                    @foreach($alliances as $alliance)
+                                        <option value="{{ $alliance->alliance_id }}">{{ $alliance->name }}{{ $alliance->ticker ? ' [' . $alliance->ticker . ']' : '' }}</option>
+                                    @endforeach
+                                </select>
+                                <small class="text-muted">Listed once SeAT holds a corporation in it.</small>
+                            </div>
+                        </div>
+                    </div>
 
                     <hr>
                     <h5 class="bb-section-heading"><i class="fa fa-tags"></i> Pricing Provider</h5>
@@ -1236,6 +1291,8 @@
             $('#edit_target_type').val(btn.data('target-type') || 'my_corp');
             $('#edit_target_corporation_id').val((btn.data('target-corporation-id') || '').toString());
             $('#edit_target_corporation_name').val(btn.data('target-corporation-name') || '');
+            $('#edit_seller_scope').val(btn.data('seller-scope') || 'any');
+            $('#edit_seller_alliance_id').val((btn.data('seller-alliance-id') || '').toString());
             $('#edit_max_deviation_percent').val(btn.data('max-deviation-percent') || '1.00');
             $('#edit_thin_market_guard_percent').val(btn.data('thin-market-guard-percent') ?? '10.00');
             $('#edit_appraisal_stale_hours').val(btn.data('appraisal-stale-hours') || 48);
@@ -1247,7 +1304,13 @@
             $('#edit_price_provider').trigger('change');
             $('#edit_price_source').trigger('change');
             $('#edit_target_type').trigger('change');
+            $('#edit_seller_scope').trigger('change');
         });
+
+        $('.bb-seller-scope').on('change', function() {
+            const $form = $(this).closest('.bb-settings-form, .modal-content');
+            $form.find('.bb-seller-alliance-field').toggle($(this).val() === 'alliance');
+        }).trigger('change');
 
         // ============================================================
         // Contract target toggle: show the right sub-fields + helper

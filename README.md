@@ -34,6 +34,7 @@ The quote is a reference, not a price lock. Every contract is compared to its ap
 - the contract's items do not match what was priced
 - the key had already been used
 - the contract was created outside the locations you accept from
+- the seller is outside **Who can sell**: a programme buys from any corporation by default, or only from its own corporation's members, or one alliance's. The seller's alliance comes from SeAT, then EveWho, then zKillboard; a seller none of them can place is flagged as unverified
 
 ### 🎯 Three contract-target modes
 Pick who receives the contracts, matching EVE's own visibility rules:

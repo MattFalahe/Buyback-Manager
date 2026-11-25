@@ -245,10 +245,10 @@
 
                 <div class="diag-tab-intro">
                     <p>
-                        <strong>What this tab does:</strong> At-a-glance dashboard of plugin state. Thirteen read-only checks
+                        <strong>What this tab does:</strong> At-a-glance dashboard of plugin state. Fourteen read-only checks
                         across environment, plugin tables, tables left by a development build, SeAT/SDE tables, the scheduled sync job, buyback settings,
                         Manager Core integration, each corporation's price provider, price cache, where haul fees get
-                        item volumes, recent contract sync activity, appraisals, and what Buyback published to Manager
+                        item volumes, recent contract sync activity, who can sell to each programme, appraisals, and what Buyback published to Manager
                         Core in the last day.
                         Each shows <strong>OK / INFO / WARN / ERROR</strong> with one-line summary and an expandable detail block.
                     </p>

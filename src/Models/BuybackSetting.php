@@ -5,6 +5,7 @@ namespace BuybackManager\Models;
 use BuybackManager\Models\Casts\EncryptedSecret;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use Seat\Eveapi\Models\Alliances\Alliance;
 use Seat\Eveapi\Models\Corporation\CorporationInfo;
 
 class BuybackSetting extends Model
@@ -16,6 +17,15 @@ class BuybackSetting extends Model
     public const TARGET_MY_CORP = 'my_corp'; // the programme's own corporation
     public const TARGET_CORP = 'corp';       // a specific (possibly external) corporation
     public const TARGET_PLAYER = 'player';   // a designated character
+
+    /**
+     * Who may sell. Checked against the corporation a contract was issued
+     * from, and that corporation's alliance; a contract from outside is
+     * flagged, never refused.
+     */
+    public const SELLERS_ANY = 'any';
+    public const SELLERS_CORPORATION = 'corporation';
+    public const SELLERS_ALLIANCE = 'alliance';
 
     /** SDE category of ore, ice and moon ore, compressed or not. */
     public const CATEGORY_ASTEROID = 25;
@@ -53,6 +63,8 @@ class BuybackSetting extends Model
         'target_type',
         'target_corporation_id',
         'target_corporation_name',
+        'seller_scope',
+        'seller_alliance_id',
         'max_deviation_percent',
         'thin_market_guard_percent',
         'appraisal_stale_hours',
@@ -97,6 +109,7 @@ class BuybackSetting extends Model
         'fallback_to_jita' => 'boolean',
         'price_cache_ttl_minutes' => 'integer',
         'target_corporation_id' => 'integer',
+        'seller_alliance_id' => 'integer',
         'max_deviation_percent' => 'decimal:2',
         'thin_market_guard_percent' => 'decimal:2',
         'appraisal_stale_hours' => 'integer',
@@ -224,6 +237,40 @@ class BuybackSetting extends Model
                     ?? ('corporation #' . $this->target_corporation_id)),
             default => optional($this->corporation)->name
                 ?? ('corporation #' . $this->corporation_id),
+        };
+    }
+
+    public function sellerAlliance()
+    {
+        return $this->belongsTo(Alliance::class, 'seller_alliance_id', 'alliance_id');
+    }
+
+    /**
+     * Who may sell, read safely: an alliance scope with no alliance saved
+     * checks nothing, since there is nothing to check against.
+     */
+    public function sellerScope(): string
+    {
+        $scope = (string) ($this->seller_scope ?: self::SELLERS_ANY);
+
+        return match ($scope) {
+            self::SELLERS_CORPORATION => self::SELLERS_CORPORATION,
+            self::SELLERS_ALLIANCE => $this->seller_alliance_id ? self::SELLERS_ALLIANCE : self::SELLERS_ANY,
+            default => self::SELLERS_ANY,
+        };
+    }
+
+    /**
+     * Who may sell, in words, for the settings list and Help.
+     */
+    public function sellerScopeLabel(): string
+    {
+        return match ($this->sellerScope()) {
+            self::SELLERS_CORPORATION => 'Members of ' . (optional($this->corporation)->name
+                ?? ('corporation #' . $this->corporation_id)),
+            self::SELLERS_ALLIANCE => 'Members of ' . (optional($this->sellerAlliance)->name
+                ?? ('alliance #' . $this->seller_alliance_id)),
+            default => 'Anyone',
         };
     }
 

@@ -161,7 +161,7 @@
                     <p>Version 1 is the first release of Buyback Manager. A seller gets a quote, puts its key on an in-game contract, and the contract is found and checked against the quote:</p>
                     <ul>
                         <li><strong>Appraisal keys, no login needed.</strong> Paste items on the public page or in the plugin, get a price and a key, and paste the key into the contract's Description. My Appraisals keeps a logged in seller's quotes.</li>
-                        <li><strong>Every contract matched to its quote.</strong> Contracts to your corporation, to another corporation or to one player are read on a schedule, the key finds the quote, and the asked price and items are checked against it. Anything that does not add up is flagged for review.</li>
+                        <li><strong>Every contract matched to its quote.</strong> Contracts to your corporation, to another corporation or to one player are read on a schedule, the key finds the quote, and the asked price and items are checked against it. Anything that does not add up, or a seller from outside the corporation or alliance you buy from, is flagged for review.</li>
                         <li><strong>A key shows where its contract is.</strong> Opening a quote's link shows whether its contract has been received, paid, cancelled or declined, and until when the quote holds.</li>
                         <li><strong>Pricing you control.</strong> Fuzzwork, Janice or Manager Core, a fallback provider behind it and the last cached price behind that. Rules per item, group or category, buy, sell or split sides, exclusions, and the places a contract may be handed in.</li>
                         <li><strong>Ore paid on what it refines into.</strong> A rule can value ore, ice and moon ore at the minerals they reprocess into, at the yield you refine at, since raw ore barely trades.</li>
@@ -276,7 +276,7 @@
                     <ol class="step-by-step">
                         <li><strong>Open Settings.</strong> Go to <a href="{{ route('buyback-manager.settings.index') }}">Buyback Manager &gt; Settings</a> and add the corporation that will run the programme. Only an admin can add or delete one.</li>
                         <li><strong>Name who runs it.</strong> Under <em>Programme Access</em>, name its managers and anyone who should only watch it, as SeAT accounts or whole SeAT roles (see <a href="#" class="js-goto" data-goto="permissions">Permissions</a>). Nobody named means admins alone.</li>
-                        <li><strong>Choose a contract target:</strong> your own corporation, a specific corporation by name, or a specific player. This drives both the instructions members see and how detection works (see <a href="#" class="js-goto" data-goto="detection">Contracts &amp; Detection</a>).</li>
+                        <li><strong>Choose a contract target:</strong> your own corporation, a specific corporation by name, or a specific player. This drives both the instructions members see and how detection works (see <a href="#" class="js-goto" data-goto="detection">Contracts &amp; Detection</a>). Below it, <em>Who can sell</em> says whose contracts are taken without a flag: any corporation, your own corporation's members, or one alliance's.</li>
                         <li><strong>Pick a pricing provider</strong> (Fuzzwork, Janice, or Manager Core when it is installed), its market and a fallback provider, and set your base percentage (the default is 90%). <em>Test Connection</em> checks the provider before you save.</li>
                         <li><strong>Add pricing rules (optional)</strong> to override the base percentage for specific items, groups, or categories.</li>
                         <li><strong>Add a Discord webhook (optional)</strong> on the Settings page Discord Webhooks tab, and pick a role to mention.</li>
@@ -484,6 +484,7 @@
                         <tr><td>Item mismatch</td><td>The contract's contents do not match the items we priced.</td></tr>
                         <tr><td>Reused key</td><td>The key had already been claimed by an earlier contract.</td></tr>
                         <tr><td>Wrong location</td><td>The contract was created outside the locations you accept from.</td></tr>
+                        <tr><td>Outside seller</td><td>The seller is not someone <strong>Who can sell</strong> lets in. A programme can buy from any corporation (the default), only from its own corporation's members, or only from one alliance's. The corporation counted is the one the contract was issued from; for an alliance, its alliance is looked up in SeAT first, then on EveWho, then on zKillboard. When none of them can say, the contract is flagged as unverified instead.</td></tr>
                     </table>
 
                     <div class="warning-box">
@@ -548,7 +549,7 @@
                     <h4>The eight notification categories</h4>
                     <table class="plugin-info-table">
                         <tr><td>Contract matched</td><td>A contract matched its appraisal key cleanly, with nothing to review.</td></tr>
-                        <tr><td>Needs review</td><td>A contract matched but needs review: price drift, stale quote, item mismatch, reused key, or wrong location.</td></tr>
+                        <tr><td>Needs review</td><td>A contract matched but needs review: price drift, stale quote, item mismatch, reused key, wrong location, or a seller outside Who can sell.</td></tr>
                         <tr><td>Key did not resolve</td><td>A contract quoted an appraisal key that does not exist, has expired, or belongs to another corporation.</td></tr>
                         <tr><td>Buyback completed</td><td>The contract was accepted in game and the buyback is done.</td></tr>
                         <tr><td>Cancelled or expired</td><td>The contract was cancelled, rejected or deleted, or passed its expiry date without being accepted.</td></tr>
@@ -830,7 +831,7 @@
                     <h4>Scheduled commands</h4>
                     <p>Buyback Manager schedules one Artisan command automatically, and you normally never run it by hand. The Diagnostic page's Health Checks tab confirms it is present. If you change its cron in SeAT's schedule settings, updates keep your change, and the check shows it as information.</p>
                     <table class="plugin-info-table">
-                        <tr><td><code>buyback-manager:sync-contracts</code></td><td>Every 15 minutes. Reads SeAT's synced contracts, resolves each appraisal key, compares the contract against its quote and raises review flags, fires the lifecycle events and Discord notifications, sends idle-contract nudges, prunes old appraisals and notification logs, and reads packaged volumes from SeAT's static data whenever SeAT has a new build.</td></tr>
+                        <tr><td><code>buyback-manager:sync-contracts</code></td><td>Every 15 minutes. Reads SeAT's synced contracts, resolves each appraisal key, compares the contract against its quote and its seller against Who can sell and raises review flags, fires the lifecycle events and Discord notifications, sends idle-contract nudges, prunes old appraisals and notification logs, and reads packaged volumes from SeAT's static data whenever SeAT has a new build.</td></tr>
                     </table>
                     <div class="info-box">
                         <i class="fas fa-play"></i>

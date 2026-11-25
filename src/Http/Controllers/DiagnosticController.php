@@ -83,6 +83,8 @@ class DiagnosticController extends Controller
         'character_infos',
         'refresh_tokens',
         'character_affiliations',
+        'alliances',
+        'alliance_members',
         // SDE
         'invTypes',
         'invGroups',
@@ -150,6 +152,7 @@ class DiagnosticController extends Controller
             'price_cache' => $this->checkPriceCacheState(),
             'item_volumes' => $this->checkItemVolumes(),
             'contract_sync' => $this->checkContractSync(),
+            'who_can_sell' => $this->checkWhoCanSell(),
             'appraisal_activity' => $this->checkAppraisalActivity(),
             'event_log' => $this->checkEventLog($forceRefresh),
         ];
@@ -682,6 +685,54 @@ class DiagnosticController extends Controller
         return [
             'status' => 'ok',
             'message' => 'Packaged volumes come from SeAT\'s copy of CCP\'s static data. ESI is asked only for an item newer than it.',
+            'details' => $details,
+        ];
+    }
+
+    /**
+     * Who can sell to each programme. A seller's alliance is looked for in
+     * SeAT's list of each alliance's member corporations before EveWho and
+     * zKillboard, so an alliance SeAT holds none for sends every seller
+     * online.
+     */
+    private function checkWhoCanSell(): array
+    {
+        $settings = BuybackSetting::with(['corporation', 'sellerAlliance'])->where('enabled', true)->get();
+        if ($settings->every(fn (BuybackSetting $setting) => $setting->sellerScope() === BuybackSetting::SELLERS_ANY)) {
+            return ['status' => 'info', 'message' => 'Every enabled programme buys from any corporation, so no seller is checked'];
+        }
+
+        $details = [];
+        $unknownAlliances = [];
+        foreach ($settings as $setting) {
+            $name = $setting->corporation->name ?? ('Corporation #' . $setting->corporation_id);
+            $line = $setting->sellerScopeLabel();
+
+            if ($setting->sellerScope() === BuybackSetting::SELLERS_ALLIANCE) {
+                $members = Schema::hasTable('alliance_members')
+                    ? DB::table('alliance_members')->where('alliance_id', $setting->seller_alliance_id)->count()
+                    : 0;
+                $line .= ', ' . $members . ' member ' . Str::plural('corporation', $members) . ' in SeAT';
+                if ($members === 0) {
+                    $unknownAlliances[] = $name;
+                }
+            }
+
+            $details[$name] = $line;
+        }
+
+        if ($unknownAlliances !== []) {
+            return [
+                'status' => 'warn',
+                'message' => 'SeAT holds no member corporations for the alliance that can sell to ' . implode(', ', $unknownAlliances)
+                    . ', so every seller is looked up on EveWho, then zKillboard. SeAT fills the list in with its scheduled alliance update.',
+                'details' => $details,
+            ];
+        }
+
+        return [
+            'status' => 'ok',
+            'message' => 'Contracts from anyone outside a programme\'s sellers are flagged for review. A seller\'s alliance comes from SeAT first, then EveWho, then zKillboard.',
             'details' => $details,
         ];
     }

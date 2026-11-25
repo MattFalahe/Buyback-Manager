@@ -28,6 +28,7 @@ use Seat\Eveapi\Models\Contracts\ContractDetail;
  *   - whether the contract's items match the ones we priced
  *   - whether the appraisal key had already been used
  *   - whether the contract was created somewhere we accept from
+ *   - whether the seller is someone the programme buys from
  *
  * A clean contract announces through contract.matched; one carrying any
  * flag announces through contract.flagged instead, and one whose key
@@ -82,13 +83,16 @@ class ContractService
 
     protected VolumeLookup $volumes;
 
+    protected SellerAffiliation $sellers;
+
     public function __construct(
         AppraisalMatcher $matcher,
         AppraisalRecordService $records,
         EventPublisher $eventPublisher,
         LocationResolver $locationResolver,
         ?ContractFeedHealth $feedHealth = null,
-        ?VolumeLookup $volumes = null
+        ?VolumeLookup $volumes = null,
+        ?SellerAffiliation $sellers = null
     ) {
         $this->matcher = $matcher;
         $this->records = $records;
@@ -96,6 +100,7 @@ class ContractService
         $this->locationResolver = $locationResolver;
         $this->feedHealth = $feedHealth ?? new ContractFeedHealth();
         $this->volumes = $volumes ?? new VolumeLookup();
+        $this->sellers = $sellers ?? new SellerAffiliation();
     }
 
     public function syncContracts(): void
@@ -477,6 +482,9 @@ class ContractService
         if (! $this->locationResolver->isAllowed((int) ($contract->start_location_id ?? 0), $setting)) {
             $flags[] = BuybackContract::FLAG_WRONG_LOCATION;
         }
+        if (($sellerFlag = $this->sellerFlag($contract, $setting)) !== null) {
+            $flags[] = $sellerFlag;
+        }
 
         return BuybackContract::create([
             'contract_id' => $contract->contract_id,
@@ -589,7 +597,42 @@ class ContractService
             $flags[] = BuybackContract::FLAG_WRONG_LOCATION;
         }
 
+        if (($sellerFlag = $this->sellerFlag($contract, $setting)) !== null) {
+            $flags[] = $sellerFlag;
+        }
+
         return $flags;
+    }
+
+    /**
+     * Whether the seller may sell to this programme, judged by the
+     * corporation the contract was issued from and, for an alliance, that
+     * corporation's alliance. A seller no source can place is flagged as
+     * unverified, so a director looks rather than the check passing or
+     * failing on a guess.
+     */
+    protected function sellerFlag(ContractDetail $contract, BuybackSetting $setting): ?string
+    {
+        $scope = $setting->sellerScope();
+        if ($scope === BuybackSetting::SELLERS_ANY) {
+            return null;
+        }
+
+        $corporationId = (int) ($contract->issuer_corporation_id ?? 0);
+        if ($corporationId <= 0) {
+            return BuybackContract::FLAG_SELLER_UNVERIFIED;
+        }
+
+        if ($scope === BuybackSetting::SELLERS_CORPORATION) {
+            return $corporationId === (int) $setting->corporation_id ? null : BuybackContract::FLAG_OUTSIDE_SELLER;
+        }
+
+        $found = $this->sellers->allianceOf((int) $contract->issuer_id, $corporationId);
+        if ($found === null) {
+            return BuybackContract::FLAG_SELLER_UNVERIFIED;
+        }
+
+        return $found['alliance_id'] === (int) $setting->seller_alliance_id ? null : BuybackContract::FLAG_OUTSIDE_SELLER;
     }
 
     /**

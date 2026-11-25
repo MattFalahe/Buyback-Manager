@@ -19,6 +19,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Seat\Eveapi\Models\Alliances\Alliance;
 use Seat\Eveapi\Models\Corporation\CorporationInfo;
 use Seat\Eveapi\Models\Sde\InvCategory;
 use Seat\Eveapi\Models\Sde\InvGroup;
@@ -53,7 +54,7 @@ class SettingsController extends Controller
         $allowed = $this->manageableCorporationIds($request);
         $managesEveryCorporation = $allowed === null;
 
-        $settings = BuybackSetting::with(['corporation', 'pricingRules'])
+        $settings = BuybackSetting::with(['corporation', 'pricingRules', 'sellerAlliance'])
             ->when(! $managesEveryCorporation, fn ($query) => $query->whereIn('corporation_id', $allowed))
             ->get();
         // Any corporation can be where contracts go, so the target picker
@@ -63,6 +64,16 @@ class SettingsController extends Controller
         $scopeCorporations = $managesEveryCorporation
             ? $corporations
             : $corporations->whereIn('corporation_id', $allowed)->values();
+        // Who can sell is picked from the alliances of the corporations SeAT
+        // holds, and any alliance a programme already names. The full list
+        // runs to thousands, far too many for a picker.
+        $allianceIds = $corporations->pluck('alliance_id')
+            ->merge($settings->pluck('seller_alliance_id'))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+        $alliances = Alliance::whereIn('alliance_id', $allianceIds)->orderBy('name')->get(['alliance_id', 'name', 'ticker']);
 
         $programmeAccess = new ProgrammeAccess();
         $access = $programmeAccess->entries($settings->pluck('id')->all());
@@ -121,6 +132,7 @@ class SettingsController extends Controller
         return view('buyback-manager::settings.index', compact(
             'settings',
             'corporations',
+            'alliances',
             'providers',
             'mcMarkets',
             'mcProviders',
@@ -212,6 +224,9 @@ class SettingsController extends Controller
             'target_type' => 'required|in:my_corp,corp,player',
             'target_corporation_id' => 'nullable|integer|exists:corporation_infos,corporation_id',
             'target_corporation_name' => 'nullable|string|max:255',
+            // 'sometimes': a form without the field leaves who can sell alone.
+            'seller_scope' => 'sometimes|required|in:' . implode(',', [BuybackSetting::SELLERS_ANY, BuybackSetting::SELLERS_CORPORATION, BuybackSetting::SELLERS_ALLIANCE]),
+            'seller_alliance_id' => 'nullable|integer|exists:alliances,alliance_id',
             'max_deviation_percent' => 'nullable|numeric|min:0|max:100',
             'thin_market_guard_percent' => 'nullable|numeric|min:0|max:1000',
             'appraisal_stale_hours' => 'nullable|integer|min:1|max:720',
@@ -263,6 +278,16 @@ class SettingsController extends Controller
 
         if ($targetType !== BuybackSetting::TARGET_PLAYER) {
             $validated['character_id'] = null;
+        }
+
+        if (! array_key_exists('seller_scope', $validated)) {
+            unset($validated['seller_alliance_id']);
+        } elseif ($validated['seller_scope'] !== BuybackSetting::SELLERS_ALLIANCE) {
+            $validated['seller_alliance_id'] = null;
+        } elseif (empty($validated['seller_alliance_id'])) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Pick the alliance whose members can sell, or choose another option under Who can sell.');
         }
 
         $validated['enabled'] = $request->has('enabled');
