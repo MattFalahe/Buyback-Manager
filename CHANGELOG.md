@@ -102,7 +102,7 @@ The first public release of Buyback Manager. It turns a corporation buyback prog
 - Appraisal tool that values a pasted item list against a corporation's provider and pricing rules, returning both buy and sell prices per item.
 - One paste reader for every provider: inventory, assets and contract copies (also when a chat or editor on the way turned their tabs into spaces), one item per line (`1,000 x Tritanium`, `1000 Tritanium`, `Tritanium 1000`, `Tritanium x1000`), and EFT fits without their loaded charges. The same item on several lines is added up, and lines that name no item are listed back to the seller.
 - Every appraisal is stored and returns a short single-use key (for example `bb-zj2cc262`) plus a public, shareable appraisal page with the full breakdown, the key to copy, the contract instructions, and the accepted locations.
-- No account, no ESI scopes, and no permission are needed to sell. Signing in is optional and only adds history under My Appraisals.
+- No account, no ESI scopes, and no permission are needed to sell. Signing in is optional: it adds history under My Appraisals, and member rates on a programme that has them.
 - Items a programme does not buy, and items nothing could price, are reported back to the seller as not accepted rather than silently dropped or valued at zero, with a prompt to ask for a custom quote on items the programme does not buy.
 - Two-tier retention: bulky line-item rows are pruned early while appraisal totals are kept for months of statistics. Housekeeping runs inside the sync cycle, so no extra cron is needed.
 
@@ -111,12 +111,22 @@ The first public release of Buyback Manager. It turns a corporation buyback prog
 - Each contract keeps the target it was sent to. Changing a programme's target applies to new contracts; one already open is still followed, posted to Discord and credited in HR Manager as where it actually went.
 - Detection by appraisal key in the contract Description. A contract with no key is ignored, keeping unrelated contracts out of the list.
 - Every matched contract is compared against its appraisal and flagged when the asked price drifts past the corporation's tolerance (with the direction reported), the quote was already stale, the items do not match, the key had been reused, or the contract was created outside the accepted locations.
-- Who can sell, per programme: any corporation (the default), the programme's own corporation, or one alliance. A contract from anyone else is tracked and flagged for review, never refused. The seller's corporation is the one the contract was issued from; its alliance comes from SeAT, then EveWho, then zKillboard, and a seller none of them can place is flagged as unverified.
+- Who can sell, per programme: anyone (the default), or members only. A contract from outside the members is tracked and flagged for review, never refused. The seller's corporation is the one the contract was issued from; its alliance comes from SeAT, then EveWho, then zKillboard, and a seller none of them can place is flagged as unverified.
 - A contract quoting a key that matches no appraisal of the corporation is listed for review under "Key matched nothing", with no quote, and kept out of every total.
 - Completion, cancellation and expiry tracking. A contract that already finished when the sync first sees it is announced in the same pass. One left to expire is announced once its expiry is an hour behind, and is still read for a week after, so a late update from SeAT still lands.
 - Idle-contract reminder when a matched contract is left unaccepted past the corporation's auto-nudge window (0 disables). A contract past its expiry is never nudged.
 - The Contracts list shows when each programme's contracts were last read, and filters for contracts awaiting acceptance, needing review, whose key matched nothing, and expired.
 - CSV export of the filtered contracts list, including asked price, deviation and review flags, honouring the same per-user corporation visibility as the on-screen list.
+- Open in game: a button beside the contract ID, on the Contracts list and on a contract's page, opens that contract in the EVE client of the character you pick. It uses ESI's `esi-ui.open_window.v1`, which Buyback Manager adds to the scopes SeAT offers without changing SeAT. It is off until turned on per programme, and an admin then adds the scope to SeAT's SSO profile. Characters pick it up when their user logs out of SeAT, logs back in with their main and links their alts again. Until then the button is grey with a warning, and a banner over the contracts says what to do. Settings shows whether the default profile asks for the scope and how many characters hold it. ESI can only say the request was sent, so the button reports "Sent to" the character, and a Copy ID button is always there.
+
+**Members and member rates**
+- Each programme names its members once: the corporation that runs it, or one alliance. Membership goes by SeAT account. A player with any character in the group is a member, and so is every other character on their account.
+- An alt outside the group is flagged as a member's alt, with the name of the character it belongs to and their group, so a director sees whose it is.
+- A member bonus, in points on top of every rule: with 5 points, a 90% rule pays members 95%. Never more than 100%. A 0% rule stays 0%, an excluded item stays excluded, and a rule at 100% or more is unchanged.
+- Members appraise on the Appraisal page in SeAT. It looks like the public page, shows the member rates with the public ones beside them, and has a picker when there is more than one programme. A signed-in player who is not a member gets the public rates and a note saying so.
+- The public page never shows member rates. With a bonus set it tells members to log in to SeAT for theirs, with a link to the members page.
+- Every quote keeps which rates it used. A member-rate quote contracted by someone outside the group is flagged, and the contract's page and Discord post say so.
+- On a members-only programme the public page and every appraisal link say that anyone else can still contract, and that a director decides whether to accept.
 
 **Pricing**
 - Three providers: Fuzzwork (free, at Jita, Amarr, Dodixie, Hek or Rens, each at its main station, or at any region), Janice (API key, at the same five hubs), and Manager Core (offered only when it is installed, at any market added there, citadels included).
@@ -189,6 +199,7 @@ The first public release of Buyback Manager. It turns a corporation buyback prog
 - A Contract Trace tab that walks a single contract through the pricing and matching pipeline.
 - A price provider health check showing how each corporation's provider last answered, and Settings Health issues for a provider or fallback that cannot run.
 - A Contract Sync check per programme: when its contracts were last read, and the last error.
+- A Member Rates check listing each programme's bonus and member group, and an Open in game check: whether SeAT lists the scope, whether its default profile asks for it, and how many characters hold it.
 - An Item Volumes check: how many locations charge a haul fee, which build of SeAT's static data SeAT has and which Buyback Manager has read, and how many item types came from Janice or ESI.
 - Manager Core is asked through its bridge, never read from its tables: what Buyback published to it in the last day, and how many items it holds for Buyback against the local ledger.
 - A Sync Now action to run a detection pass on demand.
@@ -200,9 +211,10 @@ The first public release of Buyback Manager. It turns a corporation buyback prog
 - `buyback-manager:upgrade-dev-build`, run once by hand to move off a development build from before 1.0.0: it carries the old programme over or starts fresh, then removes the old tables. It refuses to run while SeAT is set to install a development branch, and Diagnostics warns while old tables are left.
 - Three permissions and Programme Access. An admin names each programme's managers and viewers, as SeAT accounts or whole SeAT roles. A manager needs `buyback-manager.settings` and changes only the programmes they are named on; a viewer needs `buyback-manager.view` and sees only theirs. Having a character in a corporation grants nothing, so a member can run a buyback under an alt corporation without reaching the main one's. `buyback-manager.admin` covers every programme, adds and deletes them, names who runs them, and has the global webhooks and the Diagnostic page. Programme Access and Settings Health mark a name that lacks its permission or has left SeAT.
 - Appraisal and My Appraisals are in the menu for every logged-in user, since neither needs a permission.
+- The programme form is grouped by what each field does: who runs it, Contracts, Sellers and member rates, and Records. The add form and the edit window match.
 
 ### Tests
 
-- Unit tests for the price chain, each provider's answer, the paste reader, the pricing rules, refined value, the thin-market guard, haul fees and the volumes they are charged on, the contract sync against SeAT's contract tables, webhook delivery and retries, the upkeep of Manager Core subscriptions, the public page's link lookup and key status, and what Help says each other plugin adds, and checks on the source itself: Blade directives closed the way Blade reads them, routes and views that exist, migrations named as they should be and running on an empty database, the docs keeping up with the commands, and nothing writing to SeAT's tables. They need no SeAT and no MySQL, and run on every push on PHP 8.1 to 8.4.
+- Unit tests for the price chain, each provider's answer, the paste reader, the pricing rules, refined value, the thin-market guard, haul fees and the volumes they are charged on, the contract sync against SeAT's contract tables, who counts as a member and what member rates pay, the scope Open in game adds to SeAT's list and whether SeAT asks for it, webhook delivery and retries, the upkeep of Manager Core subscriptions, the public page's link lookup and key status, and what Help says each other plugin adds, and checks on the source itself: Blade directives closed the way Blade reads them, routes and views that exist, migrations named as they should be and running on an empty database, the docs keeping up with the commands, and nothing writing to SeAT's tables. They need no SeAT and no MySQL, and run on every push on PHP 8.1 to 8.4.
 
 [1.0.0]: https://github.com/MattFalahe/Buyback-Manager/releases/tag/1.0.0

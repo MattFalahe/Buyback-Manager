@@ -28,6 +28,7 @@
                         <li class="nav-item"><a href="#" class="nav-link" data-section="analytics"><i class="fas fa-chart-pie"></i> Analytics</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-section="workflow"><i class="fas fa-route"></i> Selling Workflow</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-section="detection"><i class="fas fa-file-contract"></i> Contracts &amp; Detection</a></li>
+                        <li class="nav-item"><a href="#" class="nav-link" data-section="members"><i class="fas fa-users"></i> Members</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-section="notifications"><i class="fab fa-discord"></i> Discord Notifications</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-section="public-page"><i class="fas fa-globe"></i> Public Page</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-section="integration"><i class="fas fa-plug"></i> Manager Core</a></li>
@@ -162,6 +163,8 @@
                     <ul>
                         <li><strong>Appraisal keys, no login needed.</strong> Paste items on the public page or in the plugin, get a price and a key, and paste the key into the contract's Description. My Appraisals keeps a logged in seller's quotes.</li>
                         <li><strong>Every contract matched to its quote.</strong> Contracts to your corporation, to another corporation or to one player are read on a schedule, the key finds the quote, and the asked price and items are checked against it. Anything that does not add up, or a seller from outside the corporation or alliance you buy from, is flagged for review.</li>
+                        <li><strong>Member rates.</strong> Name your members once, as your corporation or an alliance, and give them a bonus on top of every rule. Members signed in to SeAT see their rates on the members page, alts on the same account included; the public page shows only the public rates and points members to SeAT.</li>
+                        <li><strong>Open in game.</strong> A button beside each contract asks your EVE client to open it, once SeAT asks for the one scope it needs.</li>
                         <li><strong>A key shows where its contract is.</strong> Opening a quote's link shows whether its contract has been received, paid, cancelled or declined, and until when the quote holds.</li>
                         <li><strong>Pricing you control.</strong> Fuzzwork, Janice or Manager Core, a fallback provider behind it and the last cached price behind that. Rules per item, group or category, buy, sell or split sides, exclusions, and the places a contract may be handed in.</li>
                         <li><strong>Ore paid on what it refines into.</strong> A rule can value ore, ice and moon ore at the minerals they reprocess into, at the yield you refine at, since raw ore barely trades.</li>
@@ -231,6 +234,16 @@
                             <p>On Fuzzwork prices, a lone buy order far above the rest is passed over for the top-5% average, so it can't inflate a quote.</p>
                         </div>
                         <div class="feature-item">
+                            <i class="fas fa-users"></i>
+                            <h5>Member rates</h5>
+                            <p>A bonus on every rule for your corporation's or alliance's members, found by SeAT account so their alts count, shown on a members page in your public look.</p>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fas fa-external-link-alt"></i>
+                            <h5>Open in game</h5>
+                            <p>Open a contract in your EVE client from its row or its page, as your main or any character that holds the scope.</p>
+                        </div>
+                        <div class="feature-item">
                             <i class="fas fa-tag"></i>
                             <h5>Checked, not guessed</h5>
                             <p>We compare the asked price and items against the quote, and flag anything off for review. Noise contracts are ignored.</p>
@@ -276,7 +289,8 @@
                     <ol class="step-by-step">
                         <li><strong>Open Settings.</strong> Go to <a href="{{ route('buyback-manager.settings.index') }}">Buyback Manager &gt; Settings</a> and add the corporation that will run the programme. Only an admin can add or delete one.</li>
                         <li><strong>Name who runs it.</strong> Under <em>Programme Access</em>, name its managers and anyone who should only watch it, as SeAT accounts or whole SeAT roles (see <a href="#" class="js-goto" data-goto="permissions">Permissions</a>). Nobody named means admins alone.</li>
-                        <li><strong>Choose a contract target:</strong> your own corporation, a specific corporation by name, or a specific player. This drives both the instructions members see and how detection works (see <a href="#" class="js-goto" data-goto="detection">Contracts &amp; Detection</a>). Below it, <em>Who can sell</em> says whose contracts are taken without a flag: any corporation, your own corporation's members, or one alliance's.</li>
+                        <li><strong>Choose a contract target</strong> under <em>Contracts</em>: your own corporation, a specific corporation by name, or a specific player. This drives both the instructions sellers see and how detection works (see <a href="#" class="js-goto" data-goto="detection">Contracts &amp; Detection</a>).</li>
+                        <li><strong>Name your members</strong> under <em>Sellers and member rates</em>: the corporation running the programme, or an alliance. Give them a <em>Member bonus</em> if they should be paid more, and set <em>Who can sell</em> to anyone or members only (see <a href="#" class="js-goto" data-goto="members">Members</a>).</li>
                         <li><strong>Pick a pricing provider</strong> (Fuzzwork, Janice, or Manager Core when it is installed), its market and a fallback provider, and set your base percentage (the default is 90%). <em>Test Connection</em> checks the provider before you save.</li>
                         <li><strong>Add pricing rules (optional)</strong> to override the base percentage for specific items, groups, or categories.</li>
                         <li><strong>Add a Discord webhook (optional)</strong> on the Settings page Discord Webhooks tab, and pick a role to mention.</li>
@@ -484,7 +498,9 @@
                         <tr><td>Item mismatch</td><td>The contract's contents do not match the items we priced.</td></tr>
                         <tr><td>Reused key</td><td>The key had already been claimed by an earlier contract.</td></tr>
                         <tr><td>Wrong location</td><td>The contract was created outside the locations you accept from.</td></tr>
-                        <tr><td>Outside seller</td><td>The seller is not someone <strong>Who can sell</strong> lets in. A programme can buy from any corporation (the default), only from its own corporation's members, or only from one alliance's. The corporation counted is the one the contract was issued from; for an alliance, its alliance is looked up in SeAT first, then on EveWho, then on zKillboard. When none of them can say, the contract is flagged as unverified instead.</td></tr>
+                        <tr><td>Outside seller</td><td>The programme is members only and the seller is not one. The corporation counted is the one the contract was issued from; for an alliance, its alliance is looked up in SeAT first, then on EveWho, then on zKillboard. When none of them can say, the contract is flagged as unverified instead.</td></tr>
+                        <tr><td>Member's alt</td><td>The seller is outside the members, but their SeAT account holds a character who is one. The flag names whose alt it is, as it stood when the contract was first seen.</td></tr>
+                        <tr><td>Member rates, not a member</td><td>The quote used member rates, and nothing ties the seller who contracted it to a member. Someone may have passed a member's key on.</td></tr>
                     </table>
 
                     <div class="warning-box">
@@ -538,6 +554,51 @@
                         <strong>Changing the target:</strong> only new contracts follow it. A contract already open keeps the target it was sent to, in its Discord posts and in what HR Manager credits, and Buyback Manager keeps following it until it ends.
                     </div>
                 </div>
+
+                <div class="help-card">
+                    <h3><i class="fas fa-external-link-alt"></i> Open in game</h3>
+                    <p>Tick <strong>Open in game</strong> on a programme and every one of its contracts gets a button beside its ID, on the Contracts list and on the contract's own page. It asks your EVE client to open that contract, as your main or, from its menu, any of your characters that can. A copy button beside it copies the contract ID either way.</p>
+                    <p>The button needs <code>esi-ui.open_window.v1</code> on the login of the character it uses. Buyback Manager adds that scope to the list SeAT offers, but it never changes your scope profiles, so it works in three steps:</p>
+                    <ol class="step-by-step">
+                        <li><strong>A SeAT admin adds the scope</strong> to the default scope profile under <em>Settings &gt; SSO</em>. Settings and the Diagnostic page say whether it is there yet, and how many characters already hold it.</li>
+                        <li><strong>Each user logs out of SeAT and logs back in with their main.</strong> SeAT keeps the scopes a character logged in with, so nobody has it until they do.</li>
+                        <li><strong>Alts are linked again.</strong> A character linked while signed in gets the scopes of the account's main, so link an alt again after the main has logged in.</li>
+                    </ol>
+                    <table class="plugin-info-table">
+                        <tr><td>No button</td><td>Open in game is off for that contract's programme.</td></tr>
+                        <tr><td>Grey, with a yellow warning</td><td>It is on, but none of your logins holds the scope yet. Hover it to see why, and the banner above the list says what to do.</td></tr>
+                        <tr><td>Working</td><td>One press sends the request and says which character it went to.</td></tr>
+                    </table>
+                    <div class="info-box">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>Sent is all it can say.</strong> EVE answers the same whether or not your client is running, so "Sent to" means the request went out. If nothing opens, check the character is logged in to the game.
+                    </div>
+                </div>
+            </div>
+
+            {{-- MEMBERS --}}
+            <div id="members" class="help-section">
+                <div class="help-card">
+                    <h3><i class="fas fa-users"></i> Members &amp; member rates</h3>
+                    <p>A programme names its members once, under <em>Sellers and member rates</em> in Settings: the corporation running it, or an alliance. The same group is who <em>Members only</em> lets sell, and who the member bonus goes to.</p>
+
+                    <h4>Who counts as a member</h4>
+                    <p>Membership belongs to a SeAT account, not a character. An account holding any character in the group is a member, and all of its characters are quoted member rates, alts outside the group included. When one of those alts contracts, the contract is flagged as a member's alt and names whose alt it is, so a director can see it at a glance. A seller with no SeAT account can still sell; they are quoted the public rates.</p>
+
+                    <h4>The member bonus</h4>
+                    <p>The bonus is a number of percentage points added to every rule for a member's quote. With a bonus of 5, a rule paying 90% pays a member 95%. It never lifts a rule past 100%, a rule already at or above 100% stays where it is, and a rule paying 0% stays at 0%. Items a rule excludes are still not bought. A bonus of 0 means one rate for everyone.</p>
+
+                    <h4>The members page</h4>
+                    <p>The <a href="{{ route('buyback.appraisal.index') }}">Appraisal</a> page wears the programme's public look: its logo, name, rates, how to sell and the paste box. A member sees their member rates there, with the public rate beside each one. Anyone else signed in sees the public rates and a note saying why. With several programmes, pick one at the top.</p>
+
+                    <h4>On the public page</h4>
+                    <p>The public page never shows member rates. With a bonus set, it tells your members to log in to SeAT for theirs, with a link to the members page. On a members-only programme the public page and every quote page say so, and that anyone else can still contract it: the contract is flagged, and a director decides whether to accept.</p>
+
+                    <div class="info-box">
+                        <i class="fas fa-shield-alt"></i>
+                        <strong>Nothing is refused.</strong> Every quote remembers whether it used member rates. A member-rate quote contracted by someone who is not a member, and not a member's alt, is flagged, so a key passed on to an outsider is caught before anyone pays it.
+                    </div>
+                </div>
             </div>
 
             {{-- NOTIFICATIONS --}}
@@ -549,7 +610,7 @@
                     <h4>The eight notification categories</h4>
                     <table class="plugin-info-table">
                         <tr><td>Contract matched</td><td>A contract matched its appraisal key cleanly, with nothing to review.</td></tr>
-                        <tr><td>Needs review</td><td>A contract matched but needs review: price drift, stale quote, item mismatch, reused key, wrong location, or a seller outside Who can sell.</td></tr>
+                        <tr><td>Needs review</td><td>A contract matched but needs review: price drift, stale quote, item mismatch, reused key, wrong location, a seller outside Who can sell, a member's alt (named), or a member-rate quote contracted by someone who is not a member.</td></tr>
                         <tr><td>Key did not resolve</td><td>A contract quoted an appraisal key that does not exist, has expired, or belongs to another corporation.</td></tr>
                         <tr><td>Buyback completed</td><td>The contract was accepted in game and the buyback is done.</td></tr>
                         <tr><td>Cancelled or expired</td><td>The contract was cancelled, rejected or deleted, or passed its expiry date without being accepted.</td></tr>
@@ -728,7 +789,7 @@
 
                     <div class="success-box">
                         <i class="fas fa-user-shield"></i>
-                        <strong>No account and no ESI scopes required.</strong> Buyback Manager never starts its own EVE SSO request and never asks for scopes, so it cannot change or reduce what anyone has already granted SeAT. Appraising touches no character data at all, and contract detection reads the corporation's (or the designated operator's) own contract feed, never the seller's. Signing in is optional and only adds appraisal history.
+                        <strong>No account and no ESI scopes required to sell.</strong> Buyback Manager never starts its own EVE SSO request and never changes your scope profiles, so it cannot change or reduce what anyone has already granted SeAT. It adds one optional scope, <code>esi-ui.open_window.v1</code>, to the list SeAT offers, for <a href="#" class="js-goto" data-goto="detection">Open in game</a>, and only a SeAT admin can put it in a profile. Appraising touches no character data at all, and contract detection reads the corporation's (or the designated operator's) own contract feed, never the seller's. Signing in is optional; it adds appraisal history, and member rates for your members.
                     </div>
 
                     <h4>Branding &amp; layout</h4>
@@ -755,7 +816,11 @@
                         <li><strong>Copy buttons</strong> for the key, the contract price in whole ISK, and who to contract to.</li>
                         <li><strong>When the quote holds.</strong> It shows when the quote was made and until when it holds, from your stale-quote window. After that it warns the seller that a contract made with it is flagged for you to check against today's prices. Nothing is refused.</li>
                         <li><strong>What became of the contract.</strong> Once a contract uses the key, the page says so: received and waiting for you, paid, expired, cancelled, or declined, with the date.</li>
+                        <li><strong>Which rates it used.</strong> A member's quote says it was made at member rates. On a members-only programme the page says so, and that anyone else can still contract it.</li>
                     </ul>
+
+                    <h4>Members</h4>
+                    <p>With a member bonus set, the page tells your members to log in to SeAT for their rates and links the members page. Member rates themselves never appear on it. See <a href="#" class="js-goto" data-goto="members">Members</a>.</p>
 
                     <div class="purple-box">
                         <i class="fas fa-shield-alt"></i>
@@ -875,6 +940,8 @@
                         <tr><td>Contract not picked up</td><td>Confirm the appraisal key is in the Description, then Diagnostic &gt; Contract Trace walks the pipeline.</td></tr>
                         <tr><td>Contract list stale</td><td>Diagnostic &gt; Health Checks shows the last sync time, the last error for each programme, and has a Sync Now button. A webhook on the Contract feed category hears when SeAT stops reading the contracts.</td></tr>
                         <tr><td>Haul fee too high on a ship or module</td><td>It was counted assembled because its packaged volume was not known yet, and the quote says so. Appraise again a few minutes later. Diagnostic &gt; Health Checks (Item Volumes) shows which build of SeAT's static data Buyback Manager has read. If SeAT has none, capital modules and containers count assembled.</td></tr>
+                        <tr><td>Open in game is grey with a warning</td><td>None of your logins holds <code>esi-ui.open_window.v1</code>. The banner above the contracts says whether SeAT asks for it yet; if it does, log out of SeAT, log back in with your main, and link any alt again. Diagnostic &gt; Health Checks (Open In Game) shows where it stands for everyone.</td></tr>
+                        <tr><td>A member is quoted public rates</td><td>None of the characters on their SeAT account is in the members' corporation or alliance as SeAT last saw it. The members page tells them so. Check the group under Settings &gt; Sellers and member rates.</td></tr>
                         <tr><td>Discord not arriving</td><td>Diagnostic &gt; Notification Testing lists every webhook with its last result and a test button.</td></tr>
                         <tr><td>Tables or schedules</td><td>Diagnostic &gt; Health Checks and Data Integrity verify tables, schedules, and consistency.</td></tr>
                     </table>

@@ -30,6 +30,11 @@ class BuybackContract extends Model
     // buys from; or no source could say which alliance it is in.
     public const FLAG_OUTSIDE_SELLER = 'outside_seller';
     public const FLAG_SELLER_UNVERIFIED = 'seller_unverified';
+    // The seller is not among the members, but their SeAT account holds a
+    // character who is: an alt. seller_note says whose.
+    public const FLAG_MEMBER_ALT = 'member_alt';
+    // The quote used member rates and nothing ties the seller to a member.
+    public const FLAG_MEMBER_RATE_OUTSIDER = 'member_rate_outsider';
 
     /**
      * Human wording for each flag, used in the UI and Discord embeds.
@@ -43,6 +48,8 @@ class BuybackContract extends Model
         self::FLAG_UNKNOWN_KEY => 'Appraisal key matches no appraisal',
         self::FLAG_OUTSIDE_SELLER => 'Seller is outside who can sell to this programme',
         self::FLAG_SELLER_UNVERIFIED => 'Could not tell which alliance the seller is in',
+        self::FLAG_MEMBER_ALT => 'Seller is an alt of a member',
+        self::FLAG_MEMBER_RATE_OUTSIDER => 'Quoted at member rates, but the seller is not a member',
     ];
 
     /**
@@ -82,6 +89,7 @@ class BuybackContract extends Model
         'asked_price',
         'deviation_percent',
         'flags_json',
+        'seller_note',
         'items_count',
         'total_volume',
         'issued_date',
@@ -172,9 +180,22 @@ class BuybackContract extends Model
     public function flagLabels(): array
     {
         return array_map(
-            fn ($flag) => self::FLAG_LABELS[$flag] ?? $flag,
+            fn ($flag) => self::flagText($flag, $this->seller_note),
             $this->flags()
         );
+    }
+
+    /**
+     * One flag in words. A member's alt also says whose alt it is, as it
+     * stood when the contract was first seen.
+     */
+    public static function flagText(string $flag, ?string $sellerNote = null): string
+    {
+        $label = self::FLAG_LABELS[$flag] ?? $flag;
+
+        return $flag === self::FLAG_MEMBER_ALT && $sellerNote !== null && $sellerNote !== ''
+            ? $label . ': ' . $sellerNote
+            : $label;
     }
 
     /**

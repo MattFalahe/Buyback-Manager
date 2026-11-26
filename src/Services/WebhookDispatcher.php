@@ -579,7 +579,7 @@ class WebhookDispatcher
         // Why the contract needs review, spelled out rather than as codes.
         if (! empty($payload['flags']) && is_array($payload['flags'])) {
             $labels = array_map(
-                fn ($flag) => '• ' . (BuybackContract::FLAG_LABELS[$flag] ?? $flag),
+                fn ($flag) => '• ' . BuybackContract::flagText((string) $flag, $payload['seller_note'] ?? null),
                 $payload['flags']
             );
             $fields[] = [

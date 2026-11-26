@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex">
     <title>{{ $corpName }} Buyback</title>
-    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/public.css') }}?v=13">
+    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/public.css') }}?v=14">
     <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/hamsters.css') }}?v=4">
     <style>
         .bb-public-body { --bb-pub-accent: {{ $accent }}; }
@@ -29,6 +29,9 @@
         <div class="bb-public-blurb">{{ $blurb }}</div>
         @if($appraisalEnabled)
             <a class="bb-public-cta" href="#bb-estimate">Get an appraisal</a>
+        @endif
+        @if($memberRatesNote)
+            <a class="bb-members-link" href="{{ $membersUrl }}">{{ $memberRatesNote }}</a>
         @endif
     </div>
 
@@ -69,6 +72,9 @@
                 @endforeach
             </div>
             @endif
+            @if($memberRatesNote)
+                <div class="bb-note bb-members-note"><a href="{{ $membersUrl }}">{{ $memberRatesNote }}</a></div>
+            @endif
         </div>
         @endif
 
@@ -83,6 +89,9 @@
                 @endforeach
             </ol>
             <div class="bb-note">These steps follow this corporation's buyback setup. No account is needed to sell.</div>
+            @if($membersOnlyNote)
+                <div class="bb-note bb-members-note">{{ $membersOnlyNote }}</div>
+            @endif
         </div>
 
         </div>

@@ -119,6 +119,10 @@ class ContractSyncTest extends TestCase
             $table->bigInteger('character_id')->primary();
             $table->string('name');
         });
+        Schema::create('users', function (Blueprint $table) {
+            $table->unsignedInteger('id')->primary();
+            $table->bigInteger('main_character_id')->nullable();
+        });
         DB::table('corporation_infos')->insert(['corporation_id' => self::CORP, 'name' => 'Test Corp']);
     }
 
@@ -901,5 +905,157 @@ class ContractSyncTest extends TestCase
         $this->service()->syncContractsForSetting($setting);
 
         $this->assertSame(['buyback.contract.matched'], $this->events->names());
+    }
+
+    /**
+     * A player on one SeAT account: their main in the programme's
+     * corporation, and the seller as an alt in another.
+     */
+    private function sellerIsAnAltOfAMember(): void
+    {
+        DB::table('users')->insert(['id' => 5, 'main_character_id' => self::OPERATOR]);
+        DB::table('refresh_tokens')->insert([
+            ['character_id' => self::OPERATOR, 'user_id' => 5, 'scopes' => '[]'],
+            ['character_id' => self::SELLER, 'user_id' => 5, 'scopes' => '[]'],
+        ]);
+        DB::table('character_affiliations')->insert([
+            ['character_id' => self::OPERATOR, 'corporation_id' => self::CORP, 'alliance_id' => null],
+            ['character_id' => self::SELLER, 'corporation_id' => self::OTHER_CORP, 'alliance_id' => null],
+        ]);
+        DB::table('character_infos')->insert(['character_id' => self::OPERATOR, 'name' => 'Main Pilot']);
+    }
+
+    private function memberQuote(string $key): BuybackAppraisal
+    {
+        $appraisal = $this->appraisal($key);
+        DB::table('buyback_manager_appraisals')->where('id', $appraisal->id)->update(['rate_tier' => BuybackAppraisal::RATE_MEMBER]);
+
+        return $appraisal->fresh();
+    }
+
+    public function test_a_members_only_programme_flags_a_seller_outside_its_group(): void
+    {
+        Http::fake();
+        // "Members only" as the form sends it, read as the members' own group.
+        $setting = $this->setting(['seller_scope' => BuybackSetting::SELLERS_MEMBERS, 'member_scope' => BuybackSetting::MEMBERS_ALLIANCE, 'seller_alliance_id' => self::ALLIANCE]);
+        DB::table('alliance_members')->insert(['alliance_id' => self::OTHER_ALLIANCE, 'corporation_id' => self::OTHER_CORP]);
+        $this->appraisal('bb-abcd2345');
+        $contractId = $this->contract();
+
+        $this->service()->syncContractsForSetting($setting);
+
+        $row = BuybackContract::where('contract_id', $contractId)->first();
+        $this->assertSame([BuybackContract::FLAG_OUTSIDE_SELLER], $row->flags());
+        $this->assertNull($row->seller_note);
+        $this->assertSame(['buyback.contract.flagged'], $this->events->names());
+    }
+
+    public function test_a_member_rate_quote_contracted_by_someone_outside_is_flagged(): void
+    {
+        $setting = $this->setting(['member_bonus' => 5]);
+        $this->memberQuote('bb-abcd2345');
+        $contractId = $this->contract();
+
+        $this->service()->syncContractsForSetting($setting);
+
+        $this->assertSame([BuybackContract::FLAG_MEMBER_RATE_OUTSIDER], BuybackContract::where('contract_id', $contractId)->first()->flags());
+        $this->assertSame(['buyback.contract.flagged'], $this->events->names());
+        $this->assertSame([BuybackContract::FLAG_MEMBER_RATE_OUTSIDER], $this->events->events[0]['payload']['flags']);
+    }
+
+    public function test_a_member_rate_quote_contracted_by_a_member_is_clean(): void
+    {
+        $setting = $this->setting(['member_bonus' => 5]);
+        $this->memberQuote('bb-abcd2345');
+        $contractId = $this->contract(['issuer_corporation_id' => self::CORP]);
+
+        $this->service()->syncContractsForSetting($setting);
+
+        $this->assertSame([], BuybackContract::where('contract_id', $contractId)->first()->flags());
+        $this->assertSame(['buyback.contract.matched'], $this->events->names());
+    }
+
+    public function test_a_public_quote_on_an_open_programme_never_asks_who_the_seller_is(): void
+    {
+        $setting = $this->setting(['member_bonus' => 5]);
+        $this->sellerIsAnAltOfAMember();
+        $this->appraisal('bb-abcd2345');
+        $contractId = $this->contract();
+
+        $this->service()->syncContractsForSetting($setting);
+
+        $row = BuybackContract::where('contract_id', $contractId)->first();
+        $this->assertSame([], $row->flags());
+        $this->assertNull($row->seller_note);
+    }
+
+    public function test_a_members_alt_is_flagged_with_whose_alt_it_is(): void
+    {
+        $setting = $this->setting(['seller_scope' => BuybackSetting::SELLERS_CORPORATION]);
+        $this->sellerIsAnAltOfAMember();
+        $this->appraisal('bb-abcd2345');
+        $contractId = $this->contract();
+
+        $this->service()->syncContractsForSetting($setting);
+
+        $row = BuybackContract::where('contract_id', $contractId)->first();
+        $this->assertSame([BuybackContract::FLAG_MEMBER_ALT], $row->flags());
+        $this->assertSame('belongs to Main Pilot, who is in Test Corp', $row->seller_note);
+        $this->assertSame(['Seller is an alt of a member: belongs to Main Pilot, who is in Test Corp'], $row->flagLabels());
+
+        // The note travels with the contract to Discord and Manager Core.
+        $this->assertSame(['buyback.contract.flagged'], $this->events->names());
+        $this->assertSame('belongs to Main Pilot, who is in Test Corp', $this->events->events[0]['payload']['seller_note']);
+    }
+
+    public function test_a_members_alt_on_a_member_rate_quote_is_flagged_as_an_alt_only(): void
+    {
+        $setting = $this->setting(['member_bonus' => 5]);
+        $this->sellerIsAnAltOfAMember();
+        $this->memberQuote('bb-abcd2345');
+        $contractId = $this->contract();
+
+        $this->service()->syncContractsForSetting($setting);
+
+        $row = BuybackContract::where('contract_id', $contractId)->first();
+        $this->assertSame([BuybackContract::FLAG_MEMBER_ALT], $row->flags());
+        $this->assertSame('belongs to Main Pilot, who is in Test Corp', $row->seller_note);
+    }
+
+    public function test_a_member_rate_quote_from_a_seller_no_source_can_place_is_unverified(): void
+    {
+        Http::fake(['*' => Http::response('Not found', 404)]);
+        $setting = $this->setting(['member_bonus' => 5, 'member_scope' => BuybackSetting::MEMBERS_ALLIANCE, 'seller_alliance_id' => self::ALLIANCE]);
+        $this->memberQuote('bb-abcd2345');
+        $contractId = $this->contract();
+
+        $this->service()->syncContractsForSetting($setting);
+
+        $this->assertSame([BuybackContract::FLAG_SELLER_UNVERIFIED], BuybackContract::where('contract_id', $contractId)->first()->flags());
+    }
+
+    public function test_every_contract_event_carries_the_seller_note_even_when_there_is_none(): void
+    {
+        $setting = $this->setting();
+        $this->appraisal('bb-abcd2345');
+        $this->contract();
+
+        $this->service()->syncContractsForSetting($setting);
+
+        $this->assertArrayHasKey('seller_note', $this->events->events[0]['payload']);
+        $this->assertNull($this->events->events[0]['payload']['seller_note']);
+    }
+
+    public function test_a_key_that_matches_nothing_still_says_whose_alt_the_seller_is(): void
+    {
+        $setting = $this->setting(['seller_scope' => BuybackSetting::SELLERS_CORPORATION]);
+        $this->sellerIsAnAltOfAMember();
+        $contractId = $this->contract(['title' => 'bb-zzzz9999']);
+
+        $this->service()->syncContractsForSetting($setting);
+
+        $row = BuybackContract::where('contract_id', $contractId)->first();
+        $this->assertSame([BuybackContract::FLAG_UNKNOWN_KEY, BuybackContract::FLAG_MEMBER_ALT], $row->flags());
+        $this->assertSame('belongs to Main Pilot, who is in Test Corp', $row->seller_note);
     }
 }

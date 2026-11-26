@@ -60,6 +60,10 @@ Route::group([
         // Register before the /{id} show route, or "export" is captured as a contract id.
         Route::get('/export', [BuybackController::class, 'export'])->name('export');
         Route::get('/{id}', [BuybackController::class, 'show'])->name('show');
+        // Each press is a call to ESI on the user's own login.
+        Route::post('/{id}/open-in-game', [BuybackController::class, 'openInGame'])
+            ->middleware('throttle:20,1,bb-open-in-game')
+            ->name('open-in-game');
     });
 
     // Analytics

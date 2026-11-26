@@ -83,7 +83,7 @@ class ContractService
 
     protected VolumeLookup $volumes;
 
-    protected SellerAffiliation $sellers;
+    protected ProgrammeMembers $members;
 
     public function __construct(
         AppraisalMatcher $matcher,
@@ -100,7 +100,7 @@ class ContractService
         $this->locationResolver = $locationResolver;
         $this->feedHealth = $feedHealth ?? new ContractFeedHealth();
         $this->volumes = $volumes ?? new VolumeLookup();
-        $this->sellers = $sellers ?? new SellerAffiliation();
+        $this->members = new ProgrammeMembers($sellers ?? new SellerAffiliation());
     }
 
     public function syncContracts(): void
@@ -403,10 +403,11 @@ class ContractService
         $quoted = (float) $appraisal->total_buyback_value - ($haulFee ?? 0.0);
         $asked = (float) ($contract->price ?? 0);
         $deviation = $this->deviationPercent($quoted, $asked);
-        $flags = $this->computeFlags($contract, $appraisal, $setting, $deviation, $reused);
+        $seller = $this->sellerCheck($contract, $setting, $appraisal->isMemberRate());
+        $flags = array_merge($this->computeFlags($contract, $appraisal, $setting, $deviation, $reused), $seller['flags']);
         $volume = $this->contractVolume($contract, (float) $appraisal->total_volume);
 
-        return DB::transaction(function () use ($contract, $setting, $appraisal, $quoted, $haulFee, $asked, $deviation, $flags, $reused, $volume) {
+        return DB::transaction(function () use ($contract, $setting, $appraisal, $quoted, $haulFee, $asked, $deviation, $flags, $seller, $reused, $volume) {
             $row = BuybackContract::create([
                 'contract_id' => $contract->contract_id,
                 'corporation_id' => $setting->corporation_id,
@@ -420,6 +421,7 @@ class ContractService
                 'asked_price' => $asked,
                 'deviation_percent' => $deviation,
                 'flags_json' => $flags,
+                'seller_note' => $seller['note'],
                 'items_count' => $appraisal->items->count(),
                 'total_volume' => $volume,
                 'issued_date' => $contract->date_issued,
@@ -482,9 +484,8 @@ class ContractService
         if (! $this->locationResolver->isAllowed((int) ($contract->start_location_id ?? 0), $setting)) {
             $flags[] = BuybackContract::FLAG_WRONG_LOCATION;
         }
-        if (($sellerFlag = $this->sellerFlag($contract, $setting)) !== null) {
-            $flags[] = $sellerFlag;
-        }
+        $seller = $this->sellerCheck($contract, $setting, false);
+        $flags = array_merge($flags, $seller['flags']);
 
         return BuybackContract::create([
             'contract_id' => $contract->contract_id,
@@ -498,6 +499,7 @@ class ContractService
             'asked_price' => (float) ($contract->price ?? 0),
             'deviation_percent' => null,
             'flags_json' => $flags,
+            'seller_note' => $seller['note'],
             'items_count' => count($this->includedItems($contract)),
             'total_volume' => $this->contractVolume($contract, null),
             'issued_date' => $contract->date_issued,
@@ -597,42 +599,38 @@ class ContractService
             $flags[] = BuybackContract::FLAG_WRONG_LOCATION;
         }
 
-        if (($sellerFlag = $this->sellerFlag($contract, $setting)) !== null) {
-            $flags[] = $sellerFlag;
-        }
-
         return $flags;
     }
 
     /**
-     * Whether the seller may sell to this programme, judged by the
-     * corporation the contract was issued from and, for an alliance, that
-     * corporation's alliance. A seller no source can place is flagged as
-     * unverified, so a director looks rather than the check passing or
+     * Whether the seller is one of the programme's members, asked when only
+     * members may sell or the quote used member rates. A member's alt is
+     * flagged with whose alt it is; a seller no source can place is flagged
+     * as unverified, so a director looks rather than the check passing or
      * failing on a guess.
+     *
+     * @return array{flags: array<int, string>, note: ?string}
      */
-    protected function sellerFlag(ContractDetail $contract, BuybackSetting $setting): ?string
+    protected function sellerCheck(ContractDetail $contract, BuybackSetting $setting, bool $memberQuote): array
     {
-        $scope = $setting->sellerScope();
-        if ($scope === BuybackSetting::SELLERS_ANY) {
-            return null;
+        $membersOnly = $setting->sellerScope() !== BuybackSetting::SELLERS_ANY;
+        if (! $membersOnly && ! $memberQuote) {
+            return ['flags' => [], 'note' => null];
         }
 
-        $corporationId = (int) ($contract->issuer_corporation_id ?? 0);
-        if ($corporationId <= 0) {
-            return BuybackContract::FLAG_SELLER_UNVERIFIED;
-        }
+        $found = $this->members->standingOf((int) $contract->issuer_id, (int) ($contract->issuer_corporation_id ?? 0), $setting);
 
-        if ($scope === BuybackSetting::SELLERS_CORPORATION) {
-            return $corporationId === (int) $setting->corporation_id ? null : BuybackContract::FLAG_OUTSIDE_SELLER;
-        }
+        $flags = match ($found['standing']) {
+            ProgrammeMembers::MEMBER => [],
+            ProgrammeMembers::MEMBER_ALT => [BuybackContract::FLAG_MEMBER_ALT],
+            ProgrammeMembers::OUTSIDER => array_merge(
+                $membersOnly ? [BuybackContract::FLAG_OUTSIDE_SELLER] : [],
+                $memberQuote ? [BuybackContract::FLAG_MEMBER_RATE_OUTSIDER] : []
+            ),
+            default => [BuybackContract::FLAG_SELLER_UNVERIFIED],
+        };
 
-        $found = $this->sellers->allianceOf((int) $contract->issuer_id, $corporationId);
-        if ($found === null) {
-            return BuybackContract::FLAG_SELLER_UNVERIFIED;
-        }
-
-        return $found['alliance_id'] === (int) $setting->seller_alliance_id ? null : BuybackContract::FLAG_OUTSIDE_SELLER;
+        return ['flags' => $flags, 'note' => $found['note']];
     }
 
     /**
@@ -791,6 +789,8 @@ class ContractService
             'asked_price' => $contract->asked_price !== null ? (float) $contract->asked_price : null,
             'deviation_percent' => $contract->deviation_percent !== null ? (float) $contract->deviation_percent : null,
             'flags' => $contract->flags(),
+            // Whose alt a member's alt is, as it stood when first seen.
+            'seller_note' => $contract->seller_note,
             'items_count' => (int) $contract->items_count,
             'appraisal_public_id' => $contract->appraisal_public_id,
             // Where this contract was sent, not where the programme sends

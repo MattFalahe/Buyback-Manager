@@ -56,6 +56,9 @@ class AppraisalRecordService
                     'total_market_value' => (float) ($result['total_market_value'] ?? 0),
                     'total_buyback_value' => (float) ($result['total_buyback_value'] ?? 0),
                     'average_percentage' => (float) ($result['average_percentage'] ?? 0),
+                    'rate_tier' => ($result['rate_tier'] ?? null) === BuybackAppraisal::RATE_MEMBER
+                        ? BuybackAppraisal::RATE_MEMBER
+                        : BuybackAppraisal::RATE_PUBLIC,
                     'total_volume' => (float) ($result['total_volume'] ?? 0),
                     'market' => $result['market'] ?? null,
                     'provider' => $result['provider'] ?? null,

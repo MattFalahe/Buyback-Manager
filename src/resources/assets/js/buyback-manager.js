@@ -47,8 +47,13 @@
         document.body.removeChild(textarea);
     }
 
-    // Contract row click handler
-    $(document).on('click', '.contract-row', function() {
+    // Contract row click handler. A button or menu inside the row does its
+    // own thing; Bootstrap's dropdowns listen on the document, so they
+    // cannot simply stop the click from reaching the row.
+    $(document).on('click', '.contract-row', function(e) {
+        if ($(e.target).closest('a, button, .dropdown-menu, .bb-oig').length) {
+            return;
+        }
         const contractId = $(this).data('contract-id');
         if (contractId) {
             window.location.href = `/buyback-manager/contracts/${contractId}`;
@@ -68,6 +73,32 @@
         setTimeout(() => {
             btn.html(originalHtml);
         }, 2000);
+    });
+
+    // Open a contract in the EVE client of one of the user's characters.
+    // EVE answers the same whether or not the client is running, so the
+    // reply only says the request went out.
+    $(document).on('click', '.bb-open-in-game', function(e) {
+        e.preventDefault();
+        const $el = $(this);
+        const $wrap = $el.closest('.bb-oig');
+        const $result = $wrap.find('.bb-oig-result');
+        $result.removeClass('text-success text-danger').text('Sending...');
+
+        $.ajax({
+            url: $el.data('url'),
+            method: 'POST',
+            dataType: 'json',
+            data: {
+                _token: $wrap.data('token') || $('meta[name=csrf-token]').attr('content'),
+                character_id: $el.data('character')
+            }
+        }).done(function(res) {
+            $result.addClass('text-success').text(res.message || 'Sent.');
+        }).fail(function(xhr) {
+            const res = xhr.responseJSON || {};
+            $result.addClass('text-danger').text(res.message || ('The request did not go through (HTTP ' + xhr.status + ').'));
+        });
     });
 
     // Filter form

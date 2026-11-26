@@ -3,12 +3,16 @@
 namespace BuybackManager\Http\Controllers;
 
 use BuybackManager\Http\Controllers\Traits\ScopesCorporationAccess;
+use BuybackManager\Jobs\OpenContractWindow;
 use BuybackManager\Models\BuybackContract;
 use BuybackManager\Models\BuybackSetting;
 use BuybackManager\Models\BuybackSyncStatus;
+use BuybackManager\Services\OpenInGame;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Seat\Eveapi\Models\RefreshToken;
 use Seat\Web\Http\Controllers\Controller;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -16,7 +20,7 @@ class BuybackController extends Controller
 {
     use ScopesCorporationAccess;
 
-    public function index(Request $request)
+    public function index(Request $request, OpenInGame $openInGame)
     {
         $allowedCorpIds = $this->allowedCorporationIds($request);
 
@@ -27,8 +31,9 @@ class BuybackController extends Controller
 
         $corporations = $this->corporationsPicker($allowedCorpIds);
         $syncStatuses = $this->syncStatuses($allowedCorpIds);
+        $oig = $this->openInGameState($request, $contracts->pluck('corporation_id')->unique()->values()->all(), $openInGame);
 
-        return view('buyback-manager::buyback.index', compact('contracts', 'corporations', 'syncStatuses'));
+        return view('buyback-manager::buyback.index', compact('contracts', 'corporations', 'syncStatuses', 'oig'));
     }
 
     /**
@@ -96,9 +101,9 @@ class BuybackController extends Controller
         ]);
     }
 
-    public function show(Request $request, int $id)
+    public function show(Request $request, int $id, OpenInGame $openInGame)
     {
-        $contract = BuybackContract::with(['corporation', 'issuer', 'items.type'])
+        $contract = BuybackContract::with(['corporation', 'issuer', 'items.type', 'appraisal'])
             ->findOrFail($id);
 
         $allowedCorpIds = $this->allowedCorporationIds($request);
@@ -106,7 +111,9 @@ class BuybackController extends Controller
             abort(403, 'You do not have access to this contract.');
         }
 
-        return view('buyback-manager::buyback.view', compact('contract'));
+        $oig = $this->openInGameState($request, [(int) $contract->corporation_id], $openInGame);
+
+        return view('buyback-manager::buyback.view', compact('contract', 'oig'));
     }
 
     public function statistics(Request $request)
@@ -270,5 +277,75 @@ class BuybackController extends Controller
         } catch (\Throwable $e) {
             return $default;
         }
+    }
+
+    /**
+     * Ask the EVE client of one of the user's characters to show a contract.
+     * The character defaults to the account's main, then the first one that
+     * holds the scope. EVE answers the same whether or not the client is
+     * running, so the reply can only say the request was sent.
+     */
+    public function openInGame(Request $request, int $id, OpenInGame $openInGame)
+    {
+        $contract = BuybackContract::findOrFail($id);
+
+        $allowedCorpIds = $this->allowedCorporationIds($request);
+        if ($allowedCorpIds !== null && ! in_array((int) $contract->corporation_id, $allowedCorpIds, true)) {
+            abort(403, 'You do not have access to this contract.');
+        }
+
+        $enabled = BuybackSetting::where('corporation_id', $contract->corporation_id)->value('open_in_game');
+        if (! $enabled) {
+            return response()->json(['ok' => false, 'message' => 'Open in game is off for this programme.'], 422);
+        }
+
+        $characters = $openInGame->charactersFor($request->user()?->id);
+        if ($characters === []) {
+            return response()->json(['ok' => false, 'message' => 'None of your characters has logged in with ' . OpenInGame::SCOPE . ' yet.'], 422);
+        }
+
+        $characterId = (int) ($request->input('character_id') ?: array_key_first($characters));
+        $token = isset($characters[$characterId]) ? RefreshToken::find($characterId) : null;
+        if ($token === null) {
+            return response()->json(['ok' => false, 'message' => 'That character is not one of yours with ' . OpenInGame::SCOPE . '.'], 422);
+        }
+
+        try {
+            (new OpenContractWindow($token, (int) $contract->contract_id))->handle();
+        } catch (\Throwable $e) {
+            Log::warning('[Buyback Manager] Could not open contract ' . $contract->contract_id . ' in game for character ' . $characterId . ': ' . $e->getMessage());
+
+            return response()->json([
+                'ok' => false,
+                'message' => 'EVE did not take the request: ' . mb_substr($e->getMessage(), 0, 160),
+            ], 502);
+        }
+
+        return response()->json(['ok' => true, 'message' => 'Sent to ' . $characters[$characterId] . '.']);
+    }
+
+    /**
+     * What the Open in game button and banner need: which programmes have it
+     * on, the user's characters that can use it, and, when they have none,
+     * whether SeAT's default profile even asks for the scope.
+     *
+     * @param  array<int, int>  $corporationIds
+     * @return array{corporations: array<int, true>, characters: array<int, string>, profile_asks: bool}
+     */
+    protected function openInGameState(Request $request, array $corporationIds, OpenInGame $openInGame): array
+    {
+        $on = BuybackSetting::whereIn('corporation_id', $corporationIds)
+            ->where('open_in_game', true)
+            ->pluck('corporation_id')
+            ->mapWithKeys(fn ($id) => [(int) $id => true])
+            ->all();
+
+        $characters = $on !== [] ? $openInGame->charactersFor($request->user()?->id) : [];
+
+        return [
+            'corporations' => $on,
+            'characters' => $characters,
+            'profile_asks' => $on !== [] && $characters === [] ? $openInGame->defaultProfileAsks() : true,
+        ];
     }
 }

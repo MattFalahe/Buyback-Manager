@@ -16,6 +16,7 @@ use BuybackManager\Models\BuybackSubscribedType;
 use BuybackManager\Models\BuybackSyncStatus;
 use BuybackManager\Services\ContractFeedHealth;
 use BuybackManager\Services\DevBuildUpgrade;
+use BuybackManager\Services\OpenInGame;
 use BuybackManager\Services\Pricing\PriceProviderService;
 use BuybackManager\Services\ProgrammeAccess;
 use BuybackManager\Services\SdeVolumes;
@@ -153,6 +154,8 @@ class DiagnosticController extends Controller
             'item_volumes' => $this->checkItemVolumes(),
             'contract_sync' => $this->checkContractSync(),
             'who_can_sell' => $this->checkWhoCanSell(),
+            'member_rates' => $this->checkMemberRates(),
+            'open_in_game' => $this->checkOpenInGame(),
             'appraisal_activity' => $this->checkAppraisalActivity(),
             'event_log' => $this->checkEventLog($forceRefresh),
         ];
@@ -733,6 +736,80 @@ class DiagnosticController extends Controller
         return [
             'status' => 'ok',
             'message' => 'Contracts from anyone outside a programme\'s sellers are flagged for review. A seller\'s alliance comes from SeAT first, then EveWho, then zKillboard.',
+            'details' => $details,
+        ];
+    }
+
+    /**
+     * Each programme's member bonus and who it goes to. Members are found by
+     * SeAT account, so a member's alt outside the group is quoted member
+     * rates too, and its contracts say whose alt it is.
+     */
+    private function checkMemberRates(): array
+    {
+        $settings = BuybackSetting::with(['corporation', 'sellerAlliance'])->where('enabled', true)->get();
+        $withBonus = $settings->filter(fn (BuybackSetting $setting) => $setting->hasMemberRates());
+        if ($withBonus->isEmpty()) {
+            return ['status' => 'info', 'message' => 'No enabled programme has a member bonus, so everyone is quoted the same rates'];
+        }
+
+        $details = [];
+        foreach ($withBonus as $setting) {
+            $name = $setting->corporation->name ?? ('Corporation #' . $setting->corporation_id);
+            $details[$name] = rtrim(rtrim(number_format($setting->memberBonus(), 2, '.', ''), '0'), '.')
+                . ' points for members of ' . $setting->memberGroupName();
+        }
+
+        return [
+            'status' => 'ok',
+            'message' => 'Members signed in to SeAT are quoted the bonus on the members page. The public page shows only the public rates, and a member-rate quote contracted by someone outside the group is flagged.',
+            'details' => $details,
+        ];
+    }
+
+    /**
+     * Whether "Open in game" can work: SeAT has to list the scope, its
+     * default profile has to ask for it, and characters pick it up only by
+     * logging in again. Buyback Manager never changes the profiles.
+     */
+    private function checkOpenInGame(): array
+    {
+        $on = BuybackSetting::with('corporation')->where('open_in_game', true)->get();
+        if ($on->isEmpty()) {
+            return ['status' => 'info', 'message' => 'Open in game is off for every programme'];
+        }
+
+        $status = (new OpenInGame())->status();
+        $details = [
+            'Programmes' => $on->map(fn (BuybackSetting $setting) => $setting->corporation->name ?? ('Corporation #' . $setting->corporation_id))->implode(', '),
+            'Scope listed by SeAT' => $status['listed'],
+            'Default scope profile' => $status['profile'] === null
+                ? 'none marked default'
+                : $status['profile']['name'] . ($status['profile']['asks'] ? ', asks for it' : ', does not ask for it'),
+            'Characters holding it' => (string) $status['characters'],
+        ];
+
+        if (! $status['listed']) {
+            return [
+                'status' => 'warn',
+                'message' => 'SeAT does not list ' . OpenInGame::SCOPE . '. Its configuration was cached before Buyback Manager added the scope; restart SeAT so it is read again.',
+                'details' => $details,
+            ];
+        }
+
+        if ($status['profile'] === null || ! $status['profile']['asks']) {
+            return [
+                'status' => 'warn',
+                'message' => 'SeAT\'s default scope profile does not ask for ' . OpenInGame::SCOPE . ', so no new login picks it up. A SeAT admin adds it under Settings > SSO.',
+                'details' => $details,
+            ];
+        }
+
+        return [
+            'status' => $status['characters'] > 0 ? 'ok' : 'info',
+            'message' => $status['characters'] > 0
+                ? 'The button works for characters that logged in with the scope. Anyone else logs out of SeAT and back in with their main, then links any alt again.'
+                : 'SeAT asks for the scope, but no character has logged in with it yet. Each user logs out of SeAT and back in with their main, then links any alt again.',
             'details' => $details,
         ];
     }

@@ -27,6 +27,24 @@ class BuybackSetting extends Model
     public const SELLERS_CORPORATION = 'corporation';
     public const SELLERS_ALLIANCE = 'alliance';
 
+    /**
+     * What the settings forms send for "members only". Never stored: it is
+     * saved as the members' own scope, corporation or alliance, so the seller
+     * check keeps reading one column.
+     */
+    public const SELLERS_MEMBERS = 'members';
+
+    /**
+     * Who the programme's members are: its own corporation, or the alliance
+     * saved in seller_alliance_id. Members signed in to SeAT get the member
+     * bonus, and "members only" lets the same group sell.
+     */
+    public const MEMBERS_CORPORATION = 'corporation';
+    public const MEMBERS_ALLIANCE = 'alliance';
+
+    /** A member bonus can lift a rule to 100% of market and no further. */
+    public const MAX_MEMBER_PERCENTAGE = 100.0;
+
     /** SDE category of ore, ice and moon ore, compressed or not. */
     public const CATEGORY_ASTEROID = 25;
     public const DEFAULT_REFINE_YIELD = 90.0;
@@ -65,6 +83,9 @@ class BuybackSetting extends Model
         'target_corporation_name',
         'seller_scope',
         'seller_alliance_id',
+        'member_scope',
+        'member_bonus',
+        'open_in_game',
         'max_deviation_percent',
         'thin_market_guard_percent',
         'appraisal_stale_hours',
@@ -110,6 +131,8 @@ class BuybackSetting extends Model
         'price_cache_ttl_minutes' => 'integer',
         'target_corporation_id' => 'integer',
         'seller_alliance_id' => 'integer',
+        'member_bonus' => 'decimal:2',
+        'open_in_game' => 'boolean',
         'max_deviation_percent' => 'decimal:2',
         'thin_market_guard_percent' => 'decimal:2',
         'appraisal_stale_hours' => 'integer',
@@ -246,18 +269,20 @@ class BuybackSetting extends Model
     }
 
     /**
-     * Who may sell, read safely: an alliance scope with no alliance saved
-     * checks nothing, since there is nothing to check against.
+     * Who may sell, read safely. "Members only" reads as the members' own
+     * group, and an alliance scope with no alliance saved checks nothing,
+     * since there is nothing to check against.
      */
     public function sellerScope(): string
     {
         $scope = (string) ($this->seller_scope ?: self::SELLERS_ANY);
 
-        return match ($scope) {
-            self::SELLERS_CORPORATION => self::SELLERS_CORPORATION,
-            self::SELLERS_ALLIANCE => $this->seller_alliance_id ? self::SELLERS_ALLIANCE : self::SELLERS_ANY,
-            default => self::SELLERS_ANY,
-        };
+        if (! in_array($scope, [self::SELLERS_CORPORATION, self::SELLERS_ALLIANCE, self::SELLERS_MEMBERS], true)
+            || ($scope === self::SELLERS_ALLIANCE && ! $this->seller_alliance_id)) {
+            return self::SELLERS_ANY;
+        }
+
+        return $this->memberScope();
     }
 
     /**
@@ -265,13 +290,59 @@ class BuybackSetting extends Model
      */
     public function sellerScopeLabel(): string
     {
-        return match ($this->sellerScope()) {
-            self::SELLERS_CORPORATION => 'Members of ' . (optional($this->corporation)->name
-                ?? ('corporation #' . $this->corporation_id)),
-            self::SELLERS_ALLIANCE => 'Members of ' . (optional($this->sellerAlliance)->name
-                ?? ('alliance #' . $this->seller_alliance_id)),
-            default => 'Anyone',
-        };
+        return $this->sellerScope() === self::SELLERS_ANY
+            ? 'Anyone'
+            : 'Members of ' . $this->memberGroupName();
+    }
+
+    /**
+     * Who the members are, read safely: an alliance with none saved falls
+     * back to the programme's own corporation. A members-only programme
+     * stores its group as Who can sell, and that is the one read, so the
+     * two can never name different groups.
+     */
+    public function memberScope(): string
+    {
+        $scope = in_array($this->seller_scope, [self::SELLERS_CORPORATION, self::SELLERS_ALLIANCE], true)
+            ? $this->seller_scope
+            : $this->member_scope;
+
+        return $scope === self::MEMBERS_ALLIANCE && $this->seller_alliance_id
+            ? self::MEMBERS_ALLIANCE
+            : self::MEMBERS_CORPORATION;
+    }
+
+    /** The members' corporation or alliance, by name. */
+    public function memberGroupName(): string
+    {
+        return $this->memberScope() === self::MEMBERS_ALLIANCE
+            ? (optional($this->sellerAlliance)->name ?? ('alliance #' . $this->seller_alliance_id))
+            : (optional($this->corporation)->name ?? ('corporation #' . $this->corporation_id));
+    }
+
+    /** Percentage points members get on top of every rule; 0 is none. */
+    public function memberBonus(): float
+    {
+        return max(0.0, min(self::MAX_MEMBER_PERCENTAGE, (float) ($this->member_bonus ?? 0)));
+    }
+
+    public function hasMemberRates(): bool
+    {
+        return $this->memberBonus() > 0;
+    }
+
+    /**
+     * A rule's rate for a member. A rule paying nothing stays at nothing,
+     * since that is a choice and not a rate to improve, and a rule already
+     * at or past 100% is left where it is.
+     */
+    public function memberPercentage(float $percentage): float
+    {
+        if ($percentage <= 0 || $percentage >= self::MAX_MEMBER_PERCENTAGE) {
+            return $percentage;
+        }
+
+        return min(self::MAX_MEMBER_PERCENTAGE, $percentage + $this->memberBonus());
     }
 
     /**

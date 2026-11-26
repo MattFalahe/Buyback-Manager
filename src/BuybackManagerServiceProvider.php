@@ -36,6 +36,13 @@ class BuybackManagerServiceProvider extends AbstractSeatPlugin
             'package.sidebar'
         );
 
+        // SeAT validates scope profiles against this list, so the scope has
+        // to be on it before an admin can add it to one.
+        $this->mergeConfigFrom(
+            __DIR__ . '/Config/buyback-manager.scopes.php',
+            'eveapi.scopes'
+        );
+
         $this->registerDatabaseSeeders([
             ScheduleSeeder::class,
         ]);

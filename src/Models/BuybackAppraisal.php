@@ -16,6 +16,14 @@ use Seat\Eveapi\Models\Corporation\CorporationInfo;
  */
 class BuybackAppraisal extends Model
 {
+    /**
+     * Which rates a quote used. Member rates are quoted only to someone signed
+     * in to SeAT whose account holds a character among the programme's
+     * members, so the contract that uses the key can be checked against it.
+     */
+    public const RATE_PUBLIC = 'public';
+    public const RATE_MEMBER = 'member';
+
     protected $table = 'buyback_manager_appraisals';
 
     protected $fillable = [
@@ -27,6 +35,7 @@ class BuybackAppraisal extends Model
         'total_market_value',
         'total_buyback_value',
         'average_percentage',
+        'rate_tier',
         'total_volume',
         'market',
         'provider',
@@ -69,6 +78,11 @@ class BuybackAppraisal extends Model
     public function setting()
     {
         return $this->belongsTo(BuybackSetting::class, 'corporation_id', 'corporation_id');
+    }
+
+    public function isMemberRate(): bool
+    {
+        return $this->rate_tier === self::RATE_MEMBER;
     }
 
     /**

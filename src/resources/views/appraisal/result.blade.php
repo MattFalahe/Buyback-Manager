@@ -19,6 +19,9 @@
                 <div class="card-tools">
                     <span class="badge badge-info">{{ $market }}</span>
                     <span class="badge badge-success">{{ $corporation->name }}</span>
+                    @if(($rate_tier ?? null) === \BuybackManager\Models\BuybackAppraisal::RATE_MEMBER)
+                        <span class="badge badge-primary" title="{{ rtrim(rtrim(number_format((float) ($member_bonus ?? 0), 2, '.', ''), '0'), '.') }} points on top of every rule">Member rates</span>
+                    @endif
                 </div>
             </div>
             <div class="card-body">
@@ -234,6 +237,9 @@
 
                     <dt class="col-sm-6">Average %</dt>
                     <dd class="col-sm-6">{{ number_format($average_percentage, 2) }}%</dd>
+
+                    <dt class="col-sm-6">Rates</dt>
+                    <dd class="col-sm-6">{{ ($rate_tier ?? null) === \BuybackManager\Models\BuybackAppraisal::RATE_MEMBER ? 'Member' : 'Public' }}</dd>
                 </dl>
 
                 <hr>

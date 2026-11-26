@@ -157,6 +157,33 @@ class DevBuildUpgradeTest extends TestCase
         $this->assertSame(0, DB::table('buyback_manager_sync_status')->count());
     }
 
+    public function testAProgrammeFromBeforeMemberRatesStartsWithNone(): void
+    {
+        $this->devBuild();
+        // No development build had who can sell, members or rate tiers.
+        foreach ([
+            'buyback_settings' => ['seller_scope', 'seller_alliance_id', 'member_scope', 'member_bonus', 'open_in_game'],
+            'buyback_appraisals' => ['rate_tier'],
+            'buyback_contracts' => ['seller_note'],
+        ] as $table => $columns) {
+            foreach ($columns as $column) {
+                DB::statement("ALTER TABLE {$table} DROP COLUMN {$column}");
+            }
+        }
+        $this->programme();
+        DB::table('buyback_contracts')->insert(['id' => 1, 'contract_id' => 200001, 'corporation_id' => 98000001, 'issuer_id' => 90000001, 'status' => 'outstanding']);
+
+        (new DevBuildUpgrade())->carryOver();
+
+        $setting = DB::table('buyback_manager_settings')->first();
+        $this->assertSame('any', $setting->seller_scope);
+        $this->assertSame('corporation', $setting->member_scope);
+        $this->assertSame(0.0, (float) $setting->member_bonus);
+        $this->assertFalse((bool) $setting->open_in_game);
+        $this->assertSame('public', DB::table('buyback_manager_appraisals')->where('id', 40)->value('rate_tier'));
+        $this->assertNull(DB::table('buyback_manager_contracts')->where('id', 1)->value('seller_note'));
+    }
+
     public function testSecretsTypedIntoAnOldBuildAreEncrypted(): void
     {
         $this->devBuild();

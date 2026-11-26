@@ -14,9 +14,6 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use Seat\Eveapi\Models\Sde\InvCategory;
-use Seat\Eveapi\Models\Sde\InvGroup;
-use Seat\Eveapi\Models\Sde\InvType;
 
 /**
  * Public, unauthenticated buyback landing page + its image streaming
@@ -37,14 +34,14 @@ class BuybackPublicController extends Controller
         }
 
         if (! $setting->publicPageOpen()) {
-            return $this->closed($setting);
+            return $this->closed($setting, $service);
         }
 
-        return view('buyback-manager::public.show', $this->branding($setting) + [
+        return view('buyback-manager::public.show', $service->branding($setting) + $this->memberNotes($setting) + [
             'setting'       => $setting,
             'blurb'         => PublicBlurb::html($setting->public_blurb ?: 'We buy your items at competitive rates, with fast and locked-in payouts.'),
             'instructions'  => $setting->publicContractInstructions(),
-            'rates'         => $setting->public_show_rates ? $this->buildRates($setting, $prices) : null,
+            'rates'         => $setting->public_show_rates ? $service->rates($setting, $prices) : null,
             // No login anything: selling needs no account. Whoever issues the
             // contract is identified from its issuer at detection time, so the
             // page never asks anyone to sign in.
@@ -66,44 +63,35 @@ class BuybackPublicController extends Controller
      * an old link is not left wondering whether it is wrong. A corporation
      * that chose to hide the page keeps the 404.
      */
-    private function closed(BuybackSetting $setting)
+    private function closed(BuybackSetting $setting, BuybackPublicService $service)
     {
         $state = $setting->publicClosedState();
         if ($state === BuybackSetting::PUBLIC_CLOSED_HIDDEN) {
             abort(404);
         }
 
-        return response()->view('buyback-manager::public.closed', $this->branding($setting) + [
+        return response()->view('buyback-manager::public.closed', $service->branding($setting) + [
             'setting'   => $setting,
             'permanent' => $state === BuybackSetting::PUBLIC_CLOSED_PERMANENT,
             'message'   => $setting->publicClosedMessage(),
         ]);
     }
 
-    /** What every public page carries of the corporation: its name, colours and images. */
-    private function branding(BuybackSetting $setting): array
+    /**
+     * What the public pages say about members: where to get member rates,
+     * and, for a members-only programme, that anyone else may still sell.
+     * Member rates themselves are never shown here.
+     */
+    private function memberNotes(BuybackSetting $setting): array
     {
-        // Relative asset URLs: an absolute one inherits the scheme Laravel
-        // derived from APP_URL / proxy headers, which breaks under a strict
-        // CSP (or as mixed content) when that scheme does not match how the
-        // page was actually served. Root-relative is always same-origin.
-        $backgroundUrl = ! empty($setting->public_background_path)
-            ? route('buyback-manager.public.image', ['ticker' => $setting->public_slug, 'kind' => 'background'], false)
-            : null;
-
-        $logoUrl = ! empty($setting->public_logo_path)
-            ? route('buyback-manager.public.image', ['ticker' => $setting->public_slug, 'kind' => 'logo'], false)
-            : ('https://images.evetech.net/corporations/' . $setting->corporation_id . '/logo?size=128');
+        $group = $setting->memberGroupName();
 
         return [
-            'corpName'      => optional($setting->corporation)->name ?? ('Corporation #' . $setting->corporation_id),
-            'badge'         => $setting->publicTargetBadge(),
-            'link'          => $setting->public_slug,
-            'accent'        => $this->safeAccent($setting->public_accent_color),
-            'overlay'       => max(0, min(100, (int) ($setting->public_overlay_opacity ?? 55))) / 100,
-            'backgroundUrl' => $backgroundUrl,
-            'logoUrl'       => $logoUrl,
-            'logoStyle'     => in_array($setting->public_logo_style, ['dark', 'none', 'light'], true) ? $setting->public_logo_style : 'dark',
+            'memberRatesNote' => $setting->hasMemberRates() ? $group . ' members: log in to SeAT for member rates.' : null,
+            'membersUrl'      => route('buyback.appraisal.index', ['programme' => $setting->corporation_id], false),
+            'membersOnlyNote' => $setting->sellerScope() !== BuybackSetting::SELLERS_ANY
+                ? 'This buyback is for members of ' . $group . '. Anyone else can still contract it, and a director decides whether to accept.'
+                : null,
         ];
     }
 
@@ -144,18 +132,18 @@ class BuybackPublicController extends Controller
 
         // A closed buyback takes no contracts, so its quotes are not shown.
         if (! $setting->publicPageOpen()) {
-            return $this->closed($setting);
+            return $this->closed($setting, $service);
         }
 
         $showDetail = (bool) $setting->public_show_pricing_detail;
         $validUntil = $service->validUntil($appraisal, $setting);
 
-        return view('buyback-manager::public.appraisal', [
+        return view('buyback-manager::public.appraisal', $this->memberNotes($setting) + [
             'setting'      => $setting,
             'appraisal'    => $appraisal,
             'corpName'     => optional($setting->corporation)->name ?? ('Corporation #' . $setting->corporation_id),
             'ticker'       => $setting->corp_ticker,
-            'accent'       => $this->safeAccent($setting->public_accent_color),
+            'accent'       => BuybackPublicService::safeAccent($setting->public_accent_color),
             'instructions' => $setting->publicContractInstructions(),
             'locations'    => $setting->allowedLocationLabels(),
             'excluded'     => $appraisal->excluded_json ?? [],
@@ -339,99 +327,5 @@ class BuybackPublicController extends Controller
                 : null,
             'quoted_at' => ($record?->created_at ?? now())->format('j M Y, H:i') . ' EVE',
         ]);
-    }
-
-    /**
-     * Validate the stored accent colour before it reaches an inline style,
-     * falling back to the default teal. Defence-in-depth on top of the
-     * save-time regex so the public page can never become a CSS-injection
-     * surface.
-     */
-    private function safeAccent(?string $color): string
-    {
-        $color = (string) $color;
-        return preg_match('/^#[0-9a-fA-F]{6}$/', $color) ? $color : '#1d9e75';
-    }
-
-    /**
-     * Advertised-rates payload: base %, lock window, and the pricing rules
-     * (with SDE names resolved). Honours two optional display flags:
-     *   - public_show_all_rules: list every non-excluded rule, else only
-     *     the featured ("most wanted") ones.
-     *   - public_show_pricing_detail: include the provider and market + each
-     *     rule's price side (buy / sell / split). Excluded rules are never
-     *     advertised regardless.
-     */
-    private function buildRates(BuybackSetting $setting, PriceProviderService $prices): array
-    {
-        $query = $setting->pricingRules()->where('excluded', false);
-        if (! $setting->public_show_all_rules) {
-            $query->where('featured', true);
-        }
-        $rules = $query->orderBy('featured', 'desc')->orderBy('priority', 'desc')->get();
-
-        $names = $this->resolveRuleNames($rules);
-        $showDetail = (bool) $setting->public_show_pricing_detail;
-
-        $items = $rules->map(fn ($rule) => [
-            'name' => $rule->display_name ?: ($names[$rule->type][$rule->type_id] ?? (ucfirst($rule->type) . ' #' . $rule->type_id)),
-            'percentage' => (float) $rule->percentage,
-            'featured' => (bool) $rule->featured,
-            'price_side' => $showDetail ? $this->sideLabel($rule->price_side) : null,
-            'refine_yield' => $rule->refined
-                ? rtrim(rtrim(number_format($rule->refine_yield !== null ? (float) $rule->refine_yield : $setting->programmeRefineYield(), 2), '0'), '.')
-                : null,
-        ])->values()->all();
-
-        return [
-            'base_percentage' => (float) $setting->base_percentage,
-            'stale_hours' => $setting->staleAfterHours(),
-            'items' => $items,
-            'show_detail' => $showDetail,
-            'source' => $showDetail ? $prices->currentSourceLabel($setting) : null,
-        ];
-    }
-
-    /**
-     * Short, public-friendly label for a rule's price side. Null (use the
-     * corp's default side) returns null so no badge is shown.
-     */
-    private function sideLabel(?string $side): ?string
-    {
-        return match ($side) {
-            'buy' => 'of buy',
-            'sell' => 'of sell',
-            'split' => 'of split',
-            default => null,
-        };
-    }
-
-    /**
-     * Batch-resolve SDE display names for a set of pricing rules,
-     * grouped by rule type to avoid N+1 lookups.
-     *
-     * @return array{item: array, group: array, category: array}
-     */
-    private function resolveRuleNames($rules): array
-    {
-        $byType = ['item' => [], 'group' => [], 'category' => []];
-        foreach ($rules as $rule) {
-            if (isset($byType[$rule->type])) {
-                $byType[$rule->type][] = $rule->type_id;
-            }
-        }
-
-        $names = ['item' => [], 'group' => [], 'category' => []];
-        if ($byType['item']) {
-            $names['item'] = InvType::whereIn('typeID', $byType['item'])->pluck('typeName', 'typeID')->all();
-        }
-        if ($byType['group']) {
-            $names['group'] = InvGroup::whereIn('groupID', $byType['group'])->pluck('groupName', 'groupID')->all();
-        }
-        if ($byType['category']) {
-            $names['category'] = InvCategory::whereIn('categoryID', $byType['category'])->pluck('categoryName', 'categoryID')->all();
-        }
-
-        return $names;
     }
 }

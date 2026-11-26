@@ -9,6 +9,8 @@
 
 @section('content')
     <div class="buyback-manager-wrapper">
+        @include('buyback-manager::buyback._open_in_game_banner', ['oig' => $oig])
+
         <!-- Filter Box -->
         <div class="card card-dark">
             <div class="card-body">
@@ -108,7 +110,10 @@
                     <tbody>
                         @foreach($contracts as $contract)
                             <tr class="contract-row" data-contract-id="{{ $contract->id }}">
-                                <td>{{ $contract->contract_id }}</td>
+                                <td data-order="{{ $contract->contract_id }}" data-search="{{ $contract->contract_id }}">
+                                    {{ $contract->contract_id }}
+                                    @include('buyback-manager::buyback._open_in_game', ['contract' => $contract, 'oig' => $oig])
+                                </td>
                                 <td>
                                     @if($contract->appraisal_public_id)
                                         <code>{{ $contract->appraisal_public_id }}</code>
@@ -181,5 +186,5 @@
 @endsection
 
 @push('javascript')
-    <script src="{{ asset('vendor/buyback-manager/js/buyback-manager.js') }}"></script>
+    <script src="{{ asset('vendor/buyback-manager/js/buyback-manager.js') }}?v=2"></script>
 @endpush

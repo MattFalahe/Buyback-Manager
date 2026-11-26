@@ -5,18 +5,23 @@ namespace BuybackManager\Services;
 use BuybackManager\Models\BuybackAppraisal;
 use BuybackManager\Models\BuybackContract;
 use BuybackManager\Models\BuybackSetting;
+use BuybackManager\Services\Pricing\PriceProviderService;
 use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Seat\Eveapi\Models\Sde\InvCategory;
+use Seat\Eveapi\Models\Sde\InvGroup;
+use Seat\Eveapi\Models\Sde\InvType;
 
 /**
  * Backing service for the public buyback landing page.
  *
- * Resolves a programme's public page by the name in its link and
- * stores/deletes the uploaded background + logo images. Image handling
+ * Resolves a programme's public page by the name in its link, builds the
+ * rates and look it shares with the members page, and stores/deletes the
+ * uploaded background + logo images. Image handling
  * mirrors HR Manager's hero-image
  * pattern: store on a configurable disk, serve later via a streaming route
  * (NOT Storage::url()), so it works without `php artisan storage:link` on
@@ -233,5 +238,137 @@ class BuybackPublicService
         } catch (\Throwable $e) {
             Log::warning('[Buyback Manager] public image delete failed: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * What every page in the programme's look carries of the corporation:
+     * its name, colours and images. The public pages and the members page
+     * share it.
+     */
+    public function branding(BuybackSetting $setting): array
+    {
+        // Relative asset URLs: an absolute one inherits the scheme Laravel
+        // derived from APP_URL / proxy headers, which breaks under a strict
+        // CSP (or as mixed content) when that scheme does not match how the
+        // page was actually served. Root-relative is always same-origin.
+        $backgroundUrl = ! empty($setting->public_background_path)
+            ? route('buyback-manager.public.image', ['ticker' => $setting->public_slug, 'kind' => 'background'], false)
+            : null;
+
+        $logoUrl = ! empty($setting->public_logo_path)
+            ? route('buyback-manager.public.image', ['ticker' => $setting->public_slug, 'kind' => 'logo'], false)
+            : ('https://images.evetech.net/corporations/' . $setting->corporation_id . '/logo?size=128');
+
+        return [
+            'corpName'      => optional($setting->corporation)->name ?? ('Corporation #' . $setting->corporation_id),
+            'badge'         => $setting->publicTargetBadge(),
+            'link'          => $setting->public_slug,
+            'accent'        => self::safeAccent($setting->public_accent_color),
+            'overlay'       => max(0, min(100, (int) ($setting->public_overlay_opacity ?? 55))) / 100,
+            'backgroundUrl' => $backgroundUrl,
+            'logoUrl'       => $logoUrl,
+            'logoStyle'     => in_array($setting->public_logo_style, ['dark', 'none', 'light'], true) ? $setting->public_logo_style : 'dark',
+        ];
+    }
+
+    /**
+     * Validate the stored accent colour before it reaches an inline style,
+     * falling back to the default teal. Defence-in-depth on top of the
+     * save-time regex so a page can never become a CSS-injection surface.
+     */
+    public static function safeAccent(?string $color): string
+    {
+        $color = (string) $color;
+
+        return preg_match('/^#[0-9a-fA-F]{6}$/', $color) ? $color : '#1d9e75';
+    }
+
+    /**
+     * Advertised rates: base %, lock window, and the pricing rules (with SDE
+     * names resolved). Honours two optional display flags:
+     *   - public_show_all_rules: list every non-excluded rule, else only
+     *     the featured ("most wanted") ones.
+     *   - public_show_pricing_detail: include the provider and market + each
+     *     rule's price side (buy / sell / split). Excluded rules are never
+     *     advertised regardless.
+     *
+     * At member rates each percentage carries the member bonus, and the
+     * public one beside it. The public page never asks for member rates.
+     */
+    public function rates(BuybackSetting $setting, PriceProviderService $prices, bool $member = false): array
+    {
+        $query = $setting->pricingRules()->where('excluded', false);
+        if (! $setting->public_show_all_rules) {
+            $query->where('featured', true);
+        }
+        $rules = $query->orderBy('featured', 'desc')->orderBy('priority', 'desc')->get();
+
+        $names = $this->resolveRuleNames($rules);
+        $showDetail = (bool) $setting->public_show_pricing_detail;
+        $rate = fn (float $percentage) => $member ? $setting->memberPercentage($percentage) : $percentage;
+
+        $items = $rules->map(fn ($rule) => [
+            'name' => $rule->display_name ?: ($names[$rule->type][$rule->type_id] ?? (ucfirst($rule->type) . ' #' . $rule->type_id)),
+            'percentage' => $rate((float) $rule->percentage),
+            'public_percentage' => (float) $rule->percentage,
+            'featured' => (bool) $rule->featured,
+            'price_side' => $showDetail ? $this->sideLabel($rule->price_side) : null,
+            'refine_yield' => $rule->refined
+                ? rtrim(rtrim(number_format($rule->refine_yield !== null ? (float) $rule->refine_yield : $setting->programmeRefineYield(), 2), '0'), '.')
+                : null,
+        ])->values()->all();
+
+        return [
+            'base_percentage' => $rate((float) $setting->base_percentage),
+            'public_base_percentage' => (float) $setting->base_percentage,
+            'member' => $member,
+            'stale_hours' => $setting->staleAfterHours(),
+            'items' => $items,
+            'show_detail' => $showDetail,
+            'source' => $showDetail ? $prices->currentSourceLabel($setting) : null,
+        ];
+    }
+
+    /**
+     * Short, public-friendly label for a rule's price side. Null (use the
+     * corp's default side) returns null so no badge is shown.
+     */
+    private function sideLabel(?string $side): ?string
+    {
+        return match ($side) {
+            'buy' => 'of buy',
+            'sell' => 'of sell',
+            'split' => 'of split',
+            default => null,
+        };
+    }
+
+    /**
+     * Batch-resolve SDE display names for a set of pricing rules,
+     * grouped by rule type to avoid N+1 lookups.
+     *
+     * @return array{item: array, group: array, category: array}
+     */
+    private function resolveRuleNames($rules): array
+    {
+        $byType = ['item' => [], 'group' => [], 'category' => []];
+        foreach ($rules as $rule) {
+            if (isset($byType[$rule->type])) {
+                $byType[$rule->type][] = $rule->type_id;
+            }
+        }
+
+        $names = ['item' => [], 'group' => [], 'category' => []];
+        if ($byType['item']) {
+            $names['item'] = InvType::whereIn('typeID', $byType['item'])->pluck('typeName', 'typeID')->all();
+        }
+        if ($byType['group']) {
+            $names['group'] = InvGroup::whereIn('groupID', $byType['group'])->pluck('groupName', 'groupID')->all();
+        }
+        if ($byType['category']) {
+            $names['category'] = InvCategory::whereIn('categoryID', $byType['category'])->pluck('categoryName', 'categoryID')->all();
+        }
+
+        return $names;
     }
 }

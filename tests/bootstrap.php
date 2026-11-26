@@ -2,8 +2,9 @@
 
 // The tests run without SeAT. Eloquent is here so the price chain and the
 // contract sync can read and write their tables in an in-memory SQLite
-// database built by the plugin's own migrations. The few SeAT models the sync
-// reads are stood in for by tests/Seat, on the same tables.
+// database built by the plugin's own migrations. The few SeAT classes the
+// tests reach, its models and its plugin base, are stood in for by tests/Seat,
+// the models on the same tables.
 
 require __DIR__ . '/vendor/autoload.php';
 

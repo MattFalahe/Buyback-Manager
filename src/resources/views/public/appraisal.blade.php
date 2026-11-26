@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex">
     <title>Appraisal {{ $appraisal->public_id }} - {{ $corpName }}</title>
-    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/public.css') }}?v=13">
+    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/public.css') }}?v=14">
     <style>
         .bb-public-body { --bb-pub-accent: {{ $accent }}; }
     </style>
@@ -54,6 +54,9 @@
                 }
                 if ($pricedBy) {
                     $quoteMeta[] = 'prices from ' . $pricedBy;
+                }
+                if ($appraisal->isMemberRate()) {
+                    $quoteMeta[] = 'member rates';
                 }
                 $quoteMeta[] = number_format((float) $appraisal->total_volume, 2) . ' m3';
             @endphp
@@ -122,6 +125,12 @@
                 A different amount still reaches us, but it is flagged for a director to check, which slows your payout.
                 Quotes older than {{ $staleHours }} hours are re-checked against the market.
             </div>
+            @if($membersOnlyNote)
+                <div class="bb-note bb-members-note">{{ $membersOnlyNote }}</div>
+            @endif
+            @if($memberRatesNote && ! $appraisal->isMemberRate())
+                <div class="bb-note bb-members-note"><a href="{{ $membersUrl }}">{{ $memberRatesNote }}</a></div>
+            @endif
         </div>
 
         @if(count($locations))

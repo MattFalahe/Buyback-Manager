@@ -6,7 +6,11 @@ use BuybackManager\Models\BuybackAppraisal;
 use BuybackManager\Models\BuybackSetting;
 use BuybackManager\Services\AppraisalRecordService;
 use BuybackManager\Services\AppraisalService;
+use BuybackManager\Services\BuybackPublicService;
+use BuybackManager\Services\ProgrammeMembers;
+use BuybackManager\Services\Pricing\PriceProviderService;
 use BuybackManager\Services\Pricing\PriceWait;
+use BuybackManager\Services\PublicBlurb;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Seat\Web\Http\Controllers\Controller;
@@ -17,7 +21,8 @@ use Seat\Web\Http\Controllers\Controller;
  * Every appraisal is stored and handed back with a single-use key. The
  * seller pastes that key into their in-game contract's Description, and
  * Buyback Manager pairs the two up when the contract syncs. Guests get the
- * same thing from the public page — signing in only adds history.
+ * same thing from the public page at public rates; signing in adds history,
+ * and member rates for an account holding one of the programme's members.
  */
 class AppraisalController extends Controller
 {
@@ -25,23 +30,58 @@ class AppraisalController extends Controller
 
     protected AppraisalRecordService $records;
 
-    public function __construct(AppraisalService $appraisalService, AppraisalRecordService $records)
+    protected ProgrammeMembers $members;
+
+    public function __construct(AppraisalService $appraisalService, AppraisalRecordService $records, ProgrammeMembers $members)
     {
         $this->appraisalService = $appraisalService;
         $this->records = $records;
+        $this->members = $members;
     }
 
     /**
-     * Show the appraisal form.
+     * The members page: a programme in its public look, at the rates this
+     * account is quoted. A member sees member rates; anyone else signed in
+     * sees the public rates and is told why. The programme asked for in the
+     * link comes first, then one this account is a member of.
      */
-    public function index()
+    public function index(Request $request, BuybackPublicService $public, PriceProviderService $prices)
     {
-        $corporations = BuybackSetting::with('corporation')
+        $settings = BuybackSetting::with(['corporation', 'targetCorporation', 'character', 'sellerAlliance'])
             ->where('enabled', true)
             ->get()
-            ->pluck('corporation.name', 'corporation_id');
+            ->sortBy(fn (BuybackSetting $setting) => mb_strtolower(optional($setting->corporation)->name ?? ''))
+            ->values();
 
-        return view('buyback-manager::appraisal.index', compact('corporations'));
+        $user = $request->user();
+        $membership = [];
+        foreach ($settings as $setting) {
+            $membership[(int) $setting->corporation_id] = $user ? $this->members->memberCharacters((int) $user->id, $setting) : [];
+        }
+
+        $wanted = (int) old('corporation_id', $request->query('programme', 0));
+        $setting = $settings->firstWhere('corporation_id', $wanted)
+            ?? $settings->first(fn (BuybackSetting $s) => $membership[(int) $s->corporation_id] !== [])
+            ?? $settings->first();
+
+        if ($setting === null) {
+            return view('buyback-manager::appraisal.index', ['setting' => null, 'settings' => $settings]);
+        }
+
+        $memberCharacters = $membership[(int) $setting->corporation_id];
+        $memberRates = $memberCharacters !== [] && $setting->hasMemberRates();
+
+        return view('buyback-manager::appraisal.index', $public->branding($setting) + [
+            'settings' => $settings,
+            'setting' => $setting,
+            'blurb' => PublicBlurb::html($setting->public_blurb ?: 'We buy your items at competitive rates, with fast and locked-in payouts.'),
+            'instructions' => $setting->publicContractInstructions(),
+            'rates' => $public->rates($setting, $prices, $memberRates),
+            'memberRates' => $memberRates,
+            'memberName' => $memberCharacters !== [] ? reset($memberCharacters) : null,
+            'groupName' => $setting->memberGroupName(),
+            'bonus' => rtrim(rtrim(number_format($setting->memberBonus(), 2, '.', ''), '0'), '.'),
+        ]);
     }
 
     /**
@@ -55,10 +95,14 @@ class AppraisalController extends Controller
         ]);
 
         $corporationId = (int) $request->input('corporation_id');
+        $user = $request->user();
+        $setting = BuybackSetting::where('corporation_id', $corporationId)->first();
+        $memberCharacters = $setting && $user ? $this->members->memberCharacters((int) $user->id, $setting) : [];
 
         $result = $this->appraisalService->createAppraisal(
             $request->input('items'),
-            $corporationId
+            $corporationId,
+            $memberCharacters !== [] ? BuybackAppraisal::RATE_MEMBER : BuybackAppraisal::RATE_PUBLIC
         );
 
         if (! $result['success']) {
@@ -69,18 +113,17 @@ class AppraisalController extends Controller
                 ->with(empty($result['no_prices']) ? 'error' : 'no_prices', $result['message']);
         }
 
-        $user = $request->user();
         $appraisal = $this->records->store(
             $result,
             $corporationId,
             $user?->id,
-            $this->resolveCharacterId($user, $corporationId)
+            $memberCharacters !== [] ? (int) array_key_first($memberCharacters) : $this->resolveCharacterId($user, $corporationId)
         );
 
         // The key and its shareable URL are what the seller actually needs;
         // the appraisal still renders if storage failed, just without them.
         $result['appraisal'] = $appraisal;
-        $result['setting'] = BuybackSetting::where('corporation_id', $corporationId)->first();
+        $result['setting'] = $setting;
         $result['haul_fees'] = $result['setting']
             ? $result['setting']->haulFeeQuotes((float) $result['total_buyback_value'], (float) ($result['total_volume'] ?? 0))
             : [];

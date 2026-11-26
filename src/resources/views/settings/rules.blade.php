@@ -343,7 +343,7 @@
 @endsection
 
 @push('javascript')
-    <script src="{{ asset('vendor/buyback-manager/js/buyback-manager.js') }}"></script>
+    <script src="{{ asset('vendor/buyback-manager/js/buyback-manager.js') }}?v=2"></script>
     <script>
         // Pre-rendered option lists, keeps the select populated without extra AJAX.
         const categoryOptions = [

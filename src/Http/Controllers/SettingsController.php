@@ -11,6 +11,7 @@ use BuybackManager\Models\BuybackProgrammeAccess;
 use BuybackManager\Models\BuybackSetting;
 use BuybackManager\Models\BuybackSyncStatus;
 use BuybackManager\Services\BuybackPublicService;
+use BuybackManager\Services\OpenInGame;
 use BuybackManager\Services\ProgrammeAccess;
 use BuybackManager\Services\TypeFinder;
 use BuybackManager\Services\Pricing\PriceProviderService;
@@ -40,6 +41,7 @@ class SettingsController extends Controller
         'auto_nudge_hours' => 48,
         'appraisal_item_retention_days' => 14,
         'appraisal_retention_days' => 180,
+        'member_bonus' => 0.00,
     ];
 
     protected PriceProviderService $priceProvider;
@@ -129,7 +131,11 @@ class SettingsController extends Controller
 
         $routingMap = $this->buildRoutingMap($webhooks);
 
+        // Read once: whether SeAT asks for the scope, and how many hold it.
+        $openInGame = (new OpenInGame())->status();
+
         return view('buyback-manager::settings.index', compact(
+            'openInGame',
             'settings',
             'corporations',
             'alliances',
@@ -224,9 +230,14 @@ class SettingsController extends Controller
             'target_type' => 'required|in:my_corp,corp,player',
             'target_corporation_id' => 'nullable|integer|exists:corporation_infos,corporation_id',
             'target_corporation_name' => 'nullable|string|max:255',
-            // 'sometimes': a form without the field leaves who can sell alone.
-            'seller_scope' => 'sometimes|required|in:' . implode(',', [BuybackSetting::SELLERS_ANY, BuybackSetting::SELLERS_CORPORATION, BuybackSetting::SELLERS_ALLIANCE]),
+            // 'sometimes': a form without the field leaves who can sell, and
+            // who the members are, alone. The stored scopes are still taken,
+            // so a form loaded before an update saves as it did.
+            'seller_scope' => 'sometimes|required|in:' . implode(',', [BuybackSetting::SELLERS_ANY, BuybackSetting::SELLERS_MEMBERS, BuybackSetting::SELLERS_CORPORATION, BuybackSetting::SELLERS_ALLIANCE]),
+            'member_scope' => 'sometimes|required|in:' . implode(',', [BuybackSetting::MEMBERS_CORPORATION, BuybackSetting::MEMBERS_ALLIANCE]),
             'seller_alliance_id' => 'nullable|integer|exists:alliances,alliance_id',
+            'member_bonus' => 'nullable|numeric|min:0|max:' . BuybackSetting::MAX_MEMBER_PERCENTAGE,
+            'open_in_game' => 'boolean',
             'max_deviation_percent' => 'nullable|numeric|min:0|max:100',
             'thin_market_guard_percent' => 'nullable|numeric|min:0|max:1000',
             'appraisal_stale_hours' => 'nullable|integer|min:1|max:720',
@@ -280,18 +291,9 @@ class SettingsController extends Controller
             $validated['character_id'] = null;
         }
 
-        if (! array_key_exists('seller_scope', $validated)) {
-            unset($validated['seller_alliance_id']);
-        } elseif ($validated['seller_scope'] !== BuybackSetting::SELLERS_ALLIANCE) {
-            $validated['seller_alliance_id'] = null;
-        } elseif (empty($validated['seller_alliance_id'])) {
-            return redirect()->back()
-                ->withInput()
-                ->with('error', 'Pick the alliance whose members can sell, or choose another option under Who can sell.');
-        }
-
         $validated['enabled'] = $request->has('enabled');
         $validated['fallback_to_jita'] = $request->has('fallback_to_jita');
+        $validated['open_in_game'] = $request->has('open_in_game');
 
         // Capture the previous state so we can detect provider transitions
         // and reconcile Manager Core. The add form can also land on an
@@ -300,6 +302,14 @@ class SettingsController extends Controller
             ? BuybackSetting::find($validated['id'])
             : BuybackSetting::where('corporation_id', $validated['corporation_id'])->first();
         $previousProvider = $existing?->price_provider;
+
+        [$validated, $membersProblem] = $this->withMembers($validated, $existing);
+        if ($membersProblem !== null) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', $membersProblem);
+        }
+
         $validated = $this->withDefaults($validated, $request, $existing);
 
         // The page never holds the saved key, so a blank field keeps it.
@@ -465,6 +475,40 @@ class SettingsController extends Controller
             'success' => true,
             'message' => "Tritanium at {$market}: buy " . $this->isk($sides['buy']) . ', sell ' . $this->isk($sides['sell']),
         ]);
+    }
+
+    /**
+     * Who the members are and who may sell, as saved. The members are named
+     * once, and "members only" is stored as their group, so the seller check
+     * and member rates always mean the same people. An alliance needs one
+     * picked; the programme's own corporation keeps no alliance.
+     *
+     * @return array{0: array, 1: ?string}  the fields, and why they cannot be saved
+     */
+    protected function withMembers(array $validated, ?BuybackSetting $existing): array
+    {
+        $sellers = $validated['seller_scope'] ?? null;
+        $members = $validated['member_scope']
+            ?? (in_array($sellers, [BuybackSetting::SELLERS_CORPORATION, BuybackSetting::SELLERS_ALLIANCE], true) ? $sellers : null);
+
+        if ($members === null) {
+            // Neither was sent: the stored group and its alliance stand.
+            unset($validated['seller_alliance_id']);
+            $members = $existing?->memberScope() ?? BuybackSetting::MEMBERS_CORPORATION;
+        } elseif ($members === BuybackSetting::MEMBERS_ALLIANCE && empty($validated['seller_alliance_id'])) {
+            return [$validated, 'Pick the alliance whose members these are, or make the members the corporation that runs the programme.'];
+        } else {
+            $validated['member_scope'] = $members;
+            if ($members !== BuybackSetting::MEMBERS_ALLIANCE) {
+                $validated['seller_alliance_id'] = null;
+            }
+        }
+
+        if ($sellers !== null) {
+            $validated['seller_scope'] = $sellers === BuybackSetting::SELLERS_ANY ? BuybackSetting::SELLERS_ANY : $members;
+        }
+
+        return [$validated, null];
     }
 
     /**

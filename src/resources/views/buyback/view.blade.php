@@ -9,6 +9,8 @@
 
 @section('content')
     <div class="buyback-manager-wrapper">
+        @include('buyback-manager::buyback._open_in_game_banner', ['oig' => $oig])
+
         <!-- Contract Summary -->
         <div class="row">
             <div class="col-md-8">
@@ -19,7 +21,10 @@
                     <div class="card-body">
                         <dl class="dl-horizontal">
                             <dt>Contract ID:</dt>
-                            <dd>{{ $contract->contract_id }}</dd>
+                            <dd>
+                                {{ $contract->contract_id }}
+                                @include('buyback-manager::buyback._open_in_game', ['contract' => $contract, 'oig' => $oig, 'withLabel' => true])
+                            </dd>
 
                             <dt>Corporation:</dt>
                             <dd>
@@ -62,7 +67,12 @@
 
                             <dt>Total Value:</dt>
                             @if($contract->isMatched())
-                                <dd class="contract-value">{{ number_format($contract->total_value, 2) }} ISK</dd>
+                                <dd class="contract-value">
+                                    {{ number_format($contract->total_value, 2) }} ISK
+                                    @if(optional($contract->appraisal)->isMemberRate())
+                                        <span class="badge badge-primary">Member rates</span>
+                                    @endif
+                                </dd>
                             @else
                                 <dd><span class="text-muted">No quote</span></dd>
                             @endif
@@ -149,5 +159,5 @@
 @endsection
 
 @push('javascript')
-    <script src="{{ asset('vendor/buyback-manager/js/buyback-manager.js') }}"></script>
+    <script src="{{ asset('vendor/buyback-manager/js/buyback-manager.js') }}?v=2"></script>
 @endpush

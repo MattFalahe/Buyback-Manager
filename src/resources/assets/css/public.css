@@ -1,7 +1,8 @@
 /* ===========================================================
    Buyback Manager - public landing page (standalone)
-   Loaded only by the public views (landing page, appraisal and
-   the closed notice), which render outside SeAT's authed shell.
+   Loaded by the public views (landing page, appraisal and the
+   closed notice), which render outside SeAT's authed shell, and
+   by the members page, which wears the same look inside it.
    The dynamic accent colour,
    background image and overlay opacity are injected inline by the
    view; everything structural lives here. Served from the app
@@ -550,4 +551,87 @@
 }
 .bb-copy-input {
     font-size: 15px;
+}
+
+/* --- Members --- */
+.bb-members-link {
+    display: inline-block;
+    margin-top: 14px;
+    font-size: 14px;
+    color: #e6edf3;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+.bb-members-link:hover {
+    color: var(--bb-pub-accent);
+}
+.bb-members-note {
+    border-left: 3px solid var(--bb-pub-accent);
+    color: #c9d1d9;
+}
+.bb-members-note a {
+    color: #e6edf3;
+}
+.bb-members-note a:hover {
+    color: var(--bb-pub-accent);
+}
+
+/* The members page: the same look inside SeAT's own layout, where the
+   page around it already fills the window. */
+.bb-public-body.bb-members-page {
+    min-height: 0;
+    border-radius: 8px;
+    overflow: hidden;
+}
+.bb-members-page .bb-public-hero {
+    min-height: 0;
+    padding: 40px 20px 32px;
+}
+.bb-members-page .bb-public-wrap {
+    padding-bottom: 24px;
+}
+.bb-members-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    padding: 14px 20px;
+    background: #161b22;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.bb-members-picker a {
+    font-size: 13px;
+    color: #c9d1d9;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    padding: 4px 14px;
+    text-decoration: none;
+}
+.bb-members-picker a:hover {
+    color: #e6edf3;
+    border-color: rgba(255, 255, 255, 0.3);
+    text-decoration: none;
+}
+.bb-members-picker a.active {
+    color: #06150f;
+    background: var(--bb-pub-accent);
+    border-color: var(--bb-pub-accent);
+    font-weight: 600;
+}
+.bb-public-pct {
+    font-size: 12px;
+    font-weight: 400;
+    color: #8b949e;
+    margin-right: 8px;
+}
+.bb-members-page .bb-estimate-input {
+    min-height: 220px;
+}
+.bb-public-cta.bb-members-clear {
+    background: transparent;
+    color: #c9d1d9;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+.bb-public-cta.bb-members-clear:hover {
+    color: #e6edf3;
 }

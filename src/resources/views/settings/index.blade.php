@@ -211,6 +211,9 @@
                                         <td>
                                             <span class="badge badge-{{ $targetBadge }}">{{ $targetLabel }}</span>
                                             <br><small class="text-muted">Sellers: {{ $setting->sellerScopeLabel() }}</small>
+                                            @if($setting->hasMemberRates())
+                                                <br><small class="text-muted">Members of {{ $setting->memberGroupName() }}: +{{ rtrim(rtrim(number_format($setting->memberBonus(), 2, '.', ''), '0'), '.') }} points</small>
+                                            @endif
                                         </td>
                                         <td>
                                             <span class="badge badge-info">{{ $providerLabel }}</span>
@@ -261,8 +264,11 @@
                                                     data-target-type="{{ $setting->target_type ?? 'my_corp' }}"
                                                     data-target-corporation-id="{{ $setting->target_corporation_id }}"
                                                     data-target-corporation-name="{{ $setting->target_corporation_name }}"
-                                                    data-seller-scope="{{ $setting->seller_scope ?: 'any' }}"
+                                                    data-seller-scope="{{ $setting->sellerScope() === \BuybackManager\Models\BuybackSetting::SELLERS_ANY ? 'any' : 'members' }}"
+                                                    data-member-scope="{{ $setting->memberScope() }}"
                                                     data-seller-alliance-id="{{ $setting->seller_alliance_id }}"
+                                                    data-member-bonus="{{ number_format($setting->memberBonus(), 2, '.', '') }}"
+                                                    data-open-in-game="{{ $setting->open_in_game ? 1 : 0 }}"
                                                     data-auto-nudge-hours="{{ $setting->auto_nudge_hours ?? 48 }}"
                                                     data-appraisal-item-retention-days="{{ $setting->appraisal_item_retention_days ?? 14 }}"
                                                     data-appraisal-retention-days="{{ $setting->appraisal_retention_days ?? 180 }}">
@@ -314,18 +320,18 @@
                         @csrf
                         <div class="card-body">
 
-                            {{-- General --}}
+                            {{-- Run by --}}
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="form-group">
-                                        <label for="corporation_id">Corporation <span class="text-danger">*</span></label>
+                                        <label for="corporation_id">Run by <span class="text-danger">*</span></label>
                                         <select name="corporation_id" id="corporation_id" class="form-control" required>
                                             <option value="">-- Select Corporation --</option>
                                             @foreach($corporations as $corporation)
                                                 <option value="{{ $corporation->corporation_id }}">{{ $corporation->name }}</option>
                                             @endforeach
                                         </select>
-                                        <small class="text-muted">The corporation that runs this buyback programme. Who can sell to it is set under Contract Target.</small>
+                                        <small class="text-muted">The corporation that runs this programme and sets its rates. Where contracts go and who can sell are set below.</small>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
@@ -352,22 +358,22 @@
                                 </div>
                             </div>
 
-                            {{-- Contract Target --}}
+                            {{-- Contracts --}}
                             <hr>
-                            <h5 class="bb-section-heading"><i class="fa fa-shield-alt"></i> Contract Target</h5>
+                            <h5 class="bb-section-heading"><i class="fa fa-file-contract"></i> Contracts</h5>
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="form-group">
-                                        <label for="target_type">Where do members send the contract? <span class="text-danger">*</span></label>
+                                        <label for="target_type">Where do sellers send the contract? <span class="text-danger">*</span></label>
                                         <select name="target_type" id="target_type" class="form-control bb-target-selector" required>
                                             <option value="my_corp" selected>My Corporation (any member with contract rights accepts)</option>
                                             <option value="corp">Specific Corporation</option>
                                             <option value="player">Specific Player</option>
                                         </select>
                                         <small class="text-muted bb-target-help">
-                                            <span class="bb-th-my_corp">Members contract the corporation above. Any director can accept.</span>
-                                            <span class="bb-th-corp" style="display:none;">Members contract a specific corporation (e.g. a holding/buyback corp).</span>
-                                            <span class="bb-th-player" style="display:none;">Members contract one designated character who accepts or rejects.</span>
+                                            <span class="bb-th-my_corp">Sellers contract the corporation running it. Any director can accept.</span>
+                                            <span class="bb-th-corp" style="display:none;">Sellers contract a specific corporation (e.g. a holding/buyback corp).</span>
+                                            <span class="bb-th-player" style="display:none;">Sellers contract one designated character who accepts or rejects.</span>
                                         </small>
                                     </div>
                                 </div>
@@ -398,20 +404,16 @@
                                         <small class="text-muted">Remind if a contract sits unaccepted. 0 disables.</small>
                                     </div>
                                 </div>
-                                <div class="col-md-3">
+                                <div class="col-md-9">
                                     <div class="form-group">
-                                        <label for="appraisal_item_retention_days">Keep item detail (days)</label>
-                                        <input type="number" name="appraisal_item_retention_days" id="appraisal_item_retention_days" class="form-control"
-                                               value="14" min="1" max="365" step="1">
-                                        <small class="text-muted">Line-by-line appraisal rows.</small>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="form-group">
-                                        <label for="appraisal_retention_days">Keep appraisals (days)</label>
-                                        <input type="number" name="appraisal_retention_days" id="appraisal_retention_days" class="form-control"
-                                               value="180" min="1" max="3650" step="1">
-                                        <small class="text-muted">Totals kept for statistics.</small>
+                                        <label>Open in game</label>
+                                        <div class="checkbox" style="margin-top:0;">
+                                            <label>
+                                                <input type="checkbox" name="open_in_game" value="1">
+                                                Show a button that opens a contract in the EVE client
+                                            </label>
+                                        </div>
+                                        @include('buyback-manager::settings._open_in_game_status')
                                     </div>
                                 </div>
                             </div>
@@ -456,20 +458,21 @@
                                 </div>
                             </div>
 
-                            {{-- Who can sell --}}
+                            {{-- Sellers and member rates --}}
+                            <hr>
+                            <h5 class="bb-section-heading"><i class="fa fa-users"></i> Sellers and member rates</h5>
                             <div class="row">
-                                <div class="col-md-6">
+                                <div class="col-md-4">
                                     <div class="form-group">
-                                        <label for="seller_scope">Who can sell?</label>
-                                        <select name="seller_scope" id="seller_scope" class="form-control bb-seller-scope">
-                                            <option value="any" selected>Any corporation</option>
-                                            <option value="corporation">Members of the corporation above</option>
-                                            <option value="alliance">Members of an alliance</option>
+                                        <label for="member_scope">Members</label>
+                                        <select name="member_scope" id="member_scope" class="form-control bb-member-scope">
+                                            <option value="corporation" selected>The corporation running it</option>
+                                            <option value="alliance">An alliance</option>
                                         </select>
-                                        <small class="text-muted">A contract from anyone else is still tracked, but flagged for a director. It never stops a sale.</small>
+                                        <small class="text-muted">A SeAT account with any character in this group is a member, and so are all its characters.</small>
                                     </div>
                                 </div>
-                                <div class="col-md-6 bb-seller-alliance-field" style="display:none;">
+                                <div class="col-md-4 bb-member-alliance-field" style="display:none;">
                                     <div class="form-group">
                                         <label for="seller_alliance_id">Alliance <span class="text-danger">*</span></label>
                                         <select name="seller_alliance_id" id="seller_alliance_id" class="form-control">
@@ -478,7 +481,52 @@
                                                 <option value="{{ $alliance->alliance_id }}">{{ $alliance->name }}{{ $alliance->ticker ? ' [' . $alliance->ticker . ']' : '' }}</option>
                                             @endforeach
                                         </select>
-                                        <small class="text-muted">Listed once SeAT holds a corporation in it. The seller's alliance comes from SeAT, then EveWho, then zKillboard.</small>
+                                        <small class="text-muted">Listed once SeAT holds a corporation in it. A seller's alliance comes from SeAT, then EveWho, then zKillboard.</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-group">
+                                        <label for="member_bonus">Member bonus</label>
+                                        <div class="input-group">
+                                            <input type="number" name="member_bonus" id="member_bonus" class="form-control"
+                                                   value="0" min="0" max="100" step="0.01">
+                                            <span class="input-group-addon">points</span>
+                                        </div>
+                                        <small class="text-muted">Added to every rule for members signed in to SeAT, up to 100%. Rules paying 0% stay at 0%. 0 means one rate for everyone.</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="seller_scope">Who can sell?</label>
+                                        <select name="seller_scope" id="seller_scope" class="form-control">
+                                            <option value="any" selected>Anyone</option>
+                                            <option value="members">Members only</option>
+                                        </select>
+                                        <small class="text-muted">A contract from anyone else is still tracked, but flagged for a director. It never stops a sale.</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {{-- Records --}}
+                            <hr>
+                            <h5 class="bb-section-heading"><i class="fa fa-archive"></i> Records</h5>
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label for="appraisal_item_retention_days">Keep item detail (days)</label>
+                                        <input type="number" name="appraisal_item_retention_days" id="appraisal_item_retention_days" class="form-control"
+                                               value="14" min="1" max="365" step="1">
+                                        <small class="text-muted">Line-by-line appraisal rows.</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label for="appraisal_retention_days">Keep appraisals (days)</label>
+                                        <input type="number" name="appraisal_retention_days" id="appraisal_retention_days" class="form-control"
+                                               value="180" min="1" max="3650" step="1">
+                                        <small class="text-muted">Totals kept for statistics.</small>
                                     </div>
                                 </div>
                             </div>
@@ -860,6 +908,23 @@
                     <input type="hidden" name="id" id="edit_id">
                     <input type="hidden" name="corporation_id" id="edit_corporation_id">
 
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Run by</label>
+                                <p class="form-control-static" id="edit_corporation_name"></p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="checkbox" style="margin-top:25px;">
+                                <label>
+                                    <input type="checkbox" name="enabled" id="edit_enabled" value="1">
+                                    Enable buyback
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="alert alert-info" style="margin-bottom:0;">
                         <i class="fa fa-percent"></i>
                         The <strong>default rate</strong> and what the programme buys are managed on the
@@ -867,7 +932,7 @@
                     </div>
 
                     <hr>
-                    <h5 class="bb-section-heading"><i class="fa fa-shield-alt"></i> Contract Target</h5>
+                    <h5 class="bb-section-heading"><i class="fa fa-file-contract"></i> Contracts</h5>
                     <div class="row">
                         <div class="col-md-6">
                             <div class="form-group">
@@ -901,16 +966,16 @@
                                 <small class="text-muted">0 disables.</small>
                             </div>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-9">
                             <div class="form-group">
-                                <label for="edit_appraisal_item_retention_days">Keep item detail (days)</label>
-                                <input type="number" name="appraisal_item_retention_days" id="edit_appraisal_item_retention_days" class="form-control" min="1" max="365" step="1">
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label for="edit_appraisal_retention_days">Keep appraisals (days)</label>
-                                <input type="number" name="appraisal_retention_days" id="edit_appraisal_retention_days" class="form-control" min="1" max="3650" step="1">
+                                <label>Open in game</label>
+                                <div class="checkbox" style="margin-top:0;">
+                                    <label>
+                                        <input type="checkbox" name="open_in_game" id="edit_open_in_game" value="1">
+                                        Show a button that opens a contract in the EVE client
+                                    </label>
+                                </div>
+                                @include('buyback-manager::settings._open_in_game_status')
                             </div>
                         </div>
                     </div>
@@ -944,19 +1009,21 @@
                             </div>
                         </div>
                     </div>
+
+                    <hr>
+                    <h5 class="bb-section-heading"><i class="fa fa-users"></i> Sellers and member rates</h5>
                     <div class="row">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <div class="form-group">
-                                <label for="edit_seller_scope">Who can sell?</label>
-                                <select name="seller_scope" id="edit_seller_scope" class="form-control bb-seller-scope">
-                                    <option value="any">Any corporation</option>
-                                    <option value="corporation">Members of this corporation</option>
-                                    <option value="alliance">Members of an alliance</option>
+                                <label for="edit_member_scope">Members</label>
+                                <select name="member_scope" id="edit_member_scope" class="form-control bb-member-scope">
+                                    <option value="corporation">The corporation running it</option>
+                                    <option value="alliance">An alliance</option>
                                 </select>
-                                <small class="text-muted">Anyone else is flagged for a director, never refused. Applies to new contracts.</small>
+                                <small class="text-muted">Any SeAT account with a character in this group, and all its characters.</small>
                             </div>
                         </div>
-                        <div class="col-md-6 bb-seller-alliance-field" style="display:none;">
+                        <div class="col-md-4 bb-member-alliance-field" style="display:none;">
                             <div class="form-group">
                                 <label for="edit_seller_alliance_id">Alliance <span class="text-danger">*</span></label>
                                 <select name="seller_alliance_id" id="edit_seller_alliance_id" class="form-control">
@@ -966,6 +1033,45 @@
                                     @endforeach
                                 </select>
                                 <small class="text-muted">Listed once SeAT holds a corporation in it.</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="edit_member_bonus">Member bonus</label>
+                                <div class="input-group">
+                                    <input type="number" name="member_bonus" id="edit_member_bonus" class="form-control" min="0" max="100" step="0.01">
+                                    <span class="input-group-addon">points</span>
+                                </div>
+                                <small class="text-muted">On top of every rule, up to 100%. 0 is none.</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="edit_seller_scope">Who can sell?</label>
+                                <select name="seller_scope" id="edit_seller_scope" class="form-control">
+                                    <option value="any">Anyone</option>
+                                    <option value="members">Members only</option>
+                                </select>
+                                <small class="text-muted">Anyone else is flagged for a director, never refused. Applies to new contracts.</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
+                    <h5 class="bb-section-heading"><i class="fa fa-archive"></i> Records</h5>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="edit_appraisal_item_retention_days">Keep item detail (days)</label>
+                                <input type="number" name="appraisal_item_retention_days" id="edit_appraisal_item_retention_days" class="form-control" min="1" max="365" step="1">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="edit_appraisal_retention_days">Keep appraisals (days)</label>
+                                <input type="number" name="appraisal_retention_days" id="edit_appraisal_retention_days" class="form-control" min="1" max="3650" step="1">
                             </div>
                         </div>
                     </div>
@@ -1153,13 +1259,6 @@
                             Use Jita's price for a side with no orders at the market
                         </label>
                     </div>
-
-                    <div class="checkbox">
-                        <label>
-                            <input type="checkbox" name="enabled" id="edit_enabled" value="1">
-                            Enable buyback
-                        </label>
-                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
@@ -1175,7 +1274,7 @@
 @endsection
 
 @push('javascript')
-    <script src="{{ asset('vendor/buyback-manager/js/buyback-manager.js') }}"></script>
+    <script src="{{ asset('vendor/buyback-manager/js/buyback-manager.js') }}?v=2"></script>
     <script>
         // Provider descriptions for the helper text under the dropdown.
         const providerDescriptions = @json(array_map(fn($p) => $p['description'] ?? '', $providers));
@@ -1271,6 +1370,7 @@
             const btn = $(this);
             $('#edit_id').val(btn.data('id'));
             $('#edit_corporation_id').val(btn.data('corporation-id'));
+            $('#edit_corporation_name').text(btn.data('corporation-name') || '');
             $('#edit_character_id').val(btn.data('character-id'));
             $('#edit_price_source').val(btn.data('price-source'));
             $('#edit_region_id').val(btn.data('region-id'));
@@ -1292,7 +1392,10 @@
             $('#edit_target_corporation_id').val((btn.data('target-corporation-id') || '').toString());
             $('#edit_target_corporation_name').val(btn.data('target-corporation-name') || '');
             $('#edit_seller_scope').val(btn.data('seller-scope') || 'any');
+            $('#edit_member_scope').val(btn.data('member-scope') || 'corporation');
             $('#edit_seller_alliance_id').val((btn.data('seller-alliance-id') || '').toString());
+            $('#edit_member_bonus').val(btn.data('member-bonus') ?? '0.00');
+            $('#edit_open_in_game').prop('checked', btn.data('open-in-game') == 1);
             $('#edit_max_deviation_percent').val(btn.data('max-deviation-percent') || '1.00');
             $('#edit_thin_market_guard_percent').val(btn.data('thin-market-guard-percent') ?? '10.00');
             $('#edit_appraisal_stale_hours').val(btn.data('appraisal-stale-hours') || 48);
@@ -1304,12 +1407,12 @@
             $('#edit_price_provider').trigger('change');
             $('#edit_price_source').trigger('change');
             $('#edit_target_type').trigger('change');
-            $('#edit_seller_scope').trigger('change');
+            $('#edit_member_scope').trigger('change');
         });
 
-        $('.bb-seller-scope').on('change', function() {
+        $('.bb-member-scope').on('change', function() {
             const $form = $(this).closest('.bb-settings-form, .modal-content');
-            $form.find('.bb-seller-alliance-field').toggle($(this).val() === 'alliance');
+            $form.find('.bb-member-alliance-field').toggle($(this).val() === 'alliance');
         }).trigger('change');
 
         // ============================================================

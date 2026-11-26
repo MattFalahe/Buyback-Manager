@@ -2,6 +2,7 @@
 
 namespace BuybackManager\Services;
 
+use BuybackManager\Models\BuybackAppraisal;
 use BuybackManager\Models\BuybackSetting;
 use BuybackManager\Services\Parsing\PasteParserService;
 use BuybackManager\Services\Pricing\PriceProviderService;
@@ -47,9 +48,10 @@ class AppraisalService
     }
 
     /**
-     * Appraise a paste for a corporation's enabled buyback programme.
+     * Appraise a paste for a corporation's enabled buyback programme, at
+     * public rates or, for a signed-in member, member rates.
      */
-    public function createAppraisal(string $rawInput, int $corporationId): array
+    public function createAppraisal(string $rawInput, int $corporationId, string $tier = BuybackAppraisal::RATE_PUBLIC): array
     {
         $setting = BuybackSetting::where('corporation_id', $corporationId)
             ->where('enabled', true)
@@ -63,7 +65,7 @@ class AppraisalService
         }
 
         try {
-            return $this->appraise($rawInput, $setting);
+            return $this->appraise($rawInput, $setting, $tier);
         } catch (\Throwable $e) {
             Log::error('[Buyback Manager] Failed to create appraisal', [
                 'error' => $e->getMessage(),
@@ -79,8 +81,14 @@ class AppraisalService
         }
     }
 
-    public function appraise(string $rawInput, BuybackSetting $setting): array
+    public function appraise(string $rawInput, BuybackSetting $setting, string $tier = BuybackAppraisal::RATE_PUBLIC): array
     {
+        // A programme with no bonus has one set of rates, so nobody's quote
+        // is recorded as a member quote there.
+        $tier = $tier === BuybackAppraisal::RATE_MEMBER && $setting->hasMemberRates()
+            ? BuybackAppraisal::RATE_MEMBER
+            : BuybackAppraisal::RATE_PUBLIC;
+
         $parsed = $this->parser->parse($rawInput);
 
         if (empty($parsed['items'])) {
@@ -92,7 +100,7 @@ class AppraisalService
 
         $recipes = $this->reprocessing->recipesForPaste($parsed['items'], $setting);
         $priced = $this->priceProvider->pricesFor($setting, Reprocessing::typesToPrice(array_column($parsed['items'], 'type_id'), $recipes));
-        $result = $this->applyRules($parsed['items'], $priced['prices'], $setting, $recipes);
+        $result = $this->applyRules($parsed['items'], $priced['prices'], $setting, $recipes, $tier);
 
         if (empty($result['items'])) {
             // Told apart from a paste nobody trades, which would only get
@@ -127,6 +135,8 @@ class AppraisalService
             'average_percentage' => $result['total_market'] > 0
                 ? ($result['total_buyback'] / $result['total_market']) * 100
                 : 0,
+            'rate_tier' => $tier,
+            'member_bonus' => $tier === BuybackAppraisal::RATE_MEMBER ? $setting->memberBonus() : 0.0,
             'corporation' => $setting->corporation,
             // The stored column holds 64 characters, and a Manager Core
             // market name can be longer.
@@ -141,14 +151,16 @@ class AppraisalService
      * Value each item by its rule. An item with no price on the side its rule
      * pays on is not accepted, with the reason. Under a refining rule the
      * item's market price is what its materials fetch at the rule's yield;
-     * an item that reprocesses into nothing is priced as itself.
+     * an item that reprocesses into nothing is priced as itself. At member
+     * rates every rule pays the member bonus on top.
      *
      * @param  array  $items    The parser's items
      * @param  array  $prices   [typeId => ['buy' => ?float, 'sell' => ?float]]
      * @param  array  $recipes  Reprocessing::recipesFor() of the refined items
      */
-    public function applyRules(array $items, array $prices, BuybackSetting $setting, array $recipes = []): array
+    public function applyRules(array $items, array $prices, BuybackSetting $setting, array $recipes = [], string $tier = BuybackAppraisal::RATE_PUBLIC): array
     {
+        $member = $tier === BuybackAppraisal::RATE_MEMBER;
         $defaultSide = self::defaultSide($setting);
         [$prices, $thin] = self::guardThinMarkets($prices, (float) ($setting->thin_market_guard_percent ?? 10));
 
@@ -183,6 +195,9 @@ class AppraisalService
                 : isset($thin[$typeId]));
 
             $percentage = (float) $rule['percentage'];
+            if ($member) {
+                $percentage = $setting->memberPercentage($percentage);
+            }
             $buybackPrice = $marketPrice * ($percentage / 100);
 
             $accepted[] = [

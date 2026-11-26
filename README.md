@@ -24,7 +24,7 @@ A contract with no key in its Description is ignored, which keeps unrelated and 
 
 ### 🔑 Appraise-then-contract, no login needed
 - Every appraisal returns a single-use key and a public, shareable appraisal page.
-- No account, no ESI scopes, and no permission is needed to sell, and the public page never asks anyone to sign in. Membership is detected rather than declared: when a contract is picked up, its issuing character is resolved back to a SeAT account, so a member who appraised as a guest still gets it filed under **My Appraisals**. Sellers with no SeAT account show as a guest.
+- No account, no ESI scopes, and no permission is needed to sell, and the public page never makes anyone sign in. A seller's account is found rather than declared: when a contract is picked up, its issuing character is resolved back to a SeAT account, so a player who appraised as a guest still gets it filed under **My Appraisals**. Sellers with no SeAT account show as a guest.
 - Two-tier retention keeps months of totals for statistics while pruning the bulky line-item rows early. Housekeeping runs inside the sync cycle, so there is no extra cron.
 
 ### 🔍 Checked, not guessed
@@ -34,7 +34,21 @@ The quote is a reference, not a price lock. Every contract is compared to its ap
 - the contract's items do not match what was priced
 - the key had already been used
 - the contract was created outside the locations you accept from
-- the seller is outside **Who can sell**: a programme buys from any corporation by default, or only from its own corporation's members, or one alliance's. The seller's alliance comes from SeAT, then EveWho, then zKillboard; a seller none of them can place is flagged as unverified
+- the seller is outside **Who can sell**: a programme buys from anyone by default, or from its members only. The seller's alliance comes from SeAT, then EveWho, then zKillboard; a seller none of them can place is flagged as unverified
+- a quote made at member rates was contracted by someone who is not a member
+
+Nothing is refused. A flagged contract is still tracked, and a director decides.
+
+### 🤝 Member rates
+- Name your members once per programme: the corporation that runs it, or one alliance. Membership goes by SeAT account, so a player with any character in the group sells as a member on every character they have. An alt outside the group is flagged with the name of the member it belongs to.
+- A **member bonus** in points on top of every rule: with 5 points, a 90% rule pays members 95%. Never more than 100%, a 0% rule stays at 0%, and an excluded item stays excluded.
+- Members appraise on the **Appraisal** page in SeAT, which looks like the public page and shows their rates beside the public ones. Anyone signed in who is not a member gets the public rates there, with a note saying so.
+- The public page never shows member rates. With a bonus set, it tells members to log in to SeAT for theirs.
+
+### 🎮 Open in game
+- An **Open in game** button beside each contract ID opens that contract in the EVE client of the character you pick. Off until you turn it on per programme.
+- It uses ESI's `esi-ui.open_window.v1`. Buyback Manager adds the scope to the list SeAT offers, without changing SeAT; an admin adds it to the SSO profile under Settings > SSO, and each user logs out and back in with their main, then links their alts again.
+- Until a user's characters hold the scope, the button is grey with a warning and a banner over the contracts says what to do. A **Copy ID** button is always there.
 
 ### 🎯 Three contract-target modes
 Pick who receives the contracts, matching EVE's own visibility rules:
@@ -89,6 +103,7 @@ Pick who receives the contracts, matching EVE's own visibility rules:
 - An admin-only Diagnostic page with Health Checks, Master Test, System Validation, Settings Health, Data Integrity, Contract Trace, and Notification Testing.
 - Health Checks shows how each corporation's price provider last answered, and Settings Health lists any provider or fallback that cannot run.
 - The Contract Trace tab walks a single contract through the whole pipeline.
+- Health Checks also lists each programme's member bonus, and says whether Open in game can work: whether SeAT lists the scope, whether its default profile asks for it, and how many characters hold it.
 
 ### 📖 In-app help
 - A full Help & Documentation page in the sidebar covering every surface above.
@@ -128,8 +143,9 @@ The sidebar entry, scheduled job, and permissions register automatically.
 1. Open **Buyback Manager > Settings** and add the corporation that will run the programme.
 2. Choose a **contract target** (My Corporation, a specific corporation, or a specific player).
 3. Pick a **pricing provider** and set the base percentage (default 90%).
-4. Optionally add **pricing rules**, **locations**, and a **Discord webhook**.
-5. Enable the setting, then run an **Appraisal** to confirm prices and that you get a key back.
+4. Optionally name your members and a member bonus under **Sellers and member rates**, and turn on **Open in game**.
+5. Optionally add **pricing rules**, **locations**, and a **Discord webhook**.
+6. Enable the setting, then run an **Appraisal** to confirm prices and that you get a key back.
 
 > **Player target mode** reads a personal contract feed, so the designated character must be registered in SeAT with a token carrying the `read_character_contracts` scope.
 
@@ -203,7 +219,7 @@ composer install --working-dir=tests
 tests/vendor/bin/phpunit
 ```
 
-They cover the price chain (provider, fallback, cache and the Pricing problems alert), each provider's answer, the paste reader, the pricing rules, refined value, the thin-market guard, haul fees and the volumes they are charged on, the contract sync against SeAT's contract tables, webhook delivery and retries, the upkeep of Manager Core subscriptions, the public page's link lookup and key status, and what Help says each other plugin adds, and read the source for what would otherwise only show on a live install: Blade directives closed the way Blade reads them, routes and views that exist, migrations named as they should be and running in order on an empty database, the docs keeping up with the commands, and nothing writing to SeAT's tables.
+They cover the price chain (provider, fallback, cache and the Pricing problems alert), each provider's answer, the paste reader, the pricing rules, refined value, the thin-market guard, haul fees and the volumes they are charged on, the contract sync against SeAT's contract tables, who counts as a member and what member rates pay, the scope Open in game adds to SeAT's list and whether SeAT asks for it, webhook delivery and retries, the upkeep of Manager Core subscriptions, the public page's link lookup and key status, and what Help says each other plugin adds, and read the source for what would otherwise only show on a live install: Blade directives closed the way Blade reads them, routes and views that exist, migrations named as they should be and running in order on an empty database, the docs keeping up with the commands, and nothing writing to SeAT's tables.
 
 ---
 

@@ -178,7 +178,7 @@
             daily: @json($dailyStats)
         };
     </script>
-    <script src="{{ asset('vendor/buyback-manager/js/buyback-manager.js') }}"></script>
+    <script src="{{ asset('vendor/buyback-manager/js/buyback-manager.js') }}?v=2"></script>
     {{-- statistics.js is written for Chart.js 3. SeAT's layout loads 2.9.4,
          which cannot read its axes and draws nothing, so this page brings its own. --}}
     <script src="{{ asset('vendor/buyback-manager/js/chart.min.js') }}"></script>

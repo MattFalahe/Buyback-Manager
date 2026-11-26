@@ -35,6 +35,7 @@ class SettingsDefaultsTest extends TestCase
             'auto_nudge_hours' => 48,
             'appraisal_item_retention_days' => 14,
             'appraisal_retention_days' => 180,
+            'member_bonus' => 0.00,
         ], $this->save([], [], null));
     }
 
