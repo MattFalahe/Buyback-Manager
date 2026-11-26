@@ -270,17 +270,69 @@ class ContractSyncTest extends TestCase
         $this->assertSame(0.0, (float) $row->deviation_percent);
     }
 
-    public function test_a_small_quote_contracted_at_whole_isk_is_a_price_mismatch(): void
+    /** EVE drops the cents, so a 2.48 ISK quote reaches the game asking 2. */
+    public function test_a_small_quote_contracted_at_whole_isk_is_clean_and_keeps_its_difference(): void
     {
         $setting = $this->setting();
         $this->appraisal('bb-abcd2345', 2.48);
-        $this->contract(['price' => 2.0]);
+        $contractId = $this->contract(['price' => 2.0]);
+
+        $this->service()->syncContractsForSetting($setting);
+
+        $this->assertSame(['buyback.contract.matched'], $this->events->names());
+        $this->assertSame([], $this->events->events[0]['payload']['flags']);
+        $this->assertSame(-19.35, $this->events->events[0]['payload']['deviation_percent']);
+        $this->assertSame(-19.35, (float) BuybackContract::where('contract_id', $contractId)->first()->deviation_percent);
+    }
+
+    public function test_a_quote_just_under_a_million_is_not_held_to_the_tolerance(): void
+    {
+        $setting = $this->setting();
+        $this->appraisal('bb-abcd2345', 999999.99);
+        $contractId = $this->contract(['price' => 900000.0]);
+
+        $this->service()->syncContractsForSetting($setting);
+
+        $this->assertSame(['buyback.contract.matched'], $this->events->names());
+        $row = BuybackContract::where('contract_id', $contractId)->first();
+        $this->assertSame([], $row->flags());
+        $this->assertSame(-10.0, (float) $row->deviation_percent);
+    }
+
+    public function test_a_quote_just_over_a_million_is_held_to_the_tolerance(): void
+    {
+        $setting = $this->setting();
+        $this->appraisal('bb-abcd2345', 1000000.01);
+        $contractId = $this->contract(['price' => 900000.0]);
 
         $this->service()->syncContractsForSetting($setting);
 
         $this->assertSame(['buyback.contract.flagged'], $this->events->names());
-        $this->assertContains(BuybackContract::FLAG_PRICE_MISMATCH, $this->events->events[0]['payload']['flags']);
-        $this->assertSame(-19.35, $this->events->events[0]['payload']['deviation_percent']);
+        $row = BuybackContract::where('contract_id', $contractId)->first();
+        $this->assertSame([BuybackContract::FLAG_PRICE_MISMATCH], $row->flags());
+        $this->assertSame(-10.0, (float) $row->deviation_percent);
+    }
+
+    /** A small quote may not ask for a large sum unflagged. */
+    public function test_asking_a_million_or_more_on_a_small_quote_is_held_to_the_tolerance(): void
+    {
+        $setting = $this->setting();
+        $this->appraisal('bb-abcd2345', 500000.0);
+        $this->contract(['price' => 1500000.0]);
+
+        $this->service()->syncContractsForSetting($setting);
+
+        $this->assertSame(['buyback.contract.flagged'], $this->events->names());
+        $this->assertSame([BuybackContract::FLAG_PRICE_MISMATCH], $this->events->events[0]['payload']['flags']);
+        $this->assertSame(200.0, $this->events->events[0]['payload']['deviation_percent']);
+    }
+
+    public function test_the_price_check_starts_at_a_million_on_either_side(): void
+    {
+        $this->assertFalse(ContractService::checksPrice(999999.99, 999999.99));
+        $this->assertTrue(ContractService::checksPrice(1000000.0, 0.0));
+        $this->assertTrue(ContractService::checksPrice(0.0, 1000000.0));
+        $this->assertTrue(ContractService::checksPrice(2.48, 1000000.0));
     }
 
     public function test_a_contract_already_finished_when_first_seen_announces_its_completion(): void
@@ -467,8 +519,8 @@ class ContractSyncTest extends TestCase
     public function test_review_flags_send_flagged_instead_of_matched(): void
     {
         $setting = $this->setting();
-        $this->appraisal('bb-abcd2345', createdAt: '2026-11-17 10:00:00');
-        $this->contract(['price' => 1200.0], quantity: 90);
+        $this->appraisal('bb-abcd2345', 10000000.0, createdAt: '2026-11-17 10:00:00');
+        $this->contract(['price' => 12000000.0], quantity: 90);
 
         $this->service()->syncContractsForSetting($setting);
 
@@ -591,6 +643,18 @@ class ContractSyncTest extends TestCase
         $this->assertSame(1, BuybackAppraisalItem::where('appraisal_id', $fresh->id)->count());
     }
 
+    /** The contract page says how long lines are kept by the window the pruning uses. */
+    public function test_the_item_window_is_the_longest_any_programme_sets(): void
+    {
+        $records = new AppraisalRecordService();
+        $this->assertSame(14, $records->itemRetentionDays());
+
+        $this->setting(['appraisal_item_retention_days' => 7]);
+        BuybackSetting::create(['corporation_id' => self::OTHER_CORP, 'enabled' => true, 'target_type' => BuybackSetting::TARGET_MY_CORP, 'appraisal_item_retention_days' => 30]);
+
+        $this->assertSame(30, $records->itemRetentionDays());
+    }
+
     public function test_every_sync_cycle_retries_the_webhook_posts_that_did_not_get_through(): void
     {
         $this->service()->syncContracts();
@@ -709,13 +773,13 @@ class ContractSyncTest extends TestCase
         $this->assertFalse(BuybackSyncStatus::where('setting_id', $setting->id)->first()->feed_failing);
     }
 
-    /** A quote of 1,000 ISK on 2 m3, and a 100 ISK/m3 haul fee where the contract is made. */
-    private function haulFeeAtTheContractStation(): BuybackSetting
+    /** A quote on so many m3, and a 100 ISK/m3 haul fee where the contract is made. */
+    private function haulFeeAtTheContractStation(float $quote = 2000000.0, float $volume = 4000.0): BuybackSetting
     {
         $setting = $this->setting();
         BuybackLocationRule::create(['setting_id' => $setting->id, 'location_type' => 'station', 'location_id' => 60003760, 'haul_fee_per_m3' => 100]);
-        $appraisal = $this->appraisal('bb-abcd2345');
-        $appraisal->update(['total_volume' => 2.0]);
+        $appraisal = $this->appraisal('bb-abcd2345', $quote);
+        $appraisal->update(['total_volume' => $volume]);
 
         return $setting;
     }
@@ -723,31 +787,61 @@ class ContractSyncTest extends TestCase
     public function test_a_contract_at_a_fee_location_is_held_to_the_quote_less_the_fee(): void
     {
         $setting = $this->haulFeeAtTheContractStation();
-        $contractId = $this->contract(['price' => 800.0]);
+        $contractId = $this->contract(['price' => 1600000.0]);
 
         $this->service()->syncContractsForSetting($setting);
 
         $this->assertSame(['buyback.contract.matched'], $this->events->names());
         $row = BuybackContract::where('contract_id', $contractId)->first();
         $this->assertSame([], $row->flags());
-        $this->assertSame(800.0, (float) $row->total_value);
-        $this->assertSame(200.0, (float) $row->haul_fee);
+        $this->assertSame(1600000.0, (float) $row->total_value);
+        $this->assertSame(400000.0, (float) $row->haul_fee);
         $this->assertSame(0.0, (float) $row->deviation_percent);
         $payload = $this->events->events[0]['payload'];
-        $this->assertSame(800.0, $payload['total_value']);
-        $this->assertSame(200.0, $payload['haul_fee']);
+        $this->assertSame(1600000.0, $payload['total_value']);
+        $this->assertSame(400000.0, $payload['haul_fee']);
     }
 
     public function test_asking_the_full_quote_where_a_fee_comes_off_is_a_price_mismatch(): void
     {
         $setting = $this->haulFeeAtTheContractStation();
-        $this->contract(['price' => 1000.0]);
+        $this->contract(['price' => 2000000.0]);
 
         $this->service()->syncContractsForSetting($setting);
 
         $this->assertSame(['buyback.contract.flagged'], $this->events->names());
         $this->assertContains(BuybackContract::FLAG_PRICE_MISMATCH, $this->events->events[0]['payload']['flags']);
         $this->assertSame(25.0, $this->events->events[0]['payload']['deviation_percent']);
+    }
+
+    /** The quote is over a million, but less the 200 ISK fee it is not. */
+    public function test_a_quote_under_a_million_after_its_haul_fee_is_not_held_to_the_tolerance(): void
+    {
+        $setting = $this->haulFeeAtTheContractStation(1000100.0, 2.0);
+        $contractId = $this->contract(['price' => 900000.0]);
+
+        $this->service()->syncContractsForSetting($setting);
+
+        $this->assertSame(['buyback.contract.matched'], $this->events->names());
+        $row = BuybackContract::where('contract_id', $contractId)->first();
+        $this->assertSame([], $row->flags());
+        $this->assertSame(999900.0, (float) $row->total_value);
+        $this->assertSame(200.0, (float) $row->haul_fee);
+        $this->assertSame(-9.99, (float) $row->deviation_percent);
+    }
+
+    public function test_a_quote_over_a_million_after_its_haul_fee_is_held_to_the_tolerance(): void
+    {
+        $setting = $this->haulFeeAtTheContractStation(1000300.0, 2.0);
+        $contractId = $this->contract(['price' => 900000.0]);
+
+        $this->service()->syncContractsForSetting($setting);
+
+        $this->assertSame(['buyback.contract.flagged'], $this->events->names());
+        $row = BuybackContract::where('contract_id', $contractId)->first();
+        $this->assertSame([BuybackContract::FLAG_PRICE_MISMATCH], $row->flags());
+        $this->assertSame(1000100.0, (float) $row->total_value);
+        $this->assertSame(-10.01, (float) $row->deviation_percent);
     }
 
     private static function sde(): void

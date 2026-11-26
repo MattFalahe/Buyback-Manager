@@ -4,7 +4,7 @@
 @section('page_header', 'Buyback Manager - Contracts')
 
 @push('head')
-    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/buyback-manager.css') }}?v=6">
+    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/buyback-manager.css') }}?v=7">
 @endpush
 
 @section('content')

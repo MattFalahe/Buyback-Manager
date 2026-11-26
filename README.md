@@ -29,7 +29,7 @@ A contract with no key in its Description is ignored, which keeps unrelated and 
 
 ### 🔍 Checked, not guessed
 The quote is a reference, not a price lock. Every contract is compared to its appraisal and flagged when something does not line up:
-- the asked price drifts past your tolerance from the quote, less the haul fee where it was made (with the direction, so asking *more* stands out)
+- the asked price drifts past your tolerance from the quote, less the haul fee where it was made (with the direction, so asking *more* stands out). Where the quote and the asked price are both under 1,000,000 ISK the price is not checked, since EVE drops the cents of a contract price
 - the quote was already stale when they contracted
 - the contract's items do not match what was priced
 - the key had already been used
@@ -38,6 +38,8 @@ The quote is a reference, not a price lock. Every contract is compared to its ap
 - a quote made at member rates was contracted by someone who is not a member
 
 Nothing is refused. A flagged contract is still tracked, and a director decides.
+
+Each contract has its own page: the quote against the asked price, the items and m3, the review flags, who sold it and when. **Details** beside the appraisal key opens the appraisal it was quoted from, with its lines, rates, member or public rates, when it was quoted, and the haul fee.
 
 ### 🤝 Member rates
 - Name your members once per programme: the corporation that runs it, or one alliance. Membership goes by SeAT account, so a player with any character in the group sells as a member on every character they have. An alt outside the group is flagged with the name of the member it belongs to.
@@ -102,7 +104,7 @@ Pick who receives the contracts, matching EVE's own visibility rules:
 ### 🩺 Diagnostics
 - An admin-only Diagnostic page with Health Checks, Master Test, System Validation, Settings Health, Data Integrity, Contract Trace, and Notification Testing.
 - Health Checks shows how each corporation's price provider last answered, and Settings Health lists any provider or fallback that cannot run.
-- The Contract Trace tab walks a single contract through the whole pipeline.
+- The Contract Trace tab walks a single contract through the whole pipeline, with its asked price, the difference from the quote, whether the price check applies to it, and its review flags.
 - Health Checks also lists each programme's member bonus, and says whether Open in game can work: whether SeAT lists the scope, whether its default profile asks for it, and how many characters hold it.
 
 ### 📖 In-app help

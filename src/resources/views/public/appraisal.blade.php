@@ -122,7 +122,9 @@
             </ol>
             <div class="bb-note">
                 Set the contract price to <strong>{{ number_format((float) $appraisal->total_buyback_value, 2) }} ISK</strong>{{ count($haulFees) ? ', less the haul fee where you contract from one of the locations above' : '' }}.
-                A different amount still reaches us, but it is flagged for a director to check, which slows your payout.
+                @if((float) $appraisal->total_buyback_value >= \BuybackManager\Services\ContractService::PRICE_CHECK_FROM)
+                    A different amount still reaches us, but it is flagged for a director to check, which slows your payout.
+                @endif
                 Quotes older than {{ $staleHours }} hours are re-checked against the market.
             </div>
             @if($membersOnlyNote)

@@ -5,7 +5,7 @@
 
 @push('head')
     @include("buyback-manager::settings._settings_styles")
-    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/buyback-manager.css') }}?v=6">
+    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/buyback-manager.css') }}?v=7">
     <style>
         /* Inner settings sidebar, matching the canonical pattern from
            Mining Manager / Structure Manager. Scoped to
@@ -382,7 +382,7 @@
                                         <label for="max_deviation_percent">Price tolerance (%)</label>
                                         <input type="number" name="max_deviation_percent" id="max_deviation_percent" class="form-control"
                                                value="1.00" min="0" max="100" step="0.01">
-                                        <small class="text-muted">Flag a contract if the asked ISK drifts further than this from the quote.</small>
+                                        <small class="text-muted">Flag a contract if the asked ISK drifts further than this from the quote. Contracts under {{ number_format(\BuybackManager\Services\ContractService::PRICE_CHECK_FROM) }} ISK are not checked.</small>
                                     </div>
                                 </div>
                                 <div class="col-md-3">

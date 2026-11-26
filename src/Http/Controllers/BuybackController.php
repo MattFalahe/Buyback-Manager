@@ -4,10 +4,13 @@ namespace BuybackManager\Http\Controllers;
 
 use BuybackManager\Http\Controllers\Traits\ScopesCorporationAccess;
 use BuybackManager\Jobs\OpenContractWindow;
+use BuybackManager\Models\BuybackAppraisal;
 use BuybackManager\Models\BuybackContract;
 use BuybackManager\Models\BuybackSetting;
 use BuybackManager\Models\BuybackSyncStatus;
+use BuybackManager\Services\AppraisalRecordService;
 use BuybackManager\Services\OpenInGame;
+use BuybackManager\Services\Pricing\PriceProviderService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -101,9 +104,9 @@ class BuybackController extends Controller
         ]);
     }
 
-    public function show(Request $request, int $id, OpenInGame $openInGame)
+    public function show(Request $request, int $id, OpenInGame $openInGame, PriceProviderService $prices, AppraisalRecordService $records)
     {
-        $contract = BuybackContract::with(['corporation', 'issuer', 'items.type', 'appraisal'])
+        $contract = BuybackContract::with(['corporation', 'issuer', 'items.type', 'appraisal.items', 'appraisal.issuer'])
             ->findOrFail($id);
 
         $allowedCorpIds = $this->allowedCorporationIds($request);
@@ -112,8 +115,33 @@ class BuybackController extends Controller
         }
 
         $oig = $this->openInGameState($request, [(int) $contract->corporation_id], $openInGame);
+        $quote = $this->quoteDetails($contract, $prices, $records);
 
-        return view('buyback-manager::buyback.view', compact('contract', 'oig'));
+        return view('buyback-manager::buyback.view', compact('contract', 'oig', 'quote'));
+    }
+
+    /**
+     * What the details window shows of the appraisal behind a contract, or
+     * null when the contract's key matched none. An appraisal loses its item
+     * lines first and later its header, each on its own window, so the
+     * window can say which of the two is gone.
+     *
+     * @return array{appraisal: ?BuybackAppraisal, priced_by: ?string, item_days: int, header_days: int}|null
+     */
+    protected function quoteDetails(BuybackContract $contract, PriceProviderService $prices, AppraisalRecordService $records): ?array
+    {
+        if (! $contract->isMatched()) {
+            return null;
+        }
+
+        $appraisal = $contract->appraisal;
+
+        return [
+            'appraisal' => $appraisal,
+            'priced_by' => $appraisal ? $prices->sourceLabel($appraisal->provider, $appraisal->market) : null,
+            'item_days' => $records->itemRetentionDays(),
+            'header_days' => $records->headerRetentionDays(),
+        ];
     }
 
     public function statistics(Request $request)

@@ -4,7 +4,7 @@
 @section('page_header', 'Buyback Appraisal')
 
 @push('head')
-    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/buyback-manager.css') }}?v=6">
+    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/buyback-manager.css') }}?v=7">
     <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/public.css') }}?v=14">
     <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/hamsters.css') }}?v=4">
     @if($setting)

@@ -4,7 +4,7 @@
 @section('page_header', 'Buyback Manager - Diagnostics')
 
 @push('head')
-<link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/buyback-manager.css') }}?v=6">
+<link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/buyback-manager.css') }}?v=7">
 <style>
     /* Diagnostic page: bespoke chrome, scoped to
        .buyback-manager-wrapper.diagnostic-page so it never leaks. The
@@ -523,7 +523,7 @@
                         <strong>What this tab does:</strong> Pick a buyback contract from the picker below and walk
                         through what BB knows about it: the source <code>ContractDetail</code> from SeAT, every line
                         item with type/group/category resolution, the buyback price computed per item, and the persisted
-                        <code>BuybackContract</code> row.
+                        <code>BuybackContract</code> row with its asked price, whether the price check applies to it, and its review flags.
                     </p>
                     <p>
                         <strong>When to use:</strong> When a specific contract was valued unexpectedly. Most powerful
@@ -588,7 +588,11 @@
                                         <dt>Corporation</dt><dd>{{ $c->corporation->name ?? '?' }} ({{ $c->corporation_id }})</dd>
                                         <dt>Issuer</dt><dd>{{ $c->issuer->name ?? '?' }} ({{ $c->issuer_id }})</dd>
                                         <dt>Status</dt><dd>{{ $c->status }}</dd>
-                                        <dt>Total value</dt><dd>{{ number_format((float)$c->total_value, 2) }} ISK</dd>
+                                        <dt>Total value</dt><dd>{{ number_format((float)$c->total_value, 2) }} ISK{{ (float) $c->haul_fee > 0 ? ', after a ' . number_format((float) $c->haul_fee, 2) . ' ISK haul fee' : '' }}</dd>
+                                        <dt>Asked price</dt><dd>{{ $c->asked_price !== null ? number_format((float) $c->asked_price, 2) . ' ISK' : '-' }}</dd>
+                                        <dt>Deviation</dt><dd>{{ $c->deviation_percent !== null ? ((float) $c->deviation_percent > 0 ? '+' : '') . number_format((float) $c->deviation_percent, 2) . '%' : '-' }}</dd>
+                                        <dt>Price check</dt><dd>{{ $contractTrace['price_check'] }}</dd>
+                                        <dt>Review flags</dt><dd>{{ $c->isFlagged() ? implode(', ', $c->flags()) : 'none' }}</dd>
                                         <dt>Items count</dt><dd>{{ $c->items_count }}</dd>
                                         <dt>Issued</dt><dd>{{ optional($c->issued_date)->toDateTimeString() ?: '-' }}</dd>
                                         <dt>Completed</dt><dd>{{ optional($c->completed_date)->toDateTimeString() ?: '-' }}</dd>

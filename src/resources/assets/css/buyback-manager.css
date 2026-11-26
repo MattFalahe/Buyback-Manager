@@ -2894,6 +2894,355 @@ div.buyback-manager-wrapper div.tab-pane {
 }
 
 /* ============================================
+   Contract page and its appraisal details
+   ============================================ */
+/* The details window is moved to <body> before it opens, where nothing
+   scoped to the wrapper reaches it, so its rules name it as well. */
+.buyback-manager-wrapper .bb-figures,
+.bb-detail-modal .bb-figures {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--bb-spacing-md);
+    margin-bottom: var(--bb-spacing-lg);
+}
+
+.buyback-manager-wrapper .bb-figure,
+.bb-detail-modal .bb-figure {
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
+    padding: 14px 16px 14px 20px;
+    background: var(--bb-dark-card);
+    border: 1px solid var(--bb-border);
+    border-radius: var(--bb-radius-lg);
+}
+
+.buyback-manager-wrapper .bb-figure::before,
+.bb-detail-modal .bb-figure::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 4px;
+    background: linear-gradient(180deg, var(--bb-primary-start) 0%, var(--bb-primary-end) 100%);
+}
+
+.buyback-manager-wrapper .bb-figure-accent,
+.bb-detail-modal .bb-figure-accent {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.18) 0%, rgba(118, 75, 162, 0.18) 100%);
+    border-color: rgba(102, 126, 234, 0.45);
+}
+
+.buyback-manager-wrapper .bb-figure-label,
+.bb-detail-modal .bb-figure-label {
+    margin-bottom: 4px;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--bb-text-muted) !important;
+}
+
+.buyback-manager-wrapper .bb-figure-value,
+.bb-detail-modal .bb-figure-value {
+    font-size: 1.4rem;
+    font-weight: 700;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+    color: var(--bb-text-white) !important;
+}
+
+.buyback-manager-wrapper .bb-figure-value small,
+.bb-detail-modal .bb-figure-value small {
+    font-size: 0.65em;
+    font-weight: 600;
+    color: var(--bb-text-muted) !important;
+}
+
+.buyback-manager-wrapper .bb-figure-none {
+    color: var(--bb-text-muted) !important;
+}
+
+.buyback-manager-wrapper .bb-figure-sub,
+.bb-detail-modal .bb-figure-sub {
+    margin-top: 4px;
+    font-size: 0.8rem;
+    color: var(--bb-text-muted) !important;
+}
+
+.buyback-manager-wrapper .bb-contract-page .warning-box {
+    margin: 0 0 var(--bb-spacing-lg);
+}
+
+.buyback-manager-wrapper .bb-facts-heading {
+    margin: 0 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--bb-border);
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--bb-text-white) !important;
+}
+
+.buyback-manager-wrapper .bb-facts-heading i {
+    margin-right: 6px;
+    color: var(--bb-primary-start);
+}
+
+.buyback-manager-wrapper .bb-facts,
+.bb-detail-modal .bb-facts {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 10px 18px;
+    align-items: center;
+    margin: 0 0 var(--bb-spacing-lg);
+}
+
+.buyback-manager-wrapper .bb-facts dt,
+.bb-detail-modal .bb-facts dt {
+    margin: 0;
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--bb-text-muted) !important;
+}
+
+.buyback-manager-wrapper .bb-facts dd,
+.bb-detail-modal .bb-facts dd {
+    min-width: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
+    color: var(--bb-text-light) !important;
+}
+
+.buyback-manager-wrapper .bb-facts img {
+    width: 24px;
+    height: 24px;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+.buyback-manager-wrapper .bb-facts img.bb-portrait {
+    border-radius: 50%;
+}
+
+.buyback-manager-wrapper .bb-key {
+    padding: 2px 8px;
+    border-radius: var(--bb-radius-sm);
+    background: rgba(102, 126, 234, 0.15);
+    color: #c3cafc !important;
+    font-size: 0.9rem;
+}
+
+.buyback-manager-wrapper .bb-contract-items .bb-type-icon {
+    width: 28px;
+    height: 28px;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+.buyback-manager-wrapper .bb-contract-items .bb-isk {
+    font-weight: 600;
+    color: #51cf66 !important;
+}
+
+.buyback-manager-wrapper .bb-contract-items tfoot td {
+    padding: var(--bb-spacing-sm) var(--bb-spacing-md);
+    border-top: 1px solid var(--bb-border);
+    font-weight: 600;
+    color: var(--bb-text-white) !important;
+}
+
+.buyback-manager-wrapper .bb-contract-items tfoot tr:first-child td {
+    border-top: 2px solid var(--bb-border);
+}
+
+.buyback-manager-wrapper .bb-contract-items tfoot tr.bb-minor td {
+    font-weight: 400;
+    color: var(--bb-text-muted) !important;
+}
+
+.bb-detail-modal .modal-content {
+    background-color: var(--bb-dark-bg);
+    border: 1px solid var(--bb-border);
+    color: var(--bb-text-light);
+}
+
+.bb-detail-modal .modal-header {
+    background: linear-gradient(135deg, var(--bb-primary-start) 0%, var(--bb-primary-end) 100%);
+    border-bottom: none;
+}
+
+.bb-detail-modal .modal-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    color: #fff !important;
+}
+
+.bb-detail-modal .modal-title code {
+    padding: 2px 8px;
+    border-radius: var(--bb-radius-sm);
+    background: rgba(0, 0, 0, 0.25);
+    color: #fff !important;
+}
+
+.bb-detail-modal .close {
+    color: #fff;
+    opacity: 0.85;
+    text-shadow: none;
+}
+
+.bb-detail-modal .close:hover {
+    color: #fff;
+    opacity: 1;
+}
+
+.bb-detail-modal .modal-footer {
+    background-color: var(--bb-dark-card);
+    border-top: 1px solid var(--bb-border);
+}
+
+.bb-detail-modal .btn-bb-secondary {
+    background-color: var(--bb-dark-card);
+    border: 1px solid var(--bb-border);
+    color: var(--bb-text-light);
+}
+
+.bb-detail-modal .btn-bb-secondary:hover {
+    border-color: rgba(102, 126, 234, 0.5);
+    color: var(--bb-text-white);
+}
+
+.bb-detail-modal .bb-muted {
+    margin-left: 4px;
+    font-size: 0.85rem;
+    color: var(--bb-text-muted) !important;
+}
+
+.bb-detail-modal .bb-modal-section {
+    margin: var(--bb-spacing-lg) 0 var(--bb-spacing-sm);
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--bb-text-white) !important;
+}
+
+.bb-detail-modal .bb-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.bb-detail-modal .bb-lines {
+    width: 100%;
+    color: var(--bb-text-light);
+}
+
+.bb-detail-modal .bb-lines th {
+    padding: 8px 10px;
+    border-bottom: 2px solid var(--bb-border);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    color: var(--bb-text-white) !important;
+}
+
+.bb-detail-modal .bb-lines td {
+    padding: 8px 10px;
+    border-top: 1px solid var(--bb-border);
+    vertical-align: middle;
+}
+
+.bb-detail-modal .bb-lines .num {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.bb-detail-modal .bb-lines tfoot td {
+    border-top: 2px solid var(--bb-border);
+    font-weight: 600;
+    color: var(--bb-text-white) !important;
+}
+
+.bb-detail-modal .bb-lines tfoot tr.bb-lines-minor td {
+    font-weight: 400;
+    color: var(--bb-text-muted) !important;
+}
+
+.bb-detail-modal .bb-line-badge {
+    display: inline-block;
+    margin-left: 4px;
+    padding: 1px 6px;
+    border: 1px solid rgba(102, 126, 234, 0.4);
+    border-radius: 10px;
+    background: rgba(102, 126, 234, 0.18);
+    font-size: 0.7rem;
+    white-space: nowrap;
+    color: #c3cafc !important;
+}
+
+.bb-detail-modal .bb-line-badge.thin {
+    border-color: rgba(255, 193, 7, 0.4);
+    background: rgba(255, 193, 7, 0.12);
+    color: #ffd43b !important;
+}
+
+.bb-detail-modal .bb-modal-note {
+    display: flex;
+    gap: 10px;
+    margin: 0 0 var(--bb-spacing-md);
+    padding: 12px 15px;
+    border-left: 4px solid var(--bb-info);
+    border-radius: var(--bb-radius-md);
+    background: rgba(23, 162, 184, 0.12);
+    color: #d1d5db !important;
+}
+
+.bb-detail-modal .bb-modal-note > i {
+    flex-shrink: 0;
+    margin-top: 3px;
+    color: var(--bb-info);
+}
+
+.bb-detail-modal .bb-modal-note.warn {
+    border-left-color: var(--bb-warning);
+    background: rgba(255, 193, 7, 0.12);
+}
+
+.bb-detail-modal .bb-modal-note.warn > i {
+    color: var(--bb-warning);
+}
+
+/* On a phone every branded button goes full width, which pushed the
+   buttons that sit beside a contract ID or a key off the screen. */
+@media (max-width: 768px) {
+    .buyback-manager-wrapper .bb-oig .btn,
+    .buyback-manager-wrapper .bb-appraisal-details-open {
+        width: auto;
+        margin-bottom: 0;
+    }
+}
+
+@media (max-width: 576px) {
+    .buyback-manager-wrapper .bb-facts,
+    .bb-detail-modal .bb-facts {
+        grid-template-columns: 1fr;
+        gap: 2px;
+    }
+
+    .buyback-manager-wrapper .bb-facts dd,
+    .bb-detail-modal .bb-facts dd {
+        margin-bottom: 10px;
+    }
+}
+
+/* ============================================
    Print Styles
    ============================================ */
 @media print {

@@ -15,6 +15,7 @@ use BuybackManager\Models\BuybackSetting;
 use BuybackManager\Models\BuybackSubscribedType;
 use BuybackManager\Models\BuybackSyncStatus;
 use BuybackManager\Services\ContractFeedHealth;
+use BuybackManager\Services\ContractService;
 use BuybackManager\Services\DevBuildUpgrade;
 use BuybackManager\Services\OpenInGame;
 use BuybackManager\Services\Pricing\PriceProviderService;
@@ -1380,7 +1381,34 @@ class DiagnosticController extends Controller
             'contract' => $contract,
             'esi_detail' => $esiDetail,
             'items' => $itemTrace,
+            'price_check' => $this->priceCheckTrace($contract),
         ];
+    }
+
+    /**
+     * How the sync judges this contract's asked price, by today's rule.
+     * Flags were set when the contract was first seen, under the rule of
+     * that day, so this says which rule a flag came from when they differ.
+     */
+    private function priceCheckTrace(BuybackContract $contract): string
+    {
+        if (! $contract->isMatched() || $contract->asked_price === null) {
+            return 'Not checked: there is no quote to compare with.';
+        }
+
+        $floor = number_format(ContractService::PRICE_CHECK_FROM) . ' ISK';
+        $flagged = in_array(BuybackContract::FLAG_PRICE_MISMATCH, $contract->flags(), true);
+
+        if (ContractService::checksPrice((float) $contract->total_value, (float) $contract->asked_price)) {
+            $setting = BuybackSetting::where('corporation_id', $contract->corporation_id)->first();
+            $tolerance = number_format($setting ? $setting->deviationTolerance() : 1.0, 2);
+
+            return "Checked against the programme's tolerance, now {$tolerance}%: the quote or the asked price reaches {$floor}.";
+        }
+
+        return $flagged
+            ? "Flagged before contracts under {$floor} stopped being checked. A contract seen today would not be."
+            : "Not checked: the quote, after any haul fee, and the asked price are both under {$floor}.";
     }
 
     // ============================================================

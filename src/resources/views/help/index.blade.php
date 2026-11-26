@@ -4,7 +4,7 @@
 @section('page_header', 'Help & Documentation')
 
 @push('head')
-    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/buyback-manager.css') }}?v=6">
+    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/buyback-manager.css') }}?v=7">
 @endpush
 
 @section('full')
@@ -493,7 +493,7 @@
                     <h4>What gets checked</h4>
                     <p>The quote is a <strong>reference, not a guarantee</strong>. Nothing locks a price, so a discrepancy raises a review flag rather than binding you to an old number:</p>
                     <table class="plugin-info-table">
-                        <tr><td>Asked price</td><td>The ISK on the contract differs from the quote, less the haul fee where it was made, by more than your tolerance (default 1%). The direction is reported, so asking <em>more</em> than quoted stands out from asking less.</td></tr>
+                        <tr><td>Asked price</td><td>The ISK on the contract differs from the quote, less the haul fee where it was made, by more than your tolerance (default 1%). The direction is reported, so asking <em>more</em> than quoted stands out from asking less. When the quote, less that fee, and the asked price are both under {{ number_format(\BuybackManager\Services\ContractService::PRICE_CHECK_FROM) }} ISK, the price is not checked: EVE drops the cents of a contract price, so on a small quote the cents alone would break the tolerance. The difference still shows on the contract.</td></tr>
                         <tr><td>Stale quote</td><td>The appraisal was already older than your freshness window when the contract was made, so market prices may have moved.</td></tr>
                         <tr><td>Item mismatch</td><td>The contract's contents do not match the items we priced.</td></tr>
                         <tr><td>Reused key</td><td>The key had already been claimed by an earlier contract.</td></tr>
@@ -547,6 +547,11 @@
                     <div class="info-box">
                         <i class="fas fa-filter"></i>
                         <strong>What gets recorded:</strong> every contract to your buyback target that quotes an appraisal key appears in the <a href="{{ route('buyback-manager.contracts.index') }}">Contracts</a> list. One whose key matches no appraisal of your corporation is listed too, with no quote, under "Key matched nothing", so it can be reviewed. It never counts toward the statistics.
+                    </div>
+
+                    <div class="info-box">
+                        <i class="fas fa-search"></i>
+                        <strong>A contract's own page:</strong> click a contract in the list to see the quote against the asked price, the items and m3, its review flags, who sold it and when. <strong>Details</strong> beside the appraisal key opens the appraisal it was quoted from: each line's market price and rate, member or public rates, when it was quoted, and the haul fee and total. An appraisal's lines are pruned after <em>Keep item detail</em> in Settings, and the window then says so; the contract keeps its own copy of the items.
                     </div>
 
                     <div class="info-box">
@@ -985,7 +990,7 @@
 
                     <div class="faq-item">
                         <div class="faq-question"><span>What happens if someone contracts at the wrong price?</span><i class="fas fa-chevron-down"></i></div>
-                        <div class="faq-answer">The contract is still tracked, but flagged with the asked price, the quoted value and the percentage difference, and announced through the Needs review category. Nothing is paid automatically, so a director reviews it and either honours it or declines the contract in game. Set the tolerance per corporation on the Settings page.</div>
+                        <div class="faq-answer">The contract is still tracked, but flagged with the asked price, the quoted value and the percentage difference, and announced through the Needs review category. Nothing is paid automatically, so a director reviews it and either honours it or declines the contract in game. Set the tolerance per corporation on the Settings page. A contract where the quote and the asked price are both under {{ number_format(\BuybackManager\Services\ContractService::PRICE_CHECK_FROM) }} ISK is not flagged for its price, because EVE drops the cents a seller types.</div>
                     </div>
 
                     <div class="faq-item">

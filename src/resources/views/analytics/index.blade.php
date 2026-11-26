@@ -4,7 +4,7 @@
 @section('page_header', 'Buyback Analytics')
 
 @push('head')
-    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/buyback-manager.css') }}?v=6">
+    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/buyback-manager.css') }}?v=7">
     <style>
         .buyback-manager-wrapper .bb-metric {
             background: var(--bb-dark-card, rgba(255,255,255,0.03));

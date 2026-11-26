@@ -4,7 +4,7 @@
 @section('page_header', 'Buyback Appraisal Result')
 
 @push('head')
-    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/buyback-manager.css') }}?v=6">
+    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/buyback-manager.css') }}?v=7">
 @endpush
 
 @section('full')
@@ -262,8 +262,7 @@
                             </button>
                         </div>
                         <p style="font-size:0.85rem; color:#6c757d; margin:0.6rem 0 0;">
-                            The key is single use. Set the contract price to the quoted value{{ empty($haulFees) ? '' : ' for the location you contract from' }}. A
-                            different amount still reaches us but is flagged for a director to check.
+                            The key is single use. Set the contract price to the quoted value{{ empty($haulFees) ? '' : ' for the location you contract from' }}.{{ (float) $total_buyback_value >= \BuybackManager\Services\ContractService::PRICE_CHECK_FROM ? ' A different amount still reaches us but is flagged for a director to check.' : '' }}
                         </p>
                     </div>
 

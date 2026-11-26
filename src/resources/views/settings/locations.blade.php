@@ -5,7 +5,7 @@
 
 @push('head')
     @include("buyback-manager::settings._settings_styles")
-    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/buyback-manager.css') }}?v=6">
+    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/buyback-manager.css') }}?v=7">
 @endpush
 
 @section('content')

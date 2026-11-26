@@ -138,6 +138,12 @@ class AppraisalRecordService
         return max(1, (int) (BuybackSetting::max('appraisal_retention_days') ?: 180));
     }
 
+    /** How long an appraisal keeps its item lines, read the same way. */
+    public function itemRetentionDays(): int
+    {
+        return max(1, (int) (BuybackSetting::max('appraisal_item_retention_days') ?: 14));
+    }
+
     /**
      * Two-tier retention sweep. Called from the contract-sync cycle, so it
      * needs no cron of its own.
@@ -148,7 +154,7 @@ class AppraisalRecordService
     public function prune(): void
     {
         try {
-            $itemDays = (int) (BuybackSetting::max('appraisal_item_retention_days') ?: 14);
+            $itemDays = $this->itemRetentionDays();
             $headerDays = $this->headerRetentionDays();
 
             // Items first: drop the bulk rows for appraisals past the short

@@ -71,6 +71,14 @@ class ContractService
      */
     private const EXPIRED_WATCH_DAYS = 7;
 
+    /**
+     * EVE drops the cents of a contract price, so on a small quote the cents
+     * alone break any tolerance: 2.48 ISK contracted as 2 is 19% off. Below
+     * this the difference is still recorded, but not flagged. Both sides
+     * have to be under it, or a 2 ISK quote could ask for any sum unflagged.
+     */
+    public const PRICE_CHECK_FROM = 1000000.0;
+
     protected AppraisalMatcher $matcher;
 
     protected AppraisalRecordService $records;
@@ -404,7 +412,7 @@ class ContractService
         $asked = (float) ($contract->price ?? 0);
         $deviation = $this->deviationPercent($quoted, $asked);
         $seller = $this->sellerCheck($contract, $setting, $appraisal->isMemberRate());
-        $flags = array_merge($this->computeFlags($contract, $appraisal, $setting, $deviation, $reused), $seller['flags']);
+        $flags = array_merge($this->computeFlags($contract, $appraisal, $setting, $deviation, $reused, self::checksPrice($quoted, $asked)), $seller['flags']);
         $volume = $this->contractVolume($contract, (float) $appraisal->total_volume);
 
         return DB::transaction(function () use ($contract, $setting, $appraisal, $quoted, $haulFee, $asked, $deviation, $flags, $seller, $reused, $volume) {
@@ -561,6 +569,16 @@ class ContractService
     }
 
     /**
+     * Whether the asked price is held to the programme's tolerance. The
+     * expected side is the quote less any haul fee where the contract was
+     * made.
+     */
+    public static function checksPrice(float $expected, float $asked): bool
+    {
+        return max($expected, $asked) >= self::PRICE_CHECK_FROM;
+    }
+
+    /**
      * Decide which review flags a first-sighting contract carries.
      *
      * @return array<int, string>
@@ -570,11 +588,12 @@ class ContractService
         BuybackAppraisal $appraisal,
         BuybackSetting $setting,
         ?float $deviation,
-        bool $reused
+        bool $reused,
+        bool $checkPrice
     ): array {
         $flags = [];
 
-        if ($deviation !== null && abs($deviation) > $setting->deviationTolerance()) {
+        if ($checkPrice && $deviation !== null && abs($deviation) > $setting->deviationTolerance()) {
             $flags[] = BuybackContract::FLAG_PRICE_MISMATCH;
         }
 

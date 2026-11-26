@@ -4,160 +4,229 @@
 @section('page_header', 'Contract #' . $contract->contract_id)
 
 @push('head')
-    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/buyback-manager.css') }}?v=6">
+    <link rel="stylesheet" href="{{ asset('vendor/buyback-manager/css/buyback-manager.css') }}?v=7">
 @endpush
 
 @section('content')
-    <div class="buyback-manager-wrapper">
+    @php
+        $matched = $contract->isMatched();
+        $haulFee = (float) $contract->haul_fee;
+        $asked = $contract->asked_price !== null ? (float) $contract->asked_price : null;
+        $deviation = $contract->deviation_percent !== null ? (float) $contract->deviation_percent : null;
+        $priceFlagged = in_array(\BuybackManager\Models\BuybackContract::FLAG_PRICE_MISMATCH, $contract->flags(), true);
+        // Flags were set when the contract was first seen. Say a price went
+        // unchecked only where no flag from an older rule says otherwise.
+        $priceUnchecked = $matched && $asked !== null && ! $priceFlagged
+            && ! \BuybackManager\Services\ContractService::checksPrice((float) $contract->total_value, $asked);
+        $deviationText = $deviation === null ? null
+            : (abs($deviation) < 0.005 ? 'exactly as quoted' : ($deviation > 0 ? '+' : '') . number_format($deviation, 2) . '% on the quote');
+        $units = $contract->items->sum('quantity');
+        $lineTotal = (float) $contract->items->sum('total_value');
+    @endphp
+    <div class="buyback-manager-wrapper bb-contract-page">
         @include('buyback-manager::buyback._open_in_game_banner', ['oig' => $oig])
 
-        <!-- Contract Summary -->
-        <div class="row">
-            <div class="col-md-8">
-                <div class="card card-dark">
-                    <div class="card-header">
-                        <h3 class="card-title">Contract Information</h3>
+        <div class="card card-dark">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-file-contract"></i> Contract {{ $contract->contract_id }}
+                    <span class="contract-status {{ $contract->displayStatus() }}">{{ ucfirst(str_replace('_', ' ', $contract->displayStatus())) }}</span>
+                </h3>
+                <div class="card-tools">
+                    <a href="{{ route('buyback-manager.contracts.index') }}" class="btn btn-sm btn-bb-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Contracts
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="bb-figures">
+                    <div class="bb-figure bb-figure-accent">
+                        <div class="bb-figure-label">Quoted</div>
+                        @if($matched)
+                            <div class="bb-figure-value">{{ number_format((float) $contract->total_value, 2) }} <small>ISK</small></div>
+                            <div class="bb-figure-sub">
+                                {{ $haulFee > 0 ? 'after a ' . number_format($haulFee, 2) . ' ISK haul fee' : 'as quoted' }}
+                                @if(optional($contract->appraisal)->isMemberRate())
+                                    <span class="badge badge-primary">Member rates</span>
+                                @endif
+                            </div>
+                        @else
+                            <div class="bb-figure-value bb-figure-none">No quote</div>
+                            <div class="bb-figure-sub">its key matched no appraisal</div>
+                        @endif
                     </div>
-                    <div class="card-body">
-                        <dl class="dl-horizontal">
-                            <dt>Contract ID:</dt>
+                    <div class="bb-figure">
+                        <div class="bb-figure-label">Asked</div>
+                        <div class="bb-figure-value">{{ $asked !== null ? number_format($asked, 2) : '-' }} <small>ISK</small></div>
+                        <div class="bb-figure-sub">
+                            @if($deviationText === null)
+                                nothing to compare with
+                            @elseif($priceFlagged)
+                                <span class="text-warning">{{ $deviationText }}</span>
+                            @elseif($priceUnchecked)
+                                {{ $deviationText }}, not checked under {{ number_format(\BuybackManager\Services\ContractService::PRICE_CHECK_FROM) }} ISK
+                            @else
+                                <span class="text-success">{{ $deviationText }}</span>
+                            @endif
+                        </div>
+                    </div>
+                    <div class="bb-figure">
+                        <div class="bb-figure-label">Items</div>
+                        <div class="bb-figure-value">{{ number_format($contract->items_count) }}</div>
+                        <div class="bb-figure-sub">{{ $units > 0 ? number_format($units) . ($units == 1 ? ' unit' : ' units') : 'item types' }}</div>
+                    </div>
+                    <div class="bb-figure">
+                        <div class="bb-figure-label">Volume</div>
+                        <div class="bb-figure-value">{{ $contract->total_volume !== null ? number_format((float) $contract->total_volume, 2) : '-' }} <small>m3</small></div>
+                        <div class="bb-figure-sub">what the contract carries</div>
+                    </div>
+                </div>
+
+                @if($contract->isFlagged())
+                    <div class="warning-box">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <div>
+                            <strong>Needs review</strong>
+                            @foreach($contract->flagLabels() as $label)
+                                <span class="d-block">{{ $label }}</span>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+
+                <div class="row">
+                    <div class="col-lg-7">
+                        <h5 class="bb-facts-heading"><i class="fas fa-handshake"></i> Contract</h5>
+                        <dl class="bb-facts">
+                            <dt>Contract ID</dt>
                             <dd>
                                 {{ $contract->contract_id }}
                                 @include('buyback-manager::buyback._open_in_game', ['contract' => $contract, 'oig' => $oig, 'withLabel' => true])
                             </dd>
 
-                            <dt>Corporation:</dt>
+                            <dt>Programme</dt>
                             <dd>
-                                <img src="https://images.evetech.net/corporations/{{ $contract->corporation_id }}/logo?size=32" 
-                                     style="width: 24px; height: 24px; vertical-align: middle; margin-right: 5px;">
+                                <img src="https://images.evetech.net/corporations/{{ $contract->corporation_id }}/logo?size=32" alt="">
                                 {{ $contract->corporation->name ?? 'Unknown' }}
                             </dd>
 
-                            <dt>Issuer:</dt>
+                            <dt>Seller</dt>
                             <dd>
-                                <img src="https://images.evetech.net/characters/{{ $contract->issuer_id }}/portrait?size=32" 
-                                     style="width: 24px; height: 24px; vertical-align: middle; margin-right: 5px;">
+                                <img src="https://images.evetech.net/characters/{{ $contract->issuer_id }}/portrait?size=32" alt="" class="bb-portrait">
                                 {{ $contract->issuer->name ?? 'Unknown' }}
                             </dd>
 
-                            <dt>Status:</dt>
-                            <dd>
-                                <span class="contract-status {{ $contract->displayStatus() }}">
-                                    {{ ucfirst(str_replace('_', ' ', $contract->displayStatus())) }}
-                                </span>
-                            </dd>
+                            @if($contract->send_to)
+                                <dt>Contract to</dt>
+                                <dd>{{ $contract->send_to }}</dd>
+                            @endif
 
-                            <dt>Appraisal key:</dt>
+                            <dt>Appraisal key</dt>
                             <dd>
                                 @if($contract->appraisal_public_id)
-                                    <code>{{ $contract->appraisal_public_id }}</code>
+                                    <code class="bb-key">{{ $contract->appraisal_public_id }}</code>
+                                    @if($quote)
+                                        <button type="button" class="btn btn-xs btn-bb-primary bb-appraisal-details-open">
+                                            <i class="fas fa-search"></i> Details
+                                        </button>
+                                    @endif
                                 @elseif($contract->quoted_key)
-                                    <code>{{ $contract->quoted_key }}</code>
+                                    <code class="bb-key">{{ $contract->quoted_key }}</code>
                                     <span class="text-warning">matches no appraisal of this corporation</span>
                                 @else
                                     <span class="text-muted">-</span>
                                 @endif
                             </dd>
-
-                            <dt>Total Items:</dt>
-                            <dd>{{ number_format($contract->items_count) }}</dd>
-
-                            <dt>Volume:</dt>
-                            <dd>{{ $contract->total_volume !== null ? number_format((float) $contract->total_volume, 2) . ' m3' : '-' }}</dd>
-
-                            <dt>Total Value:</dt>
-                            @if($contract->isMatched())
-                                <dd class="contract-value">
-                                    {{ number_format($contract->total_value, 2) }} ISK
-                                    @if(optional($contract->appraisal)->isMemberRate())
-                                        <span class="badge badge-primary">Member rates</span>
-                                    @endif
-                                </dd>
-                            @else
-                                <dd><span class="text-muted">No quote</span></dd>
-                            @endif
-
-                            @if((float) $contract->haul_fee > 0)
-                                <dt>Haul Fee:</dt>
-                                <dd>{{ number_format((float) $contract->haul_fee, 2) }} ISK, already off the total value</dd>
-                            @endif
-
-                            <dt>Asked Price:</dt>
-                            <dd>{{ $contract->asked_price !== null ? number_format((float) $contract->asked_price, 2) . ' ISK' : '-' }}</dd>
-
-                            @if($contract->isFlagged())
-                                <dt>Needs review:</dt>
-                                <dd>
-                                    @foreach($contract->flagLabels() as $label)
-                                        <span class="d-block text-warning"><i class="fa fa-exclamation-triangle"></i> {{ $label }}</span>
-                                    @endforeach
-                                </dd>
-                            @endif
-
-                            <dt>Issued Date:</dt>
+                        </dl>
+                    </div>
+                    <div class="col-lg-5">
+                        <h5 class="bb-facts-heading"><i class="far fa-clock"></i> Dates</h5>
+                        <dl class="bb-facts">
+                            <dt>Issued</dt>
                             <dd>{{ $contract->issued_date->format('Y-m-d H:i:s') }}</dd>
 
-                            <dt>Expires:</dt>
+                            <dt>Expires</dt>
                             <dd>{{ $contract->expires_at ? $contract->expires_at->format('Y-m-d H:i:s') : '-' }}</dd>
 
-                            <dt>Completed Date:</dt>
+                            <dt>Completed</dt>
                             <dd>{{ $contract->completed_date ? $contract->completed_date->format('Y-m-d H:i:s') : 'Pending' }}</dd>
                         </dl>
                     </div>
                 </div>
             </div>
-
-            <div class="col-md-4">
-                <div class="stats-box">
-                    <i class="fa fa-boxes stats-icon"></i>
-                    <div class="stats-number">{{ number_format($contract->items_count) }}</div>
-                    <div class="stats-label">Total Items</div>
-                </div>
-                <div class="stats-box">
-                    <i class="fa fa-dollar-sign stats-icon"></i>
-                    <div class="stats-number">{{ number_format($contract->total_value / 1000000, 2) }}M</div>
-                    <div class="stats-label">Total Value (ISK)</div>
-                </div>
-            </div>
         </div>
 
-        <!-- Contract Items -->
         <div class="card card-dark">
             <div class="card-header">
-                <h3 class="card-title">Contract Items</h3>
+                <h3 class="card-title"><i class="fas fa-boxes"></i> Contract items</h3>
             </div>
-            <div class="card-body">
-                <div class="contract-items-list">
-                    @foreach($contract->items as $item)
-                        <div class="contract-item">
-                            <div class="item-details">
-                                <img src="https://images.evetech.net/types/{{ $item->type_id }}/icon?size=32" 
-                                     class="item-icon" 
-                                     alt="{{ $item->type->typeName ?? 'Unknown' }}">
-                                <span class="item-name">{{ $item->type->typeName ?? 'Unknown' }}</span>
-                                <span class="item-quantity">x {{ number_format($item->quantity) }}</span>
-                            </div>
-                            <div class="item-value">
-                                <div>{{ number_format($item->unit_price, 2) }} ISK each</div>
-                                <div style="color: #00a65a; font-size: 16px;">{{ number_format($item->total_value, 2) }} ISK</div>
-                            </div>
+            <div class="card-body p-0">
+                @if($contract->items->isEmpty())
+                    <div class="empty-state">
+                        <i class="fas fa-box-open"></i>
+                        <div class="empty-state-description">
+                            {{ $matched ? 'No lines were kept for this contract.' : 'No priced lines: the key on this contract matched no appraisal.' }}
                         </div>
-                    @endforeach
-                </div>
-            </div>
-        </div>
-
-        <!-- Actions -->
-        <div class="card card-dark">
-            <div class="card-body">
-                <a href="{{ route('buyback-manager.contracts.index') }}" class="btn btn-bb-secondary">
-                    <i class="fa fa-arrow-left"></i> Back to Contracts
-                </a>
+                    </div>
+                @else
+                    <div class="table-responsive-bb-wrap">
+                        <table class="table table-bb-styled bb-contract-items">
+                            <thead>
+                                <tr>
+                                    <th>Item</th>
+                                    <th class="text-right">Quantity</th>
+                                    <th class="text-right">Unit price</th>
+                                    <th class="text-right">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($contract->items as $item)
+                                    <tr>
+                                        <td>
+                                            <img src="https://images.evetech.net/types/{{ $item->type_id }}/icon?size=32" class="bb-type-icon" alt="">
+                                            {{ $item->type->typeName ?? ('Type #' . $item->type_id) }}
+                                        </td>
+                                        <td class="text-right">{{ number_format($item->quantity) }}</td>
+                                        <td class="text-right">{{ number_format((float) $item->unit_price, 2) }} ISK</td>
+                                        <td class="text-right bb-isk">{{ number_format((float) $item->total_value, 2) }} ISK</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                            <tfoot>
+                                @if($haulFee > 0)
+                                    <tr class="bb-minor">
+                                        <td colspan="3">Quote</td>
+                                        <td class="text-right">{{ number_format((float) $contract->total_value + $haulFee, 2) }} ISK</td>
+                                    </tr>
+                                    <tr class="bb-minor">
+                                        <td colspan="3">Haul fee where the contract was made</td>
+                                        <td class="text-right">-{{ number_format($haulFee, 2) }} ISK</td>
+                                    </tr>
+                                @endif
+                                <tr>
+                                    <td colspan="3">Total</td>
+                                    <td class="text-right bb-isk">{{ number_format($matched ? (float) $contract->total_value : $lineTotal, 2) }} ISK</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                @endif
             </div>
         </div>
     </div>
+
+    @if($quote)
+        @include('buyback-manager::buyback._appraisal_details', ['contract' => $contract, 'quote' => $quote])
+    @endif
 @endsection
 
 @push('javascript')
     <script src="{{ asset('vendor/buyback-manager/js/buyback-manager.js') }}?v=2"></script>
+    <script>
+        $(document).on('click', '.bb-appraisal-details-open', function (e) {
+            e.preventDefault();
+            // AdminLTE's layout stacks a modal under its backdrop unless the modal hangs off <body>.
+            $('#bb-appraisal-details').appendTo('body').modal('show');
+        });
+    </script>
 @endpush
