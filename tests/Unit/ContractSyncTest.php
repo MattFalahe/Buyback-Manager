@@ -285,6 +285,23 @@ class ContractSyncTest extends TestCase
         $this->assertSame(-19.35, (float) BuybackContract::where('contract_id', $contractId)->first()->deviation_percent);
     }
 
+    /** Past the column's range, the difference is held at its cap and still flagged. */
+    public function test_an_asked_price_far_above_a_tiny_quote_is_capped_and_flagged(): void
+    {
+        $setting = $this->setting();
+        $this->appraisal('bb-abcd2345', 2.48);
+        $contractId = $this->contract(['price' => 2000000.0]);
+
+        $this->service()->syncContractsForSetting($setting);
+
+        $this->assertSame(['buyback.contract.flagged'], $this->events->names());
+        $this->assertSame(999999.99, $this->events->events[0]['payload']['deviation_percent']);
+        $row = BuybackContract::where('contract_id', $contractId)->first();
+        $this->assertNotNull($row);
+        $this->assertSame([BuybackContract::FLAG_PRICE_MISMATCH], $row->flags());
+        $this->assertSame(999999.99, (float) $row->deviation_percent);
+    }
+
     public function test_a_quote_just_under_a_million_is_not_held_to_the_tolerance(): void
     {
         $setting = $this->setting();

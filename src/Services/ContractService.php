@@ -79,6 +79,14 @@ class ContractService
      */
     public const PRICE_CHECK_FROM = 1000000.0;
 
+    /**
+     * The most deviation_percent can hold. A contract asking more than about
+     * 10,000 times its quote went past it, the insert failed on strict
+     * MySQL, and that contract was never tracked. Held at the cap, it is
+     * still flagged as a price mismatch.
+     */
+    private const DEVIATION_CAP = 999999.99;
+
     protected AppraisalMatcher $matcher;
 
     protected AppraisalRecordService $records;
@@ -565,7 +573,7 @@ class ContractService
             return null;
         }
 
-        return round((($asked - $quoted) / $quoted) * 100, 2);
+        return min(self::DEVIATION_CAP, round((($asked - $quoted) / $quoted) * 100, 2));
     }
 
     /**
