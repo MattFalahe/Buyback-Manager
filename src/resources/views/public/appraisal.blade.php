@@ -81,7 +81,7 @@
                         <input type="text" id="bb-price" class="bb-key-input bb-copy-input" value="{{ $copyPrice }}" readonly onclick="this.select();">
                         <button type="button" class="bb-public-cta" style="border:none; cursor:pointer;" onclick="bbCopy('bb-price', this)">Copy</button>
                     </div>
-                    <div class="bb-key-hint">Rounded to the whole ISK.{{ count($haulFees) ? ' Anywhere without a haul fee below.' : '' }}</div>
+                    <div class="bb-key-hint">Exactly as quoted, to the cent.{{ count($haulFees) ? ' Anywhere without a haul fee below.' : '' }}</div>
                 </div>
                 <div class="bb-copy-field">
                     <div class="bb-key-label">Contract to</div>
@@ -99,7 +99,7 @@
                 <div class="bb-copy-field">
                     <div class="bb-key-label">{{ $fee['location'] }}</div>
                     <div class="bb-key-row">
-                        <input type="text" id="bb-price-{{ $i }}" class="bb-key-input bb-copy-input" value="{{ number_format(round($fee['price']), 0, '', '') }}" readonly onclick="this.select();">
+                        <input type="text" id="bb-price-{{ $i }}" class="bb-key-input bb-copy-input" value="{{ \BuybackManager\Models\BuybackSetting::contractPrice($fee['price']) }}" readonly onclick="this.select();">
                         <button type="button" class="bb-public-cta" style="border:none; cursor:pointer;" onclick="bbCopy('bb-price-{{ $i }}', this)">Copy</button>
                     </div>
                     <div class="bb-key-hint">{{ number_format($fee['fee'], 2) }} ISK haul fee, {{ \BuybackManager\Models\BuybackSetting::iskPerM3($fee['per_m3']) }}.</div>

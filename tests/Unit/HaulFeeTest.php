@@ -163,5 +163,17 @@ class HaulFeeTest extends TestCase
         $this->assertStringContainsString('for the location you contract from', $setting->publicContractInstructions()[2]);
     }
 
+    public function test_a_contract_price_is_given_to_the_cent(): void
+    {
+        $this->assertSame('2.48', BuybackSetting::contractPrice(2.48));
+        $this->assertSame('2.00', BuybackSetting::contractPrice(2.0));
+        $this->assertSame('1234567.89', BuybackSetting::contractPrice(1234567.891));
+        $this->assertSame('0.01', BuybackSetting::contractPrice(0.005));
+        $this->assertSame('0.00', BuybackSetting::contractPrice(-3.0));
+
+        // The quote less a fee keeps its cents too.
+        $this->assertSame('1.23', BuybackSetting::contractPrice(round(2.48 - BuybackSetting::haulFee(125.0, 0.01, 2.48), 2)));
+    }
+
 
 }

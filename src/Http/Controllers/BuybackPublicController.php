@@ -153,10 +153,7 @@ class BuybackPublicController extends Controller
             'keyStatus'    => $service->keyStatus($appraisal),
             'validUntil'   => $validUntil,
             'isStale'      => $validUntil !== null && $validUntil->isPast(),
-            // Whole ISK, with no separator a client language could read
-            // differently. Rounding moves the price by under half an ISK,
-            // which the price check rounds away on anything over 10,000 ISK.
-            'copyPrice'    => number_format(round((float) $appraisal->total_buyback_value), 0, '', ''),
+            'copyPrice'    => BuybackSetting::contractPrice((float) $appraisal->total_buyback_value),
             'haulFees'     => $setting->haulFeeQuotes((float) $appraisal->total_buyback_value, (float) $appraisal->total_volume),
             'thinGuard'    => (float) ($setting->thin_market_guard_percent ?? 10),
             // Rule names are labels, read from the rules as they are now.

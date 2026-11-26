@@ -185,7 +185,7 @@ The first public release of Buyback Manager. It turns a corporation buyback prog
 - The name under the logo is whoever the contract goes to, like the link: the corporation's ticker, the receiving corporation's ticker or name, or the receiving player's name.
 - Configurable rate display: a "most wanted" flag for featured items, an option to list every non-excluded rule, and an option to show the provider and market and each rule's price side. With that option on, the estimate and the appraisal page name them too.
 - The appraisal page says when the quote was made and until when it holds. After that it warns that a contract made with it is flagged for a director to check against today's prices.
-- Copy buttons on the appraisal page for the key, the contract price in whole ISK, and who to contract to.
+- Copy buttons on the appraisal page for the key, the contract price to the cent, and who to contract to.
 - The appraisal page shows what became of the contract that used its key: received, paid, expired, cancelled or declined. Anyone with the link sees the state and its date, never who issued or accepted the contract.
 - A ticker a closed corporation still holds finds the corporation that runs the programme, and the page settings warn when another programme's link has the same name.
 

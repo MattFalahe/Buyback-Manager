@@ -449,6 +449,17 @@ class BuybackSetting extends Model
         return rtrim(rtrim(number_format($perM3, 2), '0'), '.') . ' ISK/m3';
     }
 
+    /**
+     * A price as the seller pastes it into the contract: to the cent, as
+     * EVE takes it, so it matches the quote exactly. Whole ISK threw a small
+     * quote outside the price check's tolerance. No thousands separator,
+     * which a client language could read differently.
+     */
+    public static function contractPrice(float $isk): string
+    {
+        return number_format(max(0.0, $isk), 2, '.', '');
+    }
+
     protected static function locationLabel(BuybackLocationRule $rule): string
     {
         return ($rule->location_name ?: ('#' . $rule->location_id)) . ' (' . $rule->location_type . ')';

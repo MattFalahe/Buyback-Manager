@@ -92,7 +92,7 @@ Pick who receives the contracts, matching EVE's own visibility rules:
 - Brandable per corp: uploaded background and logo (dark, no box, or white square), accent colour, dim overlay, headline, blurb, footer, and a stacked or side-by-side layout. Images are served from your own server, so they need no `storage:link` and satisfy a strict content-security policy.
 - The blurb keeps your line breaks and takes simple formatting from buttons on the field: bold, italic, headings, bulleted and numbered lists, and links.
 - Configurable rates: flag "most wanted" items, optionally list every rule, and optionally show the provider and market and each rule's price side.
-- Each appraisal page says when the quote was made and until when it holds, has copy buttons for the key, the contract price in whole ISK and who to contract to, and shows what became of the contract that used the key (received, paid, expired, cancelled or declined), never who issued or accepted it.
+- Each appraisal page says when the quote was made and until when it holds, has copy buttons for the key, the contract price to the cent and who to contract to, and shows what became of the contract that used the key (received, paid, expired, cancelled or declined), never who issued or accepted it.
 
 ### 📊 Analytics
 - A dedicated Analytics page: most-bought items, groups and categories by ISK paid, top sellers, and a quote-to-payout funnel showing how many appraisals turned into sales.

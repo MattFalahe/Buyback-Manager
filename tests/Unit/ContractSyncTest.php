@@ -256,6 +256,33 @@ class ContractSyncTest extends TestCase
         $this->assertSame(1, $row->items()->count());
     }
 
+    public function test_a_small_quote_contracted_at_the_copied_price_is_clean(): void
+    {
+        $setting = $this->setting();
+        $this->appraisal('bb-abcd2345', 2.48);
+        $contractId = $this->contract(['price' => (float) BuybackSetting::contractPrice(2.48)]);
+
+        $this->service()->syncContractsForSetting($setting);
+
+        $this->assertSame(['buyback.contract.matched'], $this->events->names());
+        $row = BuybackContract::where('contract_id', $contractId)->first();
+        $this->assertSame([], $row->flags());
+        $this->assertSame(0.0, (float) $row->deviation_percent);
+    }
+
+    public function test_a_small_quote_contracted_at_whole_isk_is_a_price_mismatch(): void
+    {
+        $setting = $this->setting();
+        $this->appraisal('bb-abcd2345', 2.48);
+        $this->contract(['price' => 2.0]);
+
+        $this->service()->syncContractsForSetting($setting);
+
+        $this->assertSame(['buyback.contract.flagged'], $this->events->names());
+        $this->assertContains(BuybackContract::FLAG_PRICE_MISMATCH, $this->events->events[0]['payload']['flags']);
+        $this->assertSame(-19.35, $this->events->events[0]['payload']['deviation_percent']);
+    }
+
     public function test_a_contract_already_finished_when_first_seen_announces_its_completion(): void
     {
         $setting = $this->setting();

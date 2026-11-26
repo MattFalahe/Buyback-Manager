@@ -813,7 +813,7 @@
                     <h4>The appraisal page</h4>
                     <p>Every quote gets its own page at <code>/buyback/{name}/a/{key}</code>, which the seller keeps open while making the contract. The key finds the quote, so an older link with another name in front still opens it:</p>
                     <ul>
-                        <li><strong>Copy buttons</strong> for the key, the contract price in whole ISK, and who to contract to.</li>
+                        <li><strong>Copy buttons</strong> for the key, the contract price to the cent, and who to contract to.</li>
                         <li><strong>When the quote holds.</strong> It shows when the quote was made and until when it holds, from your stale-quote window. After that it warns the seller that a contract made with it is flagged for you to check against today's prices. Nothing is refused.</li>
                         <li><strong>What became of the contract.</strong> Once a contract uses the key, the page says so: received and waiting for you, paid, expired, cancelled, or declined, with the date.</li>
                         <li><strong>Which rates it used.</strong> A member's quote says it was made at member rates. On a members-only programme the page says so, and that anyone else can still contract it.</li>
